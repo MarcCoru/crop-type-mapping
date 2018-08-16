@@ -52,7 +52,8 @@ $$E_x E_t E_{\hat{x}_{t+1}, \dots \hat{x}_T \text{ draws}} L_c(h(x_0, \dots \hat
 ## Option 2 : All-in-one-RNN
 
 Another, more challenging, option would be to learn a model that would have two discriminative outputs plugged on the
-recurrent unit at time $t$ :
+recurrent unit at time $t$:
+
 1. An output $h_t$ that would output class probabilities as usual
 2. An output $d_t$ that would output a probability to delay classification: if this value is lower than a half, more 
 data has to be obtained before classification, otherwise classification is performed.
@@ -61,7 +62,7 @@ The cost function to be minimized here would be:
 
 $$E_x E_t P(t) * \left(L_c(h_t(x_0, \dots x_t), y) + \alpha t\right)$$
 
-where $P(t)$ would be computed as:
+where $P(t)$ is the probability that classification is performed at time $t$, computed as:
 
 $$P(0) = d_0(x_0)$$
 
@@ -73,7 +74,8 @@ $$P(T) = 1 - \sum_{t<T} P(t)$$
 
 * <a href="../media/20180720_114608.jpg">20180720_114608.jpg</a>
 
-In fact for **option 2** above, we have:
+In fact for **option 2** above, if we train $d_t$ to model the probability of classifying at time
+$t$ **given that we have not classified previously**, then we have:
 
 $$P(t) = d_t(x_t) \Pi_{t'<t}(1-d_{t'}(x_{t'}))$$
 
