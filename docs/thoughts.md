@@ -83,6 +83,9 @@ In practice, enforcing the constraint on $P(T)$ could be done through regulariza
 
 $$\left(1 - \sum_{t=0}^T P(t)\right)^2$$
 
+**Note from myself (17/08/2018): why not just set numerically that 
+$P(T) = 1 - \sum_{t<T} P(t)$ in the RNN loop? Not sure why regularizing would be better...**
+
 Then we still have one question: at test time, how should we decide to classify or not?
 One option would be to flip a coin based on $d_t(x_t)$ and classify if the coin says so.
 
