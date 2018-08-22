@@ -31,16 +31,22 @@ class DualOutputRNN:
 
         self.time_series = None
         self.targets = None
+        self.init_hidden_state = None
+        self.init_current_state = None
+        self.predicted_probas = None
+        self.predicted_decs = None
         self.loss = None
+        self.loss_no_early = None
         self.train_op = None
+        self.train_op_no_early = None
         self._build_model()
 
     def _get_loss_earliness(self, t):
         return self.earliness_factor * t
 
     def _build_model(self):
-        self.time_series = tf.placeholder(tf.float32, [self.batch_size, self.ts_size, self.ts_dim])
-        self.targets = tf.placeholder(tf.float32, [self.batch_size, self.n_classes])
+        self.time_series = tf.placeholder(tf.float32, [None, self.ts_size, self.ts_dim])
+        self.targets = tf.placeholder(tf.float32, [None, self.n_classes])
         lstm = tf.contrib.rnn.BasicLSTMCell(self.lstm_size)
 
         # Classifier part
@@ -56,14 +62,14 @@ class DualOutputRNN:
         b_out_dec = tf.Variable(tf.random_normal([1]))
 
         # Initialization
-        hidden_state = tf.zeros([self.batch_size, self.lstm_size])
-        current_state = tf.zeros([self.batch_size, self.lstm_size])
-        state = hidden_state, current_state
+        self.init_hidden_state = tf.placeholder(tf.float32, [None, self.lstm_size])
+        self.init_current_state = tf.placeholder(tf.float32, [None, self.lstm_size])
+        state = self.init_hidden_state, self.init_current_state
 
         self.loss = 0.0
         self.loss_no_early = 0.0
         unstacked_time_series = tf.unstack(self.time_series, self.ts_size, 1)
-        self.sum_Pt = [0.0]
+        sum_Pt = [0.0]
         self.predicted_probas = []
         self.predicted_decs = []
         proba_not_decided_yet = [1.0]
@@ -82,7 +88,7 @@ class DualOutputRNN:
             else:
                 Pt = proba_not_decided_yet[-1]
                 proba_not_decided_yet.append(0.)
-            self.sum_Pt.append(self.sum_Pt[-1] + Pt)
+            sum_Pt.append(sum_Pt[-1] + Pt)
 
             # Loss
             if self.n_classes == 2:
@@ -108,6 +114,8 @@ class DualOutputRNN:
         init = tf.global_variables_initializer()
         sess.run(init)
 
+        init_states = np.zeros((self.batch_size, self.lstm_size))
+
         for epoch in range(self.epochs):
             avg_cost = 0.
             n_batches = int(X.shape[0] / self.batch_size)
@@ -115,11 +123,17 @@ class DualOutputRNN:
                 indices = np.random.randint(low=0, high=X.shape[0], size=self.batch_size, )
                 batch_x, batch_y = X[indices], y[indices]
                 if epoch < n_epochs_no_early:
-                    _, c = sess.run([self.train_op_no_early, self.loss_no_early], feed_dict={self.time_series: batch_x,
-                                                                                             self.targets: batch_y})
+                    _, c = sess.run([self.train_op_no_early, self.loss_no_early],
+                                    feed_dict={self.time_series: batch_x,
+                                               self.targets: batch_y,
+                                               self.init_hidden_state: init_states,
+                                               self.init_current_state: init_states})
                 else:
-                    _, c = sess.run([self.train_op, self.loss], feed_dict={self.time_series: batch_x,
-                                                                           self.targets: batch_y})
+                    _, c = sess.run([self.train_op, self.loss],
+                                    feed_dict={self.time_series: batch_x,
+                                               self.targets: batch_y,
+                                               self.init_hidden_state: init_states,
+                                               self.init_current_state: init_states})
                 avg_cost += c / n_batches
             if epoch == n_epochs_no_early - 1:
                 print("[End of no-early training] Epoch:", '%04d' % (epoch + 1), "cost={:.9f}".format(avg_cost))
@@ -129,8 +143,11 @@ class DualOutputRNN:
 
     def predict(self, X, sess):
         n_ts = X.shape[0]
+        init_states = np.zeros((n_ts, self.lstm_size))
         predicted_probas, predicted_decs = sess.run([self.predicted_probas, self.predicted_decs],
-                                                    feed_dict={self.time_series: X})
+                                                    feed_dict={self.time_series: X,
+                                                               self.init_hidden_state: init_states,
+                                                               self.init_current_state: init_states})
         y = np.zeros((n_ts, ), dtype=np.int32)
         tau = np.zeros((n_ts, ), dtype=np.int32)
         already_predicted = np.zeros((n_ts, ), dtype=np.bool)
@@ -167,13 +184,7 @@ if __name__ == "__main__":
                           reg=.01)
     model.fit(X_train, y_train, sess)
 
-    y_pred, tau_pred = model.predict(X_test[:model.batch_size], sess)
-    for yi, yi_hat, taui in zip(y_test[:model.batch_size], y_pred, tau_pred):
+    y_pred, tau_pred = model.predict(X_test, sess)
+    for yi, yi_hat, taui in zip(y_test, y_pred, tau_pred):
         print(yi, yi_hat, taui)
 
-    # sum_Pt = sess.run(model.sum_Pt[1:], feed_dict={model.time_series: X[:model.batch_size]})
-    # prev_sum = 0.
-    # for t in range(len(sum_Pt)):
-    #     Pt = sum_Pt[t] - prev_sum
-    #     print(t, Pt[7])  # PRinting for a single TS for the moment
-    #     prev_sum += Pt
