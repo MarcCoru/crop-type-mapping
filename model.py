@@ -109,7 +109,7 @@ class DualOutputRNN:
         self.train_op_no_early = optimizer.minimize(self.loss_no_early)
 
     def fit(self, X, y, sess):
-        n_epochs_no_early = 100
+        n_epochs_no_early = self.epochs // 2  # Pure stupid heuristic
 
         init = tf.global_variables_initializer()
         sess.run(init)
@@ -166,25 +166,3 @@ class DualOutputRNN:
             already_predicted[assign_class_to_y] = True
         assert(np.alltrue(already_predicted))
         return y, tau
-
-
-if __name__ == "__main__":
-    sess = tf.Session()
-    tf.set_random_seed(0)
-    np.random.seed(0)
-    X_train, y_train, X_test, y_test = CachedDatasets().load_dataset("Trace")
-    y_train = to_categorical(y_train)
-
-    model = DualOutputRNN(n_classes=y_train.shape[1],
-                          batch_size=10,
-                          ts_size=X_train.shape[1],
-                          epochs=200,
-                          earliness_factor=.01,
-                          lr=.001,
-                          reg=.01)
-    model.fit(X_train, y_train, sess)
-
-    y_pred, tau_pred = model.predict(X_test, sess)
-    for yi, yi_hat, taui in zip(y_test, y_pred, tau_pred):
-        print(yi, yi_hat, taui)
-
