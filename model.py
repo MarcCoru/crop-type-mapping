@@ -2,9 +2,6 @@ from __future__ import division
 import tensorflow as tf
 import numpy as np
 
-from tslearn.datasets import CachedDatasets
-from keras.utils import to_categorical
-
 __author__ = 'Romain Tavenard romain.tavenard[at]univ-rennes2.fr'
 
 
@@ -13,6 +10,7 @@ class DualOutputRNN:
                  earliness_factor=1.,
                  lstm_size=128,
                  epochs=100,
+                 epochs_no_early=None,
                  lr=.01,
                  batch_size=128,
                  reg=1.,
@@ -27,7 +25,10 @@ class DualOutputRNN:
         self.lr = lr
         self.batch_size = batch_size
         self.epochs = epochs
+        self.epochs_no_early = epochs_no_early if epochs_no_early is not None else self.epochs // 2
         self.reg = reg
+
+        self._session = None
 
         self.time_series = None
         self.targets = None
@@ -40,6 +41,10 @@ class DualOutputRNN:
         self.train_op = None
         self.train_op_no_early = None
         self._build_model()
+
+    def _set_session(self):
+        if self._session is None:
+            self._session = tf.Session()
 
     def _get_loss_earliness(self, t):
         return self.earliness_factor * t
@@ -108,11 +113,11 @@ class DualOutputRNN:
         self.train_op = optimizer.minimize(self.loss)
         self.train_op_no_early = optimizer.minimize(self.loss_no_early)
 
-    def fit(self, X, y, sess):
-        n_epochs_no_early = self.epochs // 2  # Pure stupid heuristic
+    def fit(self, X, y):
+        self._set_session()
 
         init = tf.global_variables_initializer()
-        sess.run(init)
+        self._session.run(init)
 
         init_states = np.zeros((self.batch_size, self.lstm_size))
 
@@ -122,32 +127,32 @@ class DualOutputRNN:
             for _ in range(n_batches):
                 indices = np.random.randint(low=0, high=X.shape[0], size=self.batch_size, )
                 batch_x, batch_y = X[indices], y[indices]
-                if epoch < n_epochs_no_early:
-                    _, c = sess.run([self.train_op_no_early, self.loss_no_early],
-                                    feed_dict={self.time_series: batch_x,
-                                               self.targets: batch_y,
-                                               self.init_hidden_state: init_states,
-                                               self.init_current_state: init_states})
+                if epoch < self.epochs_no_early:
+                    _, c = self._session.run([self.train_op_no_early, self.loss_no_early],
+                                             feed_dict={self.time_series: batch_x,
+                                                        self.targets: batch_y,
+                                                        self.init_hidden_state: init_states,
+                                                        self.init_current_state: init_states})
                 else:
-                    _, c = sess.run([self.train_op, self.loss],
-                                    feed_dict={self.time_series: batch_x,
-                                               self.targets: batch_y,
-                                               self.init_hidden_state: init_states,
-                                               self.init_current_state: init_states})
+                    _, c = self._session.run([self.train_op, self.loss],
+                                             feed_dict={self.time_series: batch_x,
+                                                        self.targets: batch_y,
+                                                        self.init_hidden_state: init_states,
+                                                        self.init_current_state: init_states})
                 avg_cost += c / n_batches
-            if epoch == n_epochs_no_early - 1:
+            if epoch == self.epochs_no_early - 1:
                 print("[End of no-early training] Epoch:", '%04d' % (epoch + 1), "cost={:.9f}".format(avg_cost))
             elif epoch % 10 == 0:
                 print("Epoch:", '%04d' % (epoch + 1), "cost={:.9f}".format(avg_cost))
-        print("Optimization Finished!")
 
-    def predict(self, X, sess):
+    def predict(self, X):
+        self._set_session()
         n_ts = X.shape[0]
         init_states = np.zeros((n_ts, self.lstm_size))
-        predicted_probas, predicted_decs = sess.run([self.predicted_probas, self.predicted_decs],
-                                                    feed_dict={self.time_series: X,
-                                                               self.init_hidden_state: init_states,
-                                                               self.init_current_state: init_states})
+        predicted_probas, predicted_decs = self._session.run([self.predicted_probas, self.predicted_decs],
+                                                             feed_dict={self.time_series: X,
+                                                                        self.init_hidden_state: init_states,
+                                                                        self.init_current_state: init_states})
         y = np.zeros((n_ts, ), dtype=np.int32)
         tau = np.zeros((n_ts, ), dtype=np.int32)
         already_predicted = np.zeros((n_ts, ), dtype=np.bool)
