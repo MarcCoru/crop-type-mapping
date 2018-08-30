@@ -144,6 +144,7 @@ class DualOutputRNN:
                 print("[End of no-early training] Epoch:", '%04d' % (epoch + 1), "cost={:.9f}".format(avg_cost))
             elif epoch % 10 == 0:
                 print("Epoch:", '%04d' % (epoch + 1), "cost={:.9f}".format(avg_cost))
+        return self
 
     def predict(self, X):
         self._set_session()
