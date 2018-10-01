@@ -104,10 +104,12 @@ class DualOutputRNN:
                 loss_classif = tf.reshape(tf.nn.softmax_cross_entropy_with_logits(logits=logits_class,
                                                                                   labels=self.targets),
                                           shape=(-1, 1))
+            # Average loss_no_early over all timesteps to make it the same scale
+            # as loss that has Pt as a factor
             self.loss_no_early += tf.reduce_mean(loss_classif) / self.ts_size
             self.loss += Pt * (loss_classif + self._get_loss_earliness(t))
-        # self.loss += self.reg * (1.0 - self.sum_Pt[-1]) ** 2
-        self.loss = tf.reduce_mean(self.loss)  # Mean over batch
+        # Averaged over all samples and all TS lengths
+        self.loss = tf.reduce_mean(self.loss)
 
         optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
         self.train_op = optimizer.minimize(self.loss)
