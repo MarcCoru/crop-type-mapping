@@ -41,6 +41,10 @@ model = DualOutputRNN(input_dim=1, nclasses=nclasses)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 loss = torch.nn.NLLLoss(reduction='none') # reduction='none'
 
+if torch.cuda.is_available():
+    model = model.cuda()
+    loss = loss.cuda()
+
 stats = dict(
     loss=list(),
     loss_earliness=list(),
@@ -53,11 +57,19 @@ for epoch in range(epochs):
 
         inputs, targets = data
 
+        if torch.cuda.is_available():
+            inputs = inputs.cuda()
+            targets = targets.cuda()
+
         predicted_probas, Pts = model.forward(inputs)
 
         loss_classif = torch.mean((Pts * loss(predicted_probas.permute(0,2,1,3,4), targets)))
 
         alphat = model._build_regularization_earliness(earliness_factor=earliness_factor, out_shape=Pts.shape)
+
+        if torch.cuda.is_available():
+            alphat = alphat.cuda()
+
         loss_earliness = torch.mean((Pts * alphat))
 
         if epoch < switch_epoch:
