@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.data
 from models.convlstm.convlstm import ConvLSTMCell
+import numpy as np
 
 class DualOutputRNN(torch.nn.Module):
     def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5):
@@ -62,36 +64,124 @@ class DualOutputRNN(torch.nn.Module):
         t_vector = torch.arange(T).type(torch.FloatTensor)
         return ((earliness_factor * torch.ones(*out_shape)).permute(0,3,2,1) * t_vector).permute(0,3,2,1)
 
-    def fit(self,X,y, lr=1e-3, earliness_factor=1e-3, epochs=3):
-
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-
-        # softmax + Negative Log Likelihood (NLL-Loss) = Crossentropy
-        loss = torch.nn.NLLLoss(reduction='none')
-
-        #for epoch in range(epochs):
-        #    for batch in range(X.shape[0]):
-        #i=0
-
-        predicted_probas, Pts = self.forward(X[i])
-
-        # copy a view of y for each time t and permute dims to (b, t, h, w)
-        target = y[0].expand(t, b, h, w).permute(1, 0, 2, 3)
-        pred = predicted_probas.permute(0,2,1,3,4) # -> (n, c, t, h, w)
-
-        # sum over time and average over batch
-        loss_classif = torch.mean((Pts * loss(pred, target)).sum(1))
-
-        alphat = self._build_regularization_earliness(earliness_factor=earliness_factor, out_shape=Pts.shape)
-        # average over time and batch
-        loss_earliness = torch.mean(Pts * alphat)
-
-        N, T, _, _, _ = Pts.shape
-
-        loss_earliness = torch.mean(Pts * alphat)
+    def fit(self,X,y,
+            learning_rate=1e-3,
+            earliness_factor=1e-3,
+            epochs=3,
+            workers=0,
+            switch_epoch=2,
+            batchsize=1):
 
 
-        y[i].expand_as(predicted_probas)
+        traindataset = DatasetWrapper(X, y)
+
+        # handles multithreaded batching and shuffling
+        traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
+                                                      num_workers=workers)
+
+        optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+        loss = torch.nn.NLLLoss(reduction='none')  # reduction='none'
+
+        if torch.cuda.is_available():
+            self = self.cuda()
+            loss = loss.cuda()
+
+        stats = dict(
+            loss=list(),
+            loss_earliness=list(),
+            loss_classif=list())
+
+        for epoch in range(epochs):
+
+            for iteration, data in enumerate(traindataloader):
+                optimizer.zero_grad()
+
+                inputs, targets = data
+
+                if torch.cuda.is_available():
+                    inputs = inputs.cuda()
+                    targets = targets.cuda()
+
+                predicted_probas, Pts = self.forward(inputs)
+
+                loss_classif = torch.mean((Pts * loss(predicted_probas.permute(0, 2, 1, 3, 4), targets)))
+
+                alphat = model._build_regularization_earliness(earliness_factor=earliness_factor, out_shape=Pts.shape)
+
+                if torch.cuda.is_available():
+                    alphat = alphat.cuda()
+
+                loss_earliness = torch.mean((Pts * alphat))
+
+                if epoch < switch_epoch:
+                    l = loss_classif
+                else:
+                    l = loss_classif + loss_earliness
+
+                stats["loss"].append(l.detach().cpu().numpy())
+                stats["loss_classif"].append(loss_classif.detach().cpu().numpy())
+                stats["loss_earliness"].append(loss_earliness.detach().cpu().numpy())
+
+                l.backward()
+                optimizer.step()
+
+            print("[End of training] Epoch:", '%04d' % (epoch + 1),
+                  "loss={loss:.9f}, loss_classif={loss_classif:.9f}, loss_earliness={loss_earliness:.9f}".format(
+                      loss=np.array(stats["loss"]).mean(),
+                      loss_classif=np.array(stats["loss_classif"]).mean(),
+                      loss_earliness=np.array(stats["loss_earliness"]).mean()
+                  )
+                  )
+
+    def save(self, path="model.pth"):
+        print("saving model to "+path)
+        model_state = self.state_dict()
+        torch.save(model_state,path)
+
+    def load(self, path):
+        print("loading model from "+path)
+        model_state = torch.load(path, map_location="cpu")
+        self.load_state_dict(model_state)
+
+class DatasetWrapper(torch.utils.data.Dataset):
+    """
+    A simple wrapper to insert the dataset in the torch.utils.data.DataLoader module
+    that handles multi-threaded loading, sampling, batching and shuffling
+    """
+
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
+
+    def __len__(self):
+        return X_train.shape[0]
+
+    def __getitem__(self, idx):
+        X = torch.from_numpy(self.X[idx]).type(torch.FloatTensor)
+        y = torch.from_numpy(np.array([self.y[idx] - 1])).type(torch.LongTensor)
+
+        # add 1d hight and width dimensions and copy y for each time
+        return X.unsqueeze(-1).unsqueeze(-1), y.expand(X.shape[0]).unsqueeze(-1).unsqueeze(-1)
+
+
 
 if __name__ == "__main__":
+    from tslearn.datasets import CachedDatasets
+
+    X_train, y_train, X_test, y_test = CachedDatasets().load_dataset("Trace")
+    nclasses = len(set(y_train))
+
+    model = DualOutputRNN(input_dim=1, nclasses=nclasses)
+
+    #model.fit(X_train, y_train, epochs=50)
+    #model.save("/tmp/model_e50.pth")
+    model.load("/tmp/model_e50.pth")
+
+    x = torch.from_numpy(X_test[0]).type(torch.FloatTensor)
+
+    # add batch dimension and hight and width
+    x = x.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+
+    pred, pt = model.forward(x)
+
     pass
