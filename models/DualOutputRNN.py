@@ -5,6 +5,9 @@ import torch.utils.data
 from models.convlstm.convlstm import ConvLSTMCell
 import numpy as np
 
+# debug
+import matplotlib.pyplot as plt
+
 class DualOutputRNN(torch.nn.Module):
     def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5):
         super(DualOutputRNN, self).__init__()
@@ -19,6 +22,10 @@ class DualOutputRNN(torch.nn.Module):
         # Decision layer
         self.conv_dec = nn.Conv2d(in_channels=hidden_dim,out_channels=1,kernel_size=kernel_size,
                               padding=(kernel_size[0] // 2, kernel_size[1] // 2), bias=True)
+
+        # initialize bias with low values to high proba_dec values at the beginning
+        #torch.nn.init.normal_(self.conv_dec.bias, mean=-10, std=0.5)
+        #pass
 
     def forward(self,x):
 
@@ -62,16 +69,21 @@ class DualOutputRNN(torch.nn.Module):
         N, T, H, W = out_shape
 
         t_vector = torch.arange(T).type(torch.FloatTensor)
-        return ((earliness_factor * torch.ones(*out_shape)).permute(0,3,2,1) * t_vector).permute(0,3,2,1)
+
+        alphat =  ((earliness_factor * torch.ones(*out_shape)).permute(0,3,2,1) * t_vector).permute(0,3,2,1)
+
+        if torch.cuda.is_available():
+            return alphat.cuda()
+        else:
+            return alphat
 
     def fit(self,X,y,
-            learning_rate=1e-3,
+            learning_rate=1e-2,
             earliness_factor=1e-3,
             epochs=3,
             workers=0,
             switch_epoch=2,
             batchsize=1):
-
 
         traindataset = DatasetWrapper(X, y)
 
@@ -86,12 +98,13 @@ class DualOutputRNN(torch.nn.Module):
             self = self.cuda()
             loss = loss.cuda()
 
-        stats = dict(
-            loss=list(),
-            loss_earliness=list(),
-            loss_classif=list())
+
 
         for epoch in range(epochs):
+
+            stats = dict(
+                loss=list(),
+                loss_no_early=list())
 
             for iteration, data in enumerate(traindataloader):
                 optimizer.zero_grad()
@@ -104,34 +117,33 @@ class DualOutputRNN(torch.nn.Module):
 
                 predicted_probas, Pts = self.forward(inputs)
 
-                loss_classif = torch.mean((Pts * loss(predicted_probas.permute(0, 2, 1, 3, 4), targets)))
+                # Averaged over all samples and all TS lengths
+                loss_classif = loss(predicted_probas.permute(0, 2, 1, 3, 4), targets)
 
-                alphat = model._build_regularization_earliness(earliness_factor=earliness_factor, out_shape=Pts.shape)
+                alphat = self._build_regularization_earliness(earliness_factor=earliness_factor, out_shape=Pts.shape)
 
-                if torch.cuda.is_available():
-                    alphat = alphat.cuda()
-
-                loss_earliness = torch.mean((Pts * alphat))
+                #loss_earliness = torch.mean((Pts * alphat))
 
                 if epoch < switch_epoch:
-                    l = loss_classif
-                else:
-                    l = loss_classif + loss_earliness
+                    l_tensor = loss_classif
+                    l = torch.mean(l_tensor)
 
-                stats["loss"].append(l.detach().cpu().numpy())
-                stats["loss_classif"].append(loss_classif.detach().cpu().numpy())
-                stats["loss_earliness"].append(loss_earliness.detach().cpu().numpy())
+                    stats["loss_no_early"].append(l.detach().cpu().numpy())
+                else:
+                    l_tensor = Pts * loss_classif + Pts * alphat
+
+                    # sum over times, average over batches
+                    l = l_tensor.sum(dim=1).mean()
+
+                    stats["loss"].append(l.detach().cpu().numpy())
+
+
 
                 l.backward()
                 optimizer.step()
 
-            print("[End of training] Epoch:", '%04d' % (epoch + 1),
-                  "loss={loss:.9f}, loss_classif={loss_classif:.9f}, loss_earliness={loss_earliness:.9f}".format(
-                      loss=np.array(stats["loss"]).mean(),
-                      loss_classif=np.array(stats["loss_classif"]).mean(),
-                      loss_earliness=np.array(stats["loss_earliness"]).mean()
-                  )
-                  )
+            print_stats(epoch, stats)
+
 
     def save(self, path="model.pth"):
         print("saving model to "+path)
@@ -142,6 +154,24 @@ class DualOutputRNN(torch.nn.Module):
         print("loading model from "+path)
         model_state = torch.load(path, map_location="cpu")
         self.load_state_dict(model_state)
+
+def plot_Pts(Pts):
+    plt.plot(Pts[0, :, 0, 0].detach().numpy())
+    plt.show()
+
+def plot_probas(predicted_probas):
+    plt.plot(predicted_probas[0, :, :, 0, 0].exp().detach().numpy())
+    plt.show()
+
+def print_stats(epoch, stats):
+    out_str = "[End of training] Epoch {}: ".format(epoch)
+    for k,v in stats.items():
+        if len(np.array(v))>0:
+            out_str+="{}:{}".format(k,np.array(v).mean())
+
+    print(out_str)
+
+
 
 class DatasetWrapper(torch.utils.data.Dataset):
     """
@@ -154,7 +184,7 @@ class DatasetWrapper(torch.utils.data.Dataset):
         self.y = y
 
     def __len__(self):
-        return X_train.shape[0]
+        return self.X.shape[0]
 
     def __getitem__(self, idx):
         X = torch.from_numpy(self.X[idx]).type(torch.FloatTensor)
@@ -169,19 +199,30 @@ if __name__ == "__main__":
     from tslearn.datasets import CachedDatasets
 
     X_train, y_train, X_test, y_test = CachedDatasets().load_dataset("Trace")
+    #X_train, y_train, X_test, y_test = CachedDatasets().load_dataset("ElectricDevices")
+
     nclasses = len(set(y_train))
 
     model = DualOutputRNN(input_dim=1, nclasses=nclasses)
 
-    #model.fit(X_train, y_train, epochs=50)
+    model.fit(X_train, y_train, epochs=5, switch_epoch=2)
+
     #model.save("/tmp/model_e50.pth")
     model.load("/tmp/model_e50.pth")
 
-    x = torch.from_numpy(X_test[0]).type(torch.FloatTensor)
-
     # add batch dimension and hight and width
-    x = x.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
 
-    pred, pt = model.forward(x)
+    pts = list()
+
+    with torch.no_grad():
+        for i in range(100):
+            x = torch.from_numpy(X_test[i]).type(torch.FloatTensor)
+
+            x = x.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+            pred, pt = model.forward(x)
+            pts.append(pt[0,:,0,0].detach().numpy())
+
+
+    #model.fit(X_train, y_train, epochs=1)
 
     pass
