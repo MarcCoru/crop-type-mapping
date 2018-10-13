@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import torch.utils.data
 from models.convlstm.convlstm import ConvLSTMCell
 import numpy as np
+from utils.classmetric import ClassMetric
+from utils.logger import Printer
 
 # debug
 import matplotlib.pyplot as plt
@@ -11,6 +13,8 @@ import matplotlib.pyplot as plt
 class DualOutputRNN(torch.nn.Module):
     def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5):
         super(DualOutputRNN, self).__init__()
+
+        self.nclasses=nclasses
 
         # recurrent cell
         self.rnn = ConvLSTMCell(input_size=input_size,input_dim=input_dim,hidden_dim=hidden_dim, kernel_size=kernel_size, bias=True)
@@ -33,7 +37,7 @@ class DualOutputRNN(torch.nn.Module):
         hidden, state = self.rnn.init_hidden(batch_size=x.shape[0])
 
         predicted_decs = list()
-        predicted_probas = list()
+        predicted_logits = list()
         proba_not_decided_yet = list([1.])
         Pts = list()
 
@@ -45,7 +49,6 @@ class DualOutputRNN(torch.nn.Module):
             proba_dec = torch.sigmoid(self.conv_dec(hidden)).squeeze(1) # (n,h,w) <- squeeze removes the depth dimension
             logits_class = self.conv_class(hidden)
             predicted_decs.append(proba_dec)
-            predicted_probas.append(F.log_softmax(logits_class, dim=1))
 
             # Probabilities
             if t < T - 1:
@@ -56,14 +59,16 @@ class DualOutputRNN(torch.nn.Module):
                 proba_not_decided_yet.append(0.)
             Pts.append(Pt)
 
-        # stack the lists to new tensor (b,t,d,h,w)
-        return torch.stack(predicted_probas, dim = 1), torch.stack(Pts, dim = 1)
+            predicted_logits.append(logits_class)
 
-    def _build_regularization_earliness(self, earliness_factor, out_shape):
+        # stack the lists to new tensor (b,d,t,h,w)
+        return torch.stack(predicted_logits, dim = 2), torch.stack(Pts, dim = 1)
+
+    def alphat(self, earliness_factor, out_shape):
         """
-        :param earliness_factor: scaling factor for temporal regularization
-        :param out_shape: output shape of format (N, T, H, W)
-        :return: tensor of outshape representing earliness*t for each pixel
+        equivalent to _get_loss_earliness
+
+        -> elementwise tensor multiplies the earliness factor with the time (obtained from the expected output shape)
         """
 
         N, T, H, W = out_shape
@@ -83,7 +88,7 @@ class DualOutputRNN(torch.nn.Module):
             epochs=3,
             workers=0,
             switch_epoch=2,
-            batchsize=1):
+            batchsize=3):
 
         traindataset = DatasetWrapper(X, y)
 
@@ -91,20 +96,20 @@ class DualOutputRNN(torch.nn.Module):
         traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
                                                       num_workers=workers)
 
+        printer = Printer()
+
         optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
-        loss = torch.nn.NLLLoss(reduction='none')  # reduction='none'
 
         if torch.cuda.is_available():
             self = self.cuda()
-            loss = loss.cuda()
-
-
 
         for epoch in range(epochs):
 
-            stats = dict(
-                loss=list(),
-                loss_no_early=list())
+            # builds a confusion matrix
+            metric = ClassMetric(num_classes=self.nclasses)
+
+            logged_loss_early=list()
+            logged_loss_class=list()
 
             for iteration, data in enumerate(traindataloader):
                 optimizer.zero_grad()
@@ -115,35 +120,31 @@ class DualOutputRNN(torch.nn.Module):
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                predicted_probas, Pts = self.forward(inputs)
+                predicted_logits, Pts = self.forward(inputs)
 
-                # Averaged over all samples and all TS lengths
-                loss_classif = loss(predicted_probas.permute(0, 2, 1, 3, 4), targets)
+                probabilities = F.softmax(predicted_logits,dim=1)
+                maxclass = probabilities.argmax(1)
+                prediction = maxclass.mode(1)[0]
 
-                alphat = self._build_regularization_earliness(earliness_factor=earliness_factor, out_shape=Pts.shape)
-
-                #loss_earliness = torch.mean((Pts * alphat))
+                stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
 
                 if epoch < switch_epoch:
-                    l_tensor = loss_classif
-                    l = torch.mean(l_tensor)
-
-                    stats["loss_no_early"].append(l.detach().cpu().numpy())
+                    loss = F.cross_entropy(predicted_logits, targets)
+                    logged_loss_class.append(loss.detach().cpu().numpy())
                 else:
-                    l_tensor = Pts * loss_classif + Pts * alphat
+                    loss_classification = Pts * F.cross_entropy(predicted_logits, targets, reduction="none")
+                    loss_earliness = Pts * self.alphat(earliness_factor, Pts.shape)
 
-                    # sum over times, average over batches
-                    l = l_tensor.sum(dim=1).mean()
+                    loss = (loss_classification + loss_earliness).sum(dim=1).mean()
+                    logged_loss_early.append(loss.detach().cpu().numpy())
 
-                    stats["loss"].append(l.detach().cpu().numpy())
+                stats["loss_early"] = np.array(logged_loss_early).mean()
+                stats["loss_class"] = np.array(logged_loss_class).mean()
 
+                printer.print(stats, iteration, epoch)
 
-
-                l.backward()
+                loss.backward()
                 optimizer.step()
-
-            print_stats(epoch, stats)
-
 
     def save(self, path="model.pth"):
         print("saving model to "+path)
@@ -205,15 +206,16 @@ if __name__ == "__main__":
 
     model = DualOutputRNN(input_dim=1, nclasses=nclasses)
 
-    model.fit(X_train, y_train, epochs=5, switch_epoch=2)
+    model.fit(X_train, y_train, epochs=100, switch_epoch=50,earliness_factor=1e-1)
 
-    #model.save("/tmp/model_e50.pth")
-    model.load("/tmp/model_e50.pth")
+    model.save("/tmp/model_50_e0.02.pth")
+    model.load("/tmp/model_50_e0.1.pth")
 
     # add batch dimension and hight and width
 
     pts = list()
 
+    # predict a few samples
     with torch.no_grad():
         for i in range(100):
             x = torch.from_numpy(X_test[i]).type(torch.FloatTensor)
@@ -221,8 +223,5 @@ if __name__ == "__main__":
             x = x.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
             pred, pt = model.forward(x)
             pts.append(pt[0,:,0,0].detach().numpy())
-
-
-    #model.fit(X_train, y_train, epochs=1)
 
     pass
