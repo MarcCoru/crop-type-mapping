@@ -6,6 +6,7 @@ from models.convlstm.convlstm import ConvLSTMCell
 import numpy as np
 from utils.classmetric import ClassMetric
 from utils.logger import Printer
+from utils.UCR_Dataset import DatasetWrapper, UCRDataset
 
 # debug
 import matplotlib.pyplot as plt
@@ -27,6 +28,7 @@ class DualOutputRNN(torch.nn.Module):
         self.conv_dec = nn.Conv2d(in_channels=hidden_dim,out_channels=1,kernel_size=kernel_size,
                               padding=(kernel_size[0] // 2, kernel_size[1] // 2), bias=True)
 
+        #self.cross_entropy = nn.CrossEntropyLoss()
         # initialize bias with low values to high proba_dec values at the beginning
         #torch.nn.init.normal_(self.conv_dec.bias, mean=-10, std=0.5)
         #pass
@@ -83,7 +85,7 @@ class DualOutputRNN(torch.nn.Module):
             return alphat
 
     def fit(self,X,y,
-            learning_rate=1e-2,
+            learning_rate=1e-3,
             earliness_factor=1e-3,
             epochs=3,
             workers=0,
@@ -91,6 +93,7 @@ class DualOutputRNN(torch.nn.Module):
             batchsize=3):
 
         traindataset = DatasetWrapper(X, y)
+        traindataset = UCRDataset("trace")
 
         # handles multithreaded batching and shuffling
         traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
@@ -122,14 +125,15 @@ class DualOutputRNN(torch.nn.Module):
 
                 predicted_logits, Pts = self.forward(inputs)
 
-                probabilities = F.softmax(predicted_logits,dim=1)
-                maxclass = probabilities.argmax(1)
+                logprobabilities = F.log_softmax(predicted_logits,dim=1)
+                maxclass = logprobabilities.argmax(1)
                 prediction = maxclass.mode(1)[0]
 
                 stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
 
                 if epoch < switch_epoch:
-                    loss = F.cross_entropy(predicted_logits, targets)
+                    loss = F.nll_loss(logprobabilities, targets)
+                    #loss = F.cross_entropy(predicted_logits, targets)
                     logged_loss_class.append(loss.detach().cpu().numpy())
                 else:
                     loss_classification = Pts * F.cross_entropy(predicted_logits, targets, reduction="none")
@@ -172,30 +176,6 @@ def print_stats(epoch, stats):
 
     print(out_str)
 
-
-
-class DatasetWrapper(torch.utils.data.Dataset):
-    """
-    A simple wrapper to insert the dataset in the torch.utils.data.DataLoader module
-    that handles multi-threaded loading, sampling, batching and shuffling
-    """
-
-    def __init__(self, X, y):
-        self.X = X
-        self.y = y
-
-    def __len__(self):
-        return self.X.shape[0]
-
-    def __getitem__(self, idx):
-        X = torch.from_numpy(self.X[idx]).type(torch.FloatTensor)
-        y = torch.from_numpy(np.array([self.y[idx] - 1])).type(torch.LongTensor)
-
-        # add 1d hight and width dimensions and copy y for each time
-        return X.unsqueeze(-1).unsqueeze(-1), y.expand(X.shape[0]).unsqueeze(-1).unsqueeze(-1)
-
-
-
 if __name__ == "__main__":
     from tslearn.datasets import CachedDatasets
 
@@ -204,12 +184,12 @@ if __name__ == "__main__":
 
     nclasses = len(set(y_train))
 
-    model = DualOutputRNN(input_dim=1, nclasses=nclasses)
+    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=64)
 
-    model.fit(X_train, y_train, epochs=100, switch_epoch=50,earliness_factor=1e-1)
+    model.fit(X_train, y_train, epochs=100, switch_epoch=50 ,earliness_factor=1e-3, batchsize=75, learning_rate=.01)
+    model.save("/tmp/model_200_e0.001.pth")
 
-    model.save("/tmp/model_50_e0.02.pth")
-    model.load("/tmp/model_50_e0.1.pth")
+    model.load("/tmp/model_200_e0.001.pth")
 
     # add batch dimension and hight and width
 
