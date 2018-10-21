@@ -19,7 +19,7 @@ class DualOutputRNN(torch.nn.Module):
 
         # recurrent cell
         self.rnn = ConvLSTMCell(input_size=input_size,input_dim=input_dim,hidden_dim=hidden_dim, kernel_size=kernel_size, bias=True)
-
+        #self.lstm = nn.LSTM(input_dim, hidden_dim)
         # Classification layer
         self.conv_class = nn.Conv2d(in_channels=hidden_dim,out_channels=nclasses,kernel_size=kernel_size,
                               padding=(kernel_size[0] // 2, kernel_size[1] // 2), bias=True)
@@ -42,6 +42,10 @@ class DualOutputRNN(torch.nn.Module):
         predicted_logits = list()
         proba_not_decided_yet = list([1.])
         Pts = list()
+
+        #out, hidden = self.lstm(x[:, :, :, 0, 0].permute(1, 0, 2),
+        #                        (hidden.squeeze().unsqueeze(0), state.squeeze().unsqueeze(0)))
+        #return self.conv_class(hidden[0].squeeze().unsqueeze(-1).unsqueeze(-1)), None
 
         T = x.shape[1]
         for t in range(T):
@@ -66,6 +70,8 @@ class DualOutputRNN(torch.nn.Module):
         # stack the lists to new tensor (b,d,t,h,w)
         return torch.stack(predicted_logits, dim = 2), torch.stack(Pts, dim = 1)
 
+        return self.conv_class(state).unsqueeze(2), torch.stack(Pts, dim = 1)
+
     def alphat(self, earliness_factor, out_shape):
         """
         equivalent to _get_loss_earliness
@@ -84,6 +90,21 @@ class DualOutputRNN(torch.nn.Module):
         else:
             return alphat
 
+    def loss(self, inputs, targets, earliness_factor=None):
+        predicted_logits, Pts = self.forward(inputs)
+
+        logprobabilities = F.log_softmax(predicted_logits, dim=1)
+
+        if earliness_factor is not None:
+            loss_classification = Pts * F.cross_entropy(predicted_logits, targets.unsqueeze(-1), reduction="none")
+            loss_earliness = Pts * self.alphat(earliness_factor, Pts.shape)
+
+            loss = (loss_classification + loss_earliness).sum(dim=1).mean()
+        else:
+            loss = F.nll_loss(logprobabilities, targets)
+
+        return loss, logprobabilities
+
     def fit(self,X,y,
             learning_rate=1e-3,
             earliness_factor=1e-3,
@@ -93,7 +114,6 @@ class DualOutputRNN(torch.nn.Module):
             batchsize=3):
 
         traindataset = DatasetWrapper(X, y)
-        traindataset = UCRDataset("trace")
 
         # handles multithreaded batching and shuffling
         traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
@@ -150,15 +170,17 @@ class DualOutputRNN(torch.nn.Module):
                 loss.backward()
                 optimizer.step()
 
-    def save(self, path="model.pth"):
-        print("saving model to "+path)
+    def save(self, path="model.pth", **kwargs):
+        print("\nsaving model to "+path)
         model_state = self.state_dict()
-        torch.save(model_state,path)
+        torch.save(dict(model_state=model_state,**kwargs),path)
 
     def load(self, path):
         print("loading model from "+path)
-        model_state = torch.load(path, map_location="cpu")
+        snapshot = torch.load(path, map_location="cpu")
+        model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)
+        return snapshot
 
 def plot_Pts(Pts):
     plt.plot(Pts[0, :, 0, 0].detach().numpy())
@@ -188,7 +210,6 @@ if __name__ == "__main__":
 
     model.fit(X_train, y_train, epochs=100, switch_epoch=50 ,earliness_factor=1e-3, batchsize=75, learning_rate=.01)
     model.save("/tmp/model_200_e0.001.pth")
-
     model.load("/tmp/model_200_e0.001.pth")
 
     # add batch dimension and hight and width

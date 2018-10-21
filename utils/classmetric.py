@@ -41,6 +41,8 @@ def calculate_accuracy_metrics(confusion_matrix):
     classes = []
     overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
 
+    return {"accuracy":overall_accuracy}
+
     for c in range(n_classes):
         tp = confusion_matrix[c, c]
         fp = np.sum(confusion_matrix[:, c]) - tp

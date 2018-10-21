@@ -26,6 +26,9 @@ class DatasetWrapper(torch.utils.data.Dataset):
         # add 1d hight and width dimensions and copy y for each time
         return X.unsqueeze(-1).unsqueeze(-1), y.expand(X.shape[0]).unsqueeze(-1).unsqueeze(-1)
 
+def list_UCR_datasets():
+    return UCR_UEA_datasets().list_datasets()
+
 class UCRDataset(torch.utils.data.Dataset):
     """
     A torch wrapper around tslearn UCR datasets
@@ -35,7 +38,6 @@ class UCRDataset(torch.utils.data.Dataset):
         r = np.random.RandomState(seed=randomstate)
 
         self.name = name
-
         self.dataset = UCR_UEA_datasets()
 
         if name not in self.dataset.list_datasets():
@@ -75,9 +77,8 @@ class UCRDataset(torch.utils.data.Dataset):
         # add 1d hight and width dimensions and copy y for each time
         return X.unsqueeze(-1).unsqueeze(-1), y.expand(X.shape[0]).unsqueeze(-1).unsqueeze(-1)
 
-    def list_datasets(self):
-        return self.dataset.list_datasets()
-
 if __name__ == "__main__":
-    traindataset = UCRDataset("asdas")
-    traindataset.list_datasets()
+
+    for name in list_UCR_datasets():
+        print(name)
+        traindataset = UCRDataset(name)

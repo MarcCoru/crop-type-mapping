@@ -4,9 +4,10 @@ import pandas as pd
 
 class Printer():
 
-    def __init__(self, batchsize = None, N = None):
+    def __init__(self, batchsize = None, N = None, prefix=""):
         self.batchsize = batchsize
         self.N = N
+        self.prefix = prefix
 
         self.last=datetime.datetime.now()
         self.lastepoch=0
@@ -19,22 +20,15 @@ class Printer():
         else:
             print_lst.append('Epoch {}: iteration: {}/{}'.format(epoch, iteration, self.N))
 
-        dt = (datetime.datetime.now() - self.last).total_seconds()
-
-        print_lst.append('logs/sec: {:.2f}'.format(dt / 1))
-
-        if self.batchsize is not None:
-            print_lst.append('samples/sec: {:.2f}'.format(dt / self.batchsize))
-
         for k, v in zip(stats.keys(), stats.values()):
             if not np.isnan(v):
                 print_lst.append('{}: {:.2f}'.format(k, v))
 
         # replace line if epoch has not changed
         if self.lastepoch==epoch:
-            print('\r' + ', '.join(print_lst), end="")
+            print('\r' + self.prefix + ', '.join(print_lst), end="")
         else:
-            print("\n"+', '.join(print_lst), end="")
+            print("\n" + self.prefix + ', '.join(print_lst), end="")
 
         self.last = datetime.datetime.now()
 
