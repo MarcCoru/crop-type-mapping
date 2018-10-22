@@ -5,28 +5,30 @@ from utils.UCR_Dataset import UCRDataset
 from utils.classmetric import ClassMetric
 from utils.logger import Printer
 
-def main(batchsize=64,
-    workers=48,
-    epochs = 2000,
-    hidden_dims = 2**5,
-    learning_rate = 1e-2,
-    earliness_factor=1,
-    switch_epoch = 2000,
-    dataset="Trace",
-    savepath="/tmp/model.pth",
-    loadpath = None):
+def main(batchsize=32,
+         workers=4,
+         epochs = 4000,
+         hidden_dims = 2**10,
+         learning_rate = 1e-2,
+         earliness_factor=1,
+         switch_epoch = 4000,
+         num_rnn_layers=1,
+         dataset="Trace",
+         savepath="/home/marc/tmp/model_r1024_e4k.pth",
+         loadpath = None):
 
-    traindataset = UCRDataset(dataset, partition="train", ratio=.75, randomstate=1)
-    validdataset = UCRDataset(dataset, partition="valid", ratio=.75, randomstate=1)
+    traindataset = UCRDataset(dataset, partition="train", ratio=.75, randomstate=2)
+    validdataset = UCRDataset(dataset, partition="valid", ratio=.75, randomstate=2)
     nclasses = traindataset.nclasses
 
     # handles multitxhreaded batching and shuffling
     traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True, num_workers=workers)
     validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False, num_workers=workers)
 
-    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims)
+    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    #optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -69,11 +71,11 @@ def train_epoch(epoch, model, dataloader, optimizer, trainargs):
             inputs = inputs.cuda()
             targets = targets.cuda()
 
-        if epoch > trainargs["switch_epoch"]:
-            loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
+        if epoch < trainargs["switch_epoch"]:
+            loss, logprobabilities = model.loss(inputs, targets)
             logged_loss_class.append(loss.detach().cpu().numpy())
         else:
-            loss, logprobabilities = model.loss(inputs, targets)
+            loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
             logged_loss_early.append(loss.detach().cpu().numpy())
 
         maxclass = logprobabilities.argmax(1)
@@ -106,11 +108,11 @@ def test_epoch(epoch, model, dataloader, trainargs):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            if epoch > trainargs["switch_epoch"]:
-                loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
+            if epoch < trainargs["switch_epoch"]:
+                loss, logprobabilities = model.loss(inputs, targets)
                 logged_loss_class.append(loss.detach().cpu().numpy())
             else:
-                loss, logprobabilities = model.loss(inputs, targets)
+                loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
                 logged_loss_early.append(loss.detach().cpu().numpy())
 
             maxclass = logprobabilities.argmax(1)

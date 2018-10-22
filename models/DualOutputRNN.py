@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
-from models.convlstm.convlstm import ConvLSTMCell
+from models.convlstm.convlstm import ConvLSTMCell, ConvLSTM
 import numpy as np
 from utils.classmetric import ClassMetric
 from utils.logger import Printer
@@ -12,65 +12,49 @@ from utils.UCR_Dataset import DatasetWrapper, UCRDataset
 import matplotlib.pyplot as plt
 
 class DualOutputRNN(torch.nn.Module):
-    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5):
+    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1,1), nclasses=5, num_rnn_layers=1):
         super(DualOutputRNN, self).__init__()
 
         self.nclasses=nclasses
 
-        # recurrent cell
-        self.rnn = ConvLSTMCell(input_size=input_size,input_dim=input_dim,hidden_dim=hidden_dim, kernel_size=kernel_size, bias=True)
-        #self.lstm = nn.LSTM(input_dim, hidden_dim)
-        # Classification layer
-        self.conv_class = nn.Conv2d(in_channels=hidden_dim,out_channels=nclasses,kernel_size=kernel_size,
-                              padding=(kernel_size[0] // 2, kernel_size[1] // 2), bias=True)
+        self.convlstm = ConvLSTM(input_size, input_dim, hidden_dim, kernel_size=(kernel_size[1],kernel_size[2]), num_layers=num_rnn_layers,
+                 batch_first=True, bias=True, return_all_layers=False)
 
-        # Decision layer
-        self.conv_dec = nn.Conv2d(in_channels=hidden_dim,out_channels=1,kernel_size=kernel_size,
-                              padding=(kernel_size[0] // 2, kernel_size[1] // 2), bias=True)
+        self.conv3d_class = nn.Conv3d(in_channels=hidden_dim, out_channels=nclasses, kernel_size=kernel_size,
+                                      padding=(kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2), bias=True)
 
-        #self.cross_entropy = nn.CrossEntropyLoss()
-        # initialize bias with low values to high proba_dec values at the beginning
-        #torch.nn.init.normal_(self.conv_dec.bias, mean=-10, std=0.5)
-        #pass
+        self.conv3d_dec = nn.Conv3d(in_channels=hidden_dim, out_channels=1, kernel_size=kernel_size,
+                                      padding=(kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2),
+                                      bias=True)
 
     def forward(self,x):
 
-        # initialize hidden state
-        hidden, state = self.rnn.init_hidden(batch_size=x.shape[0])
+        layer_output_list, last_state_list = self.convlstm.forward(x)
+        outputs = layer_output_list[-1]
+        #last_hidden, last_state = last_state_list[-1]
 
-        predicted_decs = list()
-        predicted_logits = list()
-        proba_not_decided_yet = list([1.])
+        logits_class = self.conv3d_class.forward(outputs.permute(0, 2, 1, 3, 4))
+        logits_dec = self.conv3d_dec.forward(outputs.permute(0, 2, 1, 3, 4))
+        proba_dec = torch.sigmoid(logits_dec).squeeze(1)
+
         Pts = list()
-
-        #out, hidden = self.lstm(x[:, :, :, 0, 0].permute(1, 0, 2),
-        #                        (hidden.squeeze().unsqueeze(0), state.squeeze().unsqueeze(0)))
-        #return self.conv_class(hidden[0].squeeze().unsqueeze(-1).unsqueeze(-1)), None
-
-        T = x.shape[1]
+        proba_not_decided_yet = list([1.])
+        T = proba_dec.shape[1]
         for t in range(T):
-
-            # Model
-            hidden, state = self.rnn.forward(x[:, t], (hidden, state))
-            proba_dec = torch.sigmoid(self.conv_dec(hidden)).squeeze(1) # (n,h,w) <- squeeze removes the depth dimension
-            logits_class = self.conv_class(hidden)
-            predicted_decs.append(proba_dec)
 
             # Probabilities
             if t < T - 1:
-                Pt = proba_dec * proba_not_decided_yet[-1]
-                proba_not_decided_yet.append(proba_not_decided_yet[-1] * (1.0 - proba_dec))
+                Pt = proba_dec[:,t] * proba_not_decided_yet[-1]
+                #proba_not_decided_yet.append(proba_not_decided_yet[-1] * (1.0 - proba_dec))
+                proba_not_decided_yet.append(proba_not_decided_yet[-1] - Pt)
             else:
                 Pt = proba_not_decided_yet[-1]
                 proba_not_decided_yet.append(0.)
             Pts.append(Pt)
-
-            predicted_logits.append(logits_class)
+        Pts = torch.stack(Pts, dim = 1)
 
         # stack the lists to new tensor (b,d,t,h,w)
-        return torch.stack(predicted_logits, dim = 2), torch.stack(Pts, dim = 1)
-
-        return self.conv_class(state).unsqueeze(2), torch.stack(Pts, dim = 1)
+        return logits_class, Pts
 
     def alphat(self, earliness_factor, out_shape):
         """
@@ -104,71 +88,6 @@ class DualOutputRNN(torch.nn.Module):
             loss = F.nll_loss(logprobabilities, targets)
 
         return loss, logprobabilities
-
-    def fit(self,X,y,
-            learning_rate=1e-3,
-            earliness_factor=1e-3,
-            epochs=3,
-            workers=0,
-            switch_epoch=2,
-            batchsize=3):
-
-        traindataset = DatasetWrapper(X, y)
-
-        # handles multithreaded batching and shuffling
-        traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
-                                                      num_workers=workers)
-
-        printer = Printer()
-
-        optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
-
-        if torch.cuda.is_available():
-            self = self.cuda()
-
-        for epoch in range(epochs):
-
-            # builds a confusion matrix
-            metric = ClassMetric(num_classes=self.nclasses)
-
-            logged_loss_early=list()
-            logged_loss_class=list()
-
-            for iteration, data in enumerate(traindataloader):
-                optimizer.zero_grad()
-
-                inputs, targets = data
-
-                if torch.cuda.is_available():
-                    inputs = inputs.cuda()
-                    targets = targets.cuda()
-
-                predicted_logits, Pts = self.forward(inputs)
-
-                logprobabilities = F.log_softmax(predicted_logits,dim=1)
-                maxclass = logprobabilities.argmax(1)
-                prediction = maxclass.mode(1)[0]
-
-                stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-
-                if epoch < switch_epoch:
-                    loss = F.nll_loss(logprobabilities, targets)
-                    #loss = F.cross_entropy(predicted_logits, targets)
-                    logged_loss_class.append(loss.detach().cpu().numpy())
-                else:
-                    loss_classification = Pts * F.cross_entropy(predicted_logits, targets, reduction="none")
-                    loss_earliness = Pts * self.alphat(earliness_factor, Pts.shape)
-
-                    loss = (loss_classification + loss_earliness).sum(dim=1).mean()
-                    logged_loss_early.append(loss.detach().cpu().numpy())
-
-                stats["loss_early"] = np.array(logged_loss_early).mean()
-                stats["loss_class"] = np.array(logged_loss_class).mean()
-
-                printer.print(stats, iteration, epoch)
-
-                loss.backward()
-                optimizer.step()
 
     def save(self, path="model.pth", **kwargs):
         print("\nsaving model to "+path)
