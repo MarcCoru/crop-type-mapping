@@ -34,7 +34,7 @@ class UCRDataset(torch.utils.data.Dataset):
     A torch wrapper around tslearn UCR datasets
     """
 
-    def __init__(self, name, partition="train", ratio=.75, randomstate=0):
+    def __init__(self, name, partition="train", ratio=.75, randomstate=0, silent=False):
         r = np.random.RandomState(seed=randomstate)
 
         self.name = name
@@ -54,18 +54,23 @@ class UCRDataset(torch.utils.data.Dataset):
         elif partition == "valid":
             self.X = X_trainvalid[valid_mask]
             self.y = y_trainvalid[valid_mask]
-        elif partition == "eval":
+        elif partition == "trainvalid":
+            self.X = X_trainvalid
+            self.y = y_trainvalid
+        elif partition == "test":
             self.X = X_test
             self.y = y_test
         else:
-            raise ValueError("Invalid partition! please provide either 'train','valid', or 'test'")
+            raise ValueError("Invalid partition! please provide either 'train','valid', 'trainvalid', or 'test'")
 
         self.classes = np.unique(np.append(y_trainvalid, y_test))
         self.nclasses = len(self.classes)
         self.sequencelength = X_trainvalid.shape[1]
 
-        msg="Loaded dataset {}-{} T={}, classes={}: {}/{} samples"
-        print(msg.format(name,partition,self.sequencelength,self.nclasses,len(self.X),len(X_trainvalid)+len(X_test)))
+
+        if not silent:
+            msg = "Loaded dataset {}-{} T={}, classes={}: {}/{} samples"
+            print(msg.format(name,partition,self.sequencelength,self.nclasses,len(self.X),len(X_trainvalid)+len(X_test)))
 
     def __len__(self):
         return self.X.shape[0]
@@ -81,4 +86,4 @@ if __name__ == "__main__":
 
     for name in list_UCR_datasets():
         print(name)
-        traindataset = UCRDataset(name)
+        #traindataset = UCRDataset(name)
