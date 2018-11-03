@@ -5,25 +5,28 @@ from utils.UCR_Dataset import UCRDataset
 from utils.classmetric import ClassMetric
 from utils.logger import Printer
 
-def main(batchsize=32,
-         workers=4,
-         epochs = 4000,
-         hidden_dims = 2**10,
-         learning_rate = 1e-2,
-         earliness_factor=1,
-         switch_epoch = 4000,
-         num_rnn_layers=1,
-         dataset="Trace",
-         savepath="/home/marc/tmp/model_r1024_e4k.pth",
-         loadpath = None):
+def main(config, reporter=None):
 
-    traindataset = UCRDataset(dataset, partition="train", ratio=.75, randomstate=2)
-    validdataset = UCRDataset(dataset, partition="valid", ratio=.75, randomstate=2)
+    batchsize = config["batchsize"]
+    workers = config["workers"]
+    epochs = config["epochs"]
+    hidden_dims = config["hidden_dims"]
+    learning_rate = config["learning_rate"]
+    earliness_factor = config["earliness_factor"]
+    switch_epoch = config["switch_epoch"]
+    num_rnn_layers = config["num_rnn_layers"]
+    dataset = config["dataset"]
+    savepath = config["savepath"]
+    loadpath = config["loadpath"]
+    silent = config["silent"]
+
+    traindataset = UCRDataset(dataset, partition="trainvalid", ratio=.75, randomstate=2, silent=silent)
+    validdataset = UCRDataset(dataset, partition="test", ratio=.75, randomstate=2, silent=silent)
     nclasses = traindataset.nclasses
 
     # handles multitxhreaded batching and shuffling
-    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True, num_workers=workers)
-    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False, num_workers=workers)
+    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True, num_workers=workers, pin_memory=True)
+    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False, num_workers=workers, pin_memory=True)
 
     model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers)
 
@@ -33,7 +36,6 @@ def main(batchsize=32,
     if torch.cuda.is_available():
         model = model.cuda()
 
-    load = False
     epoch=0
     if loadpath is not None:
         snapshot = model.load(path=loadpath)
@@ -47,13 +49,19 @@ def main(batchsize=32,
                 earliness_factor=earliness_factor,
             )
 
-            print()
-            train_epoch(epoch, model, traindataloader, optimizer, trainargs)
-            test_epoch(epoch, model, validdataloader, trainargs)
+            if not silent:
+                print()
+            train_accuracy = train_epoch(epoch, model, traindataloader, optimizer, trainargs, silent)
+            valid_accuracy = test_epoch(epoch, model, validdataloader, trainargs, silent)
+
+            if reporter is not None:
+                reporter(valid_accuracy=valid_accuracy)
+                #reporter(train_accuracy=train_accuracy)
+
     finally:
         model.save(path=savepath, epoch=epoch)
 
-def train_epoch(epoch, model, dataloader, optimizer, trainargs):
+def train_epoch(epoch, model, dataloader, optimizer, trainargs, silent=False):
 
     printer = Printer(prefix="train: ")
 
@@ -89,9 +97,12 @@ def train_epoch(epoch, model, dataloader, optimizer, trainargs):
     stats["loss_early"] = np.array(logged_loss_early).mean()
     stats["loss_class"] = np.array(logged_loss_class).mean()
 
-    printer.print(stats, iteration, epoch)
+    if not silent:
+        printer.print(stats, iteration, epoch)
 
-def test_epoch(epoch, model, dataloader, trainargs):
+    return stats["accuracy"]
+
+def test_epoch(epoch, model, dataloader, trainargs, silent=False):
     printer = Printer(prefix="valid: ")
 
     # builds a confusion matrix
@@ -123,7 +134,39 @@ def test_epoch(epoch, model, dataloader, trainargs):
     stats["loss_early"] = np.array(logged_loss_early).mean()
     stats["loss_class"] = np.array(logged_loss_class).mean()
 
-    printer.print(stats, iteration, epoch)
+    if not silent:
+        printer.print(stats, iteration, epoch)
+
+    return stats["accuracy"]
 
 if __name__=="__main__":
-    main()
+
+    config = dict(
+         batchsize=32,
+         workers=4,
+         epochs = 4000,
+         hidden_dims = 2**10,
+         learning_rate = 1e-3,
+         earliness_factor=1,
+         switch_epoch = 4000,
+         num_rnn_layers=3,
+         dataset="Trace",
+         savepath="/home/marc/tmp/model_r1024_e4k.pth",
+         loadpath = None,
+         silent = False)
+
+    config = dict(
+        batchsize=32,
+        workers=0,
+        epochs=50,
+        hidden_dims=2**4,
+        learning_rate=1e-2,
+        earliness_factor=1,
+        switch_epoch=50,
+        num_rnn_layers=1,
+        dataset="Trace",
+        savepath="/home/marc/tmp/model_r1024_e4k.pth",
+        loadpath=None,
+        silent=False)
+
+    main(config)
