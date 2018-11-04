@@ -103,12 +103,13 @@ class TrainDualOutputRNN(ray.tune.Trainable):
         return self.test_epoch()
 
     def _save(self, path):
-        path = path + "_model.pth"
+        path = path + ".pth"
         torch.save(self.model.state_dict(), path)
         return path
 
     def _restore(self, path):
-        self.model.load_state_dict(path)
+        state_dict = torch.load(path, map_location="cpu")
+        self.model.load_state_dict(state_dict)
 
 def parse_args():
     parser = argparse.ArgumentParser()
