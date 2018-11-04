@@ -34,11 +34,13 @@ class UCRDataset(torch.utils.data.Dataset):
     A torch wrapper around tslearn UCR datasets
     """
 
-    def __init__(self, name, partition="train", ratio=.75, randomstate=0, silent=False):
+    def __init__(self, name, partition="train", ratio=.75, randomstate=0, silent=False, augment_data_noise=0):
         r = np.random.RandomState(seed=randomstate)
 
         self.name = name
         self.dataset = UCR_UEA_datasets()
+
+        self.augment_data_noise = augment_data_noise
 
         if name not in self.dataset.list_datasets():
             raise ValueError("Dataset not found: Please choose from "+", ".join(self.dataset.list_datasets()))
@@ -76,7 +78,13 @@ class UCRDataset(torch.utils.data.Dataset):
         return self.X.shape[0]
 
     def __getitem__(self, idx):
-        X = torch.from_numpy(self.X[idx]).type(torch.FloatTensor)
+
+
+        X = self.X[idx]
+
+        X += np.random.rand(*X.shape) * self.augment_data_noise
+
+        X = torch.from_numpy(X).type(torch.FloatTensor)
         y = torch.from_numpy(np.array([self.y[idx] - 1])).type(torch.LongTensor)
 
         # add 1d hight and width dimensions and copy y for each time
