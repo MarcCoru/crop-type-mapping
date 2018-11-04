@@ -12,10 +12,11 @@ from utils.UCR_Dataset import DatasetWrapper, UCRDataset
 import matplotlib.pyplot as plt
 
 class DualOutputRNN(torch.nn.Module):
-    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1,1), nclasses=5, num_rnn_layers=1):
+    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1,1), nclasses=5, num_rnn_layers=1, use_batchnorm=True):
         super(DualOutputRNN, self).__init__()
 
         self.nclasses=nclasses
+        self.use_batchnorm = use_batchnorm
 
         self.convlstm = ConvLSTM(input_size, input_dim, hidden_dim, kernel_size=(kernel_size[1],kernel_size[2]), num_layers=num_rnn_layers,
                  batch_first=True, bias=True, return_all_layers=False)
@@ -27,11 +28,20 @@ class DualOutputRNN(torch.nn.Module):
                                       padding=(kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2),
                                       bias=True)
 
+        if use_batchnorm:
+            self.bn = nn.BatchNorm1d(hidden_dim)
+
     def forward(self,x):
 
         layer_output_list, last_state_list = self.convlstm.forward(x)
         outputs = layer_output_list[-1]
         #last_hidden, last_state = last_state_list[-1]
+
+        if self.use_batchnorm:
+            # flatted to [b,d,t], perform bn and reshape to old form
+            b,t,d,h,w = outputs.shape
+            o_ = outputs.view(b, -1, d).permute(0,2,1)
+            outputs = self.bn(o_).permute(0, 2, 1).view(b,t,d,h,w)
 
         logits_class = self.conv3d_class.forward(outputs.permute(0, 2, 1, 3, 4))
         logits_dec = self.conv3d_dec.forward(outputs.permute(0, 2, 1, 3, 4))
