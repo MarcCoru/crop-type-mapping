@@ -1,9 +1,11 @@
 import torch
 import numpy as np
 from models.DualOutputRNN import DualOutputRNN
+from models.AttentionRNN import AttentionRNN
 from utils.UCR_Dataset import UCRDataset
 from utils.classmetric import ClassMetric
 from utils.logger import Printer
+import argparse
 
 def main(config, reporter=None):
 
@@ -20,15 +22,21 @@ def main(config, reporter=None):
     loadpath = config["loadpath"]
     silent = config["silent"]
 
-    traindataset = UCRDataset(dataset, partition="trainvalid", ratio=.75, randomstate=2, silent=silent)
-    validdataset = UCRDataset(dataset, partition="test", ratio=.75, randomstate=2, silent=silent)
+    traindataset = UCRDataset(dataset, partition="train", ratio=.75, randomstate=2, silent=silent, augment_data_noise=config["augment_data_noise"])
+    validdataset = UCRDataset(dataset, partition="valid", ratio=.75, randomstate=2, silent=silent)
     nclasses = traindataset.nclasses
 
     # handles multitxhreaded batching and shuffling
     traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True, num_workers=workers, pin_memory=True)
     validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False, num_workers=workers, pin_memory=True)
 
-    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers)
+    if config["model"] == "DualOutputRNN":
+        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers)
+    elif config["model"] == "AttentionRNN":
+        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers,
+                             use_batchnorm=config["use_batchnorm"])
+    else:
+        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     #optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
@@ -139,8 +147,57 @@ def test_epoch(epoch, model, dataloader, trainargs, silent=False):
 
     return stats["accuracy"]
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-d','--dataset', type=str, default="Trace", help='UCR Dataset. Will also name the experiment')
+    parser.add_argument(
+        '-b', '--batchsize', type=int, default=32, help='Batch Size')
+    parser.add_argument(
+        '-m', '--model', type=str, default="DualOutputRNN", help='Model variant')
+    parser.add_argument(
+        '-e', '--epochs', type=int, default=100, help='number of epochs')
+    parser.add_argument(
+        '-w', '--workers', type=int, default=4, help='number of CPU workers to load the next batch')
+    parser.add_argument(
+        '-l', '--learning_rate', type=float, default=1e-2, help='learning rate')
+    parser.add_argument(
+        '-n', '--num_rnn_layers', type=int, default=1, help='number of RNN layers')
+    parser.add_argument(
+        '-r', '--hidden_dims', type=int, default=32, help='number of RNN hidden dimensions')
+    parser.add_argument(
+        '--use_batchnorm', action="store_true", help='use batchnorm instead of a bias vector')
+    parser.add_argument(
+        '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
+
+    parser.add_argument(
+        '--smoke-test', action='store_true', help='Finish quickly for testing')
+    args, _ = parser.parse_known_args()
+    return args
+
 if __name__=="__main__":
 
+    args = parse_args()
+
+    main(dict(
+        batchsize=args.batchsize,
+        workers=args.workers,
+        epochs=args.epochs,
+        hidden_dims=args.hidden_dims,
+        learning_rate=args.learning_rate,
+        model=args.model,
+        earliness_factor=1,
+        switch_epoch=9999,
+        num_rnn_layers=args.num_rnn_layers,
+        dataset=args.dataset,
+        use_batchnorm=args.use_batchnorm,
+        savepath="/home/marc/tmp/model_r1024_e4k.pth",
+        loadpath=None,
+        silent=False,
+        augment_data_noise=args.augment_data_noise
+    ))
+
+    """
     config = dict(
          batchsize=32,
          workers=4,
@@ -168,5 +225,5 @@ if __name__=="__main__":
         savepath="/home/marc/tmp/model_r1024_e4k.pth",
         loadpath=None,
         silent=False)
-
-    main(config)
+        
+        """
