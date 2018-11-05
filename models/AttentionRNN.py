@@ -2,15 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
-from models.convlstm.convlstm import ConvLSTMCell, ConvLSTM
-import numpy as np
-from utils.classmetric import ClassMetric
-from utils.logger import Printer
-from utils.UCR_Dataset import DatasetWrapper, UCRDataset
+from models.convlstm.convlstm import ConvLSTM
 from models import AttentionModule
-
-# debug
-import matplotlib.pyplot as plt
 
 class AttentionRNN(torch.nn.Module):
     def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5, num_rnn_layers=1, use_batchnorm=True):
@@ -58,34 +51,20 @@ class AttentionRNN(torch.nn.Module):
         logits_class = self.conv2d_class.forward(output)
 
         # stack the lists to new tensor (b,d,t,h,w)
-        return logits_class, weights
+        return logits_class, weights.permute(0,2,1).unsqueeze(-1)
 
-    def alphat(self, earliness_factor, out_shape):
-        """
-        equivalent to _get_loss_earliness
-
-        -> elementwise tensor multiplies the earliness factor with the time (obtained from the expected output shape)
-        """
-
-        N, T, H, W = out_shape
-
-        t_vector = torch.arange(T).type(torch.FloatTensor)
-
-        alphat =  ((earliness_factor * torch.ones(*out_shape)).permute(0,3,2,1) * t_vector).permute(0,3,2,1)
-
-        if torch.cuda.is_available():
-            return alphat.cuda()
-        else:
-            return alphat
-
-    def loss(self, inputs, targets, earliness_factor=None):
-        predicted_logits, Pts = self.forward(inputs)
+    def loss(self, inputs, targets, **kwargs):
+        predicted_logits, weights = self.forward(inputs)
 
         logprobabilities = F.log_softmax(predicted_logits, dim=1)
 
         loss = F.nll_loss(logprobabilities, targets[:,0,:,:])
 
-        return loss, logprobabilities
+        stats = dict(
+            loss=loss,
+            )
+
+        return loss, logprobabilities.argmax(1), weights, stats
 
     def save(self, path="model.pth", **kwargs):
         print("\nsaving model to "+path)
@@ -98,48 +77,3 @@ class AttentionRNN(torch.nn.Module):
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)
         return snapshot
-
-def plot_Pts(Pts):
-    plt.plot(Pts[0, :, 0, 0].detach().numpy())
-    plt.show()
-
-def plot_probas(predicted_probas):
-    plt.plot(predicted_probas[0, :, :, 0, 0].exp().detach().numpy())
-    plt.show()
-
-def print_stats(epoch, stats):
-    out_str = "[End of training] Epoch {}: ".format(epoch)
-    for k,v in stats.items():
-        if len(np.array(v))>0:
-            out_str+="{}:{}".format(k,np.array(v).mean())
-
-    print(out_str)
-
-if __name__ == "__main__":
-    from tslearn.datasets import CachedDatasets
-
-    X_train, y_train, X_test, y_test = CachedDatasets().load_dataset("Trace")
-    #X_train, y_train, X_test, y_test = CachedDatasets().load_dataset("ElectricDevices")
-
-    nclasses = len(set(y_train))
-
-    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=64)
-
-    model.fit(X_train, y_train, epochs=100, switch_epoch=50 ,earliness_factor=1e-3, batchsize=75, learning_rate=.01)
-    model.save("/tmp/model_200_e0.001.pth")
-    model.load("/tmp/model_200_e0.001.pth")
-
-    # add batch dimension and hight and width
-
-    pts = list()
-
-    # predict a few samples
-    with torch.no_grad():
-        for i in range(100):
-            x = torch.from_numpy(X_test[i]).type(torch.FloatTensor)
-
-            x = x.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
-            pred, pt = model.forward(x)
-            pts.append(pt[0,:,0,0].detach().numpy())
-
-    pass

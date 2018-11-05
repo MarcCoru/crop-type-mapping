@@ -1,125 +1,54 @@
 import torch
-import numpy as np
 from models.DualOutputRNN import DualOutputRNN
 from models.AttentionRNN import AttentionRNN
 from utils.UCR_Dataset import UCRDataset
 from utils.classmetric import ClassMetric
-from utils.logger import Printer
+from utils.logger import Printer, VisdomLogger, Logger
 import argparse
 
-def main(config, reporter=None):
 
-    batchsize = config["batchsize"]
-    workers = config["workers"]
-    epochs = config["epochs"]
-    hidden_dims = config["hidden_dims"]
-    learning_rate = config["learning_rate"]
-    earliness_factor = config["earliness_factor"]
-    switch_epoch = config["switch_epoch"]
-    num_rnn_layers = config["num_rnn_layers"]
-    dataset = config["dataset"]
-    savepath = config["savepath"]
-    loadpath = config["loadpath"]
-    silent = config["silent"]
+class Trainer():
 
-    traindataset = UCRDataset(dataset, partition="train", ratio=.75, randomstate=2, silent=silent, augment_data_noise=config["augment_data_noise"])
-    validdataset = UCRDataset(dataset, partition="valid", ratio=.75, randomstate=2, silent=silent)
-    nclasses = traindataset.nclasses
+    def __init__(self,model, traindataloader, validdataloader, config):
 
-    # handles multitxhreaded batching and shuffling
-    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True, num_workers=workers, pin_memory=True)
-    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False, num_workers=workers, pin_memory=True)
+        self.epochs = config["epochs"]
+        learning_rate = config["learning_rate"]
+        self.earliness_factor = config["earliness_factor"]
 
-    if config["model"] == "DualOutputRNN":
-        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers)
-    elif config["model"] == "AttentionRNN":
-        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers = num_rnn_layers,
-                             use_batchnorm=config["use_batchnorm"])
-    else:
-        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
+        self.traindataloader = traindataloader
+        self.validdataloader = validdataloader
+        self.nclasses=traindataloader.dataset.nclasses
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    #optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+        self.visdom = VisdomLogger()
+        self.logger = Logger(columns=["accuracy"], modes=["train", "test"])
 
-    if torch.cuda.is_available():
-        model = model.cuda()
+        self.model = model
 
-    epoch=0
-    if loadpath is not None:
-        snapshot = model.load(path=loadpath)
-        epoch = snapshot["epoch"]
-        print("loaded model state at epoch " + str(epoch))
-    try:
-        for epoch in range(epoch,epochs):
+        self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
 
-            trainargs = dict(
-                switch_epoch=switch_epoch,
-                earliness_factor=earliness_factor,
-            )
+    def fit(self,epoch=0):
 
-            if not silent:
-                print()
-            train_accuracy = train_epoch(epoch, model, traindataloader, optimizer, trainargs, silent)
-            valid_accuracy = test_epoch(epoch, model, validdataloader, trainargs, silent)
+        for epoch in range(epoch,self.epochs):
 
-            if reporter is not None:
-                reporter(valid_accuracy=valid_accuracy)
-                #reporter(train_accuracy=train_accuracy)
+            print()
 
-    finally:
-        model.save(path=savepath, epoch=epoch)
+            self.train_epoch(epoch)
+            self.test_epoch(epoch)
 
-def train_epoch(epoch, model, dataloader, optimizer, trainargs, silent=False):
+            self.visdom.plot_epochs(self.logger.get_data())
 
-    printer = Printer(prefix="train: ")
 
-    # builds a confusion matrix
-    metric = ClassMetric(num_classes=dataloader.dataset.nclasses)
+    def train_epoch(self, epoch):
+        self.logger.set_mode("train")
 
-    logged_loss_early = list()
-    logged_loss_class = list()
-    for iteration, data in enumerate(dataloader):
-        optimizer.zero_grad()
+        printer = Printer(prefix="train: ")
 
-        inputs, targets = data
+        # builds a confusion matrix
+        metric = ClassMetric(num_classes=self.nclasses)
 
-        if torch.cuda.is_available():
-            inputs = inputs.cuda()
-            targets = targets.cuda()
-
-        if epoch < trainargs["switch_epoch"]:
-            loss, logprobabilities = model.loss(inputs, targets)
-            logged_loss_class.append(loss.detach().cpu().numpy())
-        else:
-            loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
-            logged_loss_early.append(loss.detach().cpu().numpy())
-
-        maxclass = logprobabilities.argmax(1)
-        prediction = maxclass.mode(1)[0]
-
-        stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-
-        loss.backward()
-        optimizer.step()
-
-    stats["loss_early"] = np.array(logged_loss_early).mean()
-    stats["loss_class"] = np.array(logged_loss_class).mean()
-
-    if not silent:
-        printer.print(stats, iteration, epoch)
-
-    return stats["accuracy"]
-
-def test_epoch(epoch, model, dataloader, trainargs, silent=False):
-    printer = Printer(prefix="valid: ")
-
-    # builds a confusion matrix
-    metric = ClassMetric(num_classes=dataloader.dataset.nclasses)
-
-    logged_loss_early = list()
-    logged_loss_class = list()
-    with torch.no_grad():
-        for iteration, data in enumerate(dataloader):
+        for iteration, data in enumerate(self.traindataloader):
+            self.optimizer.zero_grad()
 
             inputs, targets = data
 
@@ -127,25 +56,57 @@ def test_epoch(epoch, model, dataloader, trainargs, silent=False):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            if epoch < trainargs["switch_epoch"]:
-                loss, logprobabilities = model.loss(inputs, targets)
-                logged_loss_class.append(loss.detach().cpu().numpy())
-            else:
-                loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
-                logged_loss_early.append(loss.detach().cpu().numpy())
+            loss, prediction, weights, stats = self.model.loss(inputs, targets, alpha=self.earliness_factor)
 
-            maxclass = logprobabilities.argmax(1)
-            prediction = maxclass.mode(1)[0]
+            loss.backward()
+            self.optimizer.step()
 
-            stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
+            stats = metric.add(stats)
+            stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
 
-    stats["loss_early"] = np.array(logged_loss_early).mean()
-    stats["loss_class"] = np.array(logged_loss_class).mean()
-
-    if not silent:
         printer.print(stats, iteration, epoch)
 
-    return stats["accuracy"]
+        self.logger.log(stats, epoch)
+
+        return stats
+
+    def test_epoch(self, epoch):
+        self.logger.set_mode("test")
+
+        printer = Printer(prefix="valid: ")
+
+        # builds a confusion matrix
+        #metric_maxvoted = ClassMetric(num_classes=self.nclasses)
+        metric = ClassMetric(num_classes=self.nclasses)
+        #metric_all_t = ClassMetric(num_classes=self.nclasses)
+
+        with torch.no_grad():
+            for iteration, data in enumerate(self.validdataloader):
+
+                inputs, targets = data
+
+                if torch.cuda.is_available():
+                    inputs = inputs.cuda()
+                    targets = targets.cuda()
+
+                loss, prediction, weights, stats = self.model.loss(inputs, targets, alpha=self.earliness_factor)
+
+                stats = metric.add(stats)
+                stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
+                                                          prediction.detach().cpu().numpy())
+
+
+        self.visdom.confusion_matrix(metric.hist)
+
+        for i in range(3):
+            self.visdom.plot(inputs[i, :, 0 ,0 , 0], name="input {} (class {})".format(i,targets[i,0,0,0]))
+            self.visdom.bar(weights[i, :, 0, 0], name="P(t) sample "+str(i))
+
+        printer.print(stats, iteration, epoch)
+
+        self.logger.log(stats, epoch)
+
+        return stats
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -169,6 +130,8 @@ def parse_args():
         '--use_batchnorm', action="store_true", help='use batchnorm instead of a bias vector')
     parser.add_argument(
         '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
+    parser.add_argument(
+        '-a','--earliness_factor', type=float, default=1, help='earliness factor')
 
     parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
@@ -179,23 +142,40 @@ if __name__=="__main__":
 
     args = parse_args()
 
-    main(dict(
-        batchsize=args.batchsize,
-        workers=args.workers,
+    traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=2,
+                              augment_data_noise=args.augment_data_noise)
+    validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=2)
+
+    nclasses = traindataset.nclasses
+
+    # handles multitxhreaded batching and shuffling
+    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
+                                                       num_workers=args.workers, pin_memory=True)
+    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
+                                                       num_workers=args.workers, pin_memory=True)
+
+    if args.model == "DualOutputRNN":
+        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
+                              num_rnn_layers=args.num_rnn_layers)
+    elif args.model == "AttentionRNN":
+        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
+                             use_batchnorm=args.use_batchnorm)
+    else:
+        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
+
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+    config = dict(
         epochs=args.epochs,
-        hidden_dims=args.hidden_dims,
         learning_rate=args.learning_rate,
-        model=args.model,
-        earliness_factor=1,
-        switch_epoch=9999,
-        num_rnn_layers=args.num_rnn_layers,
-        dataset=args.dataset,
-        use_batchnorm=args.use_batchnorm,
-        savepath="/home/marc/tmp/model_r1024_e4k.pth",
-        loadpath=None,
-        silent=False,
-        augment_data_noise=args.augment_data_noise
-    ))
+        earliness_factor=args.earliness_factor,
+    )
+
+    trainer = Trainer(model,traindataloader,validdataloader,config=config)
+
+    trainer.fit()
 
     """
     config = dict(

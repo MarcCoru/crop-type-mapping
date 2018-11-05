@@ -2,14 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
-from models.convlstm.convlstm import ConvLSTMCell, ConvLSTM
-import numpy as np
-from utils.classmetric import ClassMetric
-from utils.logger import Printer
-from utils.UCR_Dataset import DatasetWrapper, UCRDataset
-
-# debug
-import matplotlib.pyplot as plt
+from models.convlstm.convlstm import ConvLSTM
 
 class DualOutputRNN(torch.nn.Module):
     def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1,1), nclasses=5, num_rnn_layers=1, use_batchnorm=True):
@@ -19,7 +12,7 @@ class DualOutputRNN(torch.nn.Module):
         self.use_batchnorm = use_batchnorm
 
         self.convlstm = ConvLSTM(input_size, input_dim, hidden_dim, kernel_size=(kernel_size[1],kernel_size[2]), num_layers=num_rnn_layers,
-                 batch_first=True, bias=True, return_all_layers=False)
+                 batch_first=True, bias=not use_batchnorm, return_all_layers=False)
 
         self.conv3d_class = nn.Conv3d(in_channels=hidden_dim, out_channels=nclasses, kernel_size=kernel_size,
                                       padding=(kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2), bias=True)
@@ -27,6 +20,8 @@ class DualOutputRNN(torch.nn.Module):
         self.conv3d_dec = nn.Conv3d(in_channels=hidden_dim, out_channels=1, kernel_size=kernel_size,
                                       padding=(kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2),
                                       bias=True)
+
+        torch.nn.init.normal_(self.conv3d_dec.bias, mean=-1e1, std=1e-1)
 
         if use_batchnorm:
             self.bn = nn.BatchNorm1d(hidden_dim)
@@ -66,38 +61,67 @@ class DualOutputRNN(torch.nn.Module):
         # stack the lists to new tensor (b,d,t,h,w)
         return logits_class, Pts
 
-    def alphat(self, earliness_factor, out_shape):
-        """
-        equivalent to _get_loss_earliness
-
-        -> elementwise tensor multiplies the earliness factor with the time (obtained from the expected output shape)
-        """
-
-        N, T, H, W = out_shape
-
-        t_vector = torch.arange(T).type(torch.FloatTensor)
-
-        alphat =  ((earliness_factor * torch.ones(*out_shape)).permute(0,3,2,1) * t_vector).permute(0,3,2,1)
-
-        if torch.cuda.is_available():
-            return alphat.cuda()
-        else:
-            return alphat
-
-    def loss(self, inputs, targets, earliness_factor=None):
+    def loss(self, inputs, targets, alpha=None):
         predicted_logits, Pts = self.forward(inputs)
 
         logprobabilities = F.log_softmax(predicted_logits, dim=1)
 
-        if earliness_factor is not None:
-            loss_classification = Pts * F.cross_entropy(predicted_logits, targets.unsqueeze(-1), reduction="none")
-            loss_earliness = Pts * self.alphat(earliness_factor, Pts.shape)
+        if alpha is not None:
 
-            loss = (loss_classification + loss_earliness).sum(dim=1).mean()
+            b, c, t, h, w = logprobabilities.shape
+
+            #logprobabilities_flat = logprobabilities.view(b * t * h * w, c)
+            #targets_flat = targets.view(b * t * h * w)
+
+            # an index at which time the classification took place
+            t_index = (torch.ones(b,h,w,t) * torch.arange(t).type(torch.FloatTensor)).transpose(1,3)
+
+            # the reward for early classification 1-(T/t)
+            #t_reward = 1 - t_index.repeat(b * h * w) / t
+            t_reward = 1 - t_index / t
+
+            eye = torch.eye(c).type(torch.ByteTensor)
+            if torch.cuda.is_available():
+                eye = eye.cuda()
+                t_reward = t_reward.cuda()
+
+            # [b, t, h, w, c]
+            targets_one_hot = eye[targets]
+
+            # implement the y*\hat{y} part of the loss function
+            # (permute moves classes to last dimenions -> same as targets_one_hot)
+            y_haty = torch.masked_select(logprobabilities.permute(0,2,3,4,1), targets_one_hot)
+            y_haty = y_haty.view(b, t, h, w).exp()
+
+            reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+            loss_classification = (Pts * F.nll_loss(logprobabilities, targets,reduction='none')).sum(1).mean()
+
+            loss =  alpha * loss_classification - (1 - alpha) * reward_earliness
+
         else:
             loss = F.nll_loss(logprobabilities, targets)
 
-        return loss, logprobabilities
+        stats = dict(
+            loss=loss,
+            loss_classification=loss_classification,
+            reward_earliness=reward_earliness,
+        )
+
+        prediction = self.predict(logprobabilities, Pts)
+
+        return loss, prediction, Pts ,stats
+
+    def predict(self, logprobabilities, Pts):
+        """
+        Get predicted class labels where Pts is highest
+        """
+        b, c, t, h, w = logprobabilities.shape
+        t_class = Pts.argmax(1)  # [c x h x w]
+        eye = torch.eye(t).type(torch.ByteTensor).cuda()
+
+        prediction_all_times = logprobabilities.argmax(1)
+        prediction_at_t = torch.masked_select(prediction_all_times.transpose(1, 3), eye[t_class]).view(b, h, w)
+        return prediction_at_t
 
     def save(self, path="model.pth", **kwargs):
         print("\nsaving model to "+path)
@@ -110,22 +134,6 @@ class DualOutputRNN(torch.nn.Module):
         model_state = snapshot.pop('model_state', snapshot)
         self.load_state_dict(model_state)
         return snapshot
-
-def plot_Pts(Pts):
-    plt.plot(Pts[0, :, 0, 0].detach().numpy())
-    plt.show()
-
-def plot_probas(predicted_probas):
-    plt.plot(predicted_probas[0, :, :, 0, 0].exp().detach().numpy())
-    plt.show()
-
-def print_stats(epoch, stats):
-    out_str = "[End of training] Epoch {}: ".format(epoch)
-    for k,v in stats.items():
-        if len(np.array(v))>0:
-            out_str+="{}:{}".format(k,np.array(v).mean())
-
-    print(out_str)
 
 if __name__ == "__main__":
     from tslearn.datasets import CachedDatasets
