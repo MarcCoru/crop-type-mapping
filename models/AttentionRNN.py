@@ -20,6 +20,7 @@ class AttentionRNN(torch.nn.Module):
         if use_batchnorm:
             self.bn_query = nn.BatchNorm1d(hidden_dim)
             self.bn_context = nn.BatchNorm1d(hidden_dim)
+            self.bn_class = nn.BatchNorm1d(hidden_dim)
 
         self.conv2d_class = nn.Conv2d(in_channels=hidden_dim, out_channels=nclasses, kernel_size=kernel_size,
                                       padding=(kernel_size[0] // 2, kernel_size[1] // 2),
@@ -44,6 +45,9 @@ class AttentionRNN(torch.nn.Module):
             context = self.bn_context(context.permute(0, 2, 1)).permute(0, 2, 1)
 
         output, weights = self.attention(query, context)
+
+        if self.use_batchnorm:
+            self.bn_class(output.transpose(1, 2)).transpose(1, 2)
 
         # bring output from [b,t=1,d] to [b,d,h=1,w=1]
         output = output.squeeze(1).unsqueeze(-1).unsqueeze(-1)
