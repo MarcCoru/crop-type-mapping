@@ -20,6 +20,7 @@ class TrainDualOutputRNN(ray.tune.Trainable):
         learning_rate = config["learning_rate"]
         num_rnn_layers = config["num_rnn_layers"]
         dataset = config["dataset"]
+        self.earliness_factor = config["earliness_factor"]
 
         traindataset = UCRDataset(dataset, partition="trainvalid", ratio=.75, randomstate=2, silent=True)
         validdataset = UCRDataset(dataset, partition="test", ratio=.75, randomstate=2, silent=True)
@@ -44,8 +45,6 @@ class TrainDualOutputRNN(ray.tune.Trainable):
         # builds a confusion matrix
         metric = ClassMetric(num_classes=self.traindataloader.dataset.nclasses)
 
-        logged_loss_early = list()
-        logged_loss_class = list()
         for iteration, data in enumerate(self.traindataloader):
             self.optimizer.zero_grad()
 
@@ -55,19 +54,13 @@ class TrainDualOutputRNN(ray.tune.Trainable):
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            loss, logprobabilities = self.model.loss(inputs, targets)
-            logged_loss_class.append(loss.detach().cpu().numpy())
-
-            maxclass = logprobabilities.argmax(1)
-            prediction = maxclass.mode(1)[0]
-
-            stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
+            loss, prediction, weights, stats = self.model.loss(inputs, targets, alpha=self.earliness_factor)
 
             loss.backward()
             self.optimizer.step()
 
-        stats["loss_early"] = np.array(logged_loss_early).mean()
-        stats["loss_class"] = np.array(logged_loss_class).mean()
+            stats = metric.add(stats)
+            stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
 
         return stats
 
@@ -75,8 +68,6 @@ class TrainDualOutputRNN(ray.tune.Trainable):
         # builds a confusion matrix
         metric = ClassMetric(num_classes=self.validdataloader.dataset.nclasses)
 
-        logged_loss_early = list()
-        logged_loss_class = list()
         with torch.no_grad():
             for iteration, data in enumerate(self.validdataloader):
 
@@ -86,15 +77,11 @@ class TrainDualOutputRNN(ray.tune.Trainable):
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                loss, logprobabilities = self.model.loss(inputs, targets)
-                logged_loss_class.append(loss.detach().cpu().numpy())
+                loss, prediction, weights, stats = self.model.loss(inputs, targets, alpha=self.earliness_factor)
 
-                maxclass = logprobabilities.argmax(1)
-                prediction = maxclass.mode(1)[0]
-
-                stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-
-        stats["mean_loss"] = np.array(logged_loss_class).mean()
+                stats = metric.add(stats)
+                stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
+                                                          prediction.detach().cpu().numpy())
 
         return stats
 
@@ -152,6 +139,7 @@ if __name__=="__main__":
         hidden_dims=hp.choice("hidden_dims", [2**4,2**5,2**6,2**7,2**8,2**9]),
         learning_rate=hp.uniform("learning_rate", 1e-3,1e-1),
         num_rnn_layers=hp.choice("num_rnn_layers", [1,2,3,4]),
+        earliness_factor=.75,
         dataset=args.dataset)
 
     hb_scheduler = HyperBandScheduler(
