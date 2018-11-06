@@ -1,16 +1,10 @@
 import numpy as np
 import datetime
 import pandas as pd
-import seaborn as sn
 import matplotlib.pyplot as plt
 
-try:
-    from visdom import Visdom
-except:
-    print("could not find visdom package. try 'pip install visdom'. continue without...")
-    Visdom=None
-    pass
-
+import seaborn as sn
+from visdom import Visdom
 
 class Printer():
 
@@ -93,6 +87,7 @@ class Logger():
 
 class VisdomLogger():
     def __init__(self,**kwargs):
+
         if Visdom is None:
             self.viz = None # do nothing
             return
