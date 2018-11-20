@@ -2,6 +2,7 @@ import torch
 from models.DualOutputRNN import DualOutputRNN
 from models.AttentionRNN import AttentionRNN
 from utils.UCR_Dataset import UCRDataset
+from utils.Synthetic_Dataset import SyntheticDataset
 from utils.classmetric import ClassMetric
 from utils.logger import Printer, VisdomLogger, Logger
 import argparse
@@ -19,7 +20,7 @@ class Trainer():
         self.validdataloader = validdataloader
         self.nclasses=traindataloader.dataset.nclasses
 
-        self.visdom = VisdomLogger()
+        self.visdom = VisdomLogger(env=config["visdomenv"])
         self.logger = Logger(columns=["accuracy"], modes=["train", "test"])
 
         self.model = model
@@ -142,17 +143,21 @@ if __name__=="__main__":
 
     args = parse_args()
 
-    traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=2,
-                              augment_data_noise=args.augment_data_noise)
-    validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=2)
+    if args.dataset == "synthetic":
+        traindataset = SyntheticDataset(num_samples=2000, T=100)
+        validdataset = SyntheticDataset(num_samples=1000, T=100)
+    else:
+        traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=2,
+                                  augment_data_noise=args.augment_data_noise)
+        validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=2)
 
     nclasses = traindataset.nclasses
 
-    # handles multitxhreaded batching and shuffling
+    # handles multithreaded batching and shuffling
     traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
-                                                       num_workers=args.workers, pin_memory=True)
+                                                  num_workers=args.workers, pin_memory=True)
     validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
-                                                       num_workers=args.workers, pin_memory=True)
+                                                  num_workers=args.workers, pin_memory=True)
 
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
@@ -171,6 +176,7 @@ if __name__=="__main__":
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         earliness_factor=args.earliness_factor,
+        visdomenv=args.dataset
     )
 
     trainer = Trainer(model,traindataloader,validdataloader,config=config)

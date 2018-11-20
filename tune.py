@@ -21,18 +21,25 @@ class TrainDualOutputRNN(ray.tune.Trainable):
         num_rnn_layers = config["num_rnn_layers"]
         dataset = config["dataset"]
         self.earliness_factor = config["earliness_factor"]
+        data_noise = config["data_noise"]
 
-        traindataset = UCRDataset(dataset, partition="trainvalid", ratio=.75, randomstate=2, silent=True)
+        traindataset = UCRDataset(dataset, partition="trainvalid", ratio=.75, randomstate=2, silent=True,
+                                                           augment_data_noise=data_noise)
         validdataset = UCRDataset(dataset, partition="test", ratio=.75, randomstate=2, silent=True)
         nclasses = traindataset.nclasses
 
         # handles multitxhreaded batching and shuffling
         self.traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
-                                                      num_workers=workers, pin_memory=False)
+                                                           num_workers=workers,
+                                                           pin_memory=False)
         self.validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False,
                                                       num_workers=workers, pin_memory=False)
 
-        self.model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers=num_rnn_layers)
+        self.model = DualOutputRNN(input_dim=1,
+                                   nclasses=nclasses,
+                                   hidden_dim=hidden_dims,
+                                   num_rnn_layers=num_rnn_layers,
+                                   use_batchnorm=True)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
@@ -107,6 +114,8 @@ def parse_args():
     parser.add_argument(
         '-c', '--cpu', type=int, default=2, help='number of CPUs allocated per trial run (default 2)')
     parser.add_argument(
+        '-a', '--earliness_factor', type=float, default=.75, help='earliness factor')
+    parser.add_argument(
         '-g', '--gpu', type=float, default=.25,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
     parser.add_argument(
@@ -127,7 +136,7 @@ if __name__=="__main__":
         learning_rate=tune.grid_search([1e-2, 1e-3]),
         earliness_factor=1,
         switch_epoch=999,
-        num_rnn_layers=tune.grid_search([1, 2, 3, 4]),
+        num_rnn_layers=tune.grid_search([2, 3, 4, 5]),
         dataset=args.dataset,
         savepath="/home/marc/tmp/model_r1024_e4k.pth",
         loadpath=None,
@@ -138,8 +147,9 @@ if __name__=="__main__":
         workers=2,
         hidden_dims=hp.choice("hidden_dims", [2**4,2**5,2**6,2**7,2**8,2**9]),
         learning_rate=hp.uniform("learning_rate", 1e-3,1e-1),
+        data_noise=hp.uniform("data_noise", 0, 1e-1),
         num_rnn_layers=hp.choice("num_rnn_layers", [1,2,3,4]),
-        earliness_factor=.75,
+        earliness_factor=args.earliness_factor,
         dataset=args.dataset)
 
     hb_scheduler = HyperBandScheduler(

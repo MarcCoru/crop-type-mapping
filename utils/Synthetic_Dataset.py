@@ -16,6 +16,10 @@ class SyntheticDataset(torch.utils.data.Dataset):
 
         self.nclasses = 2
         self.X, self.y = self.sample_dataset(num_samples, T)
+        self.X -= self.X.mean()
+        self.X /= self.X.std()
+
+        self.T = T
 
     def sample_dataset(self, num_samples, T):
 
@@ -52,10 +56,10 @@ class SyntheticDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         X = torch.from_numpy(self.X[idx]).type(torch.FloatTensor)
-        y = torch.from_numpy(np.array([self.y[idx]])).type(torch.LongTensor)
+        y = torch.from_numpy(np.array(self.y[idx])).type(torch.LongTensor)
 
         # add 1d hight and width dimensions and copy y for each time
-        return X,y
+        return X.view(self.T,1,1,1),y.expand(self.T,1,1)
 
 if __name__ == "__main__":
 
