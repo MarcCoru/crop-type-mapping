@@ -93,7 +93,8 @@ class DualOutputRNN(torch.nn.Module):
             y_haty = torch.masked_select(logprobabilities.permute(0,2,3,4,1), targets_one_hot)
             y_haty = y_haty.view(b, t, h, w).exp()
 
-            reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+            #reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+            reward_earliness = (Pts * y_haty * t_reward).sum(1).mean()
             loss_classification = (Pts * F.nll_loss(logprobabilities, targets,reduction='none')).sum(1).mean()
 
             loss =  alpha * loss_classification - (1 - alpha) * reward_earliness

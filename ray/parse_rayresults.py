@@ -11,7 +11,7 @@ def load_run(path):
 
     result = json.loads(content)
 
-    return result["accuracy"], result["mean_loss"], result["config"]
+    return result["accuracy"], result["loss"], result["training_iteration"], result["timestamp"], result["config"]
 
 def load_experiment(path):
     runs = os.listdir(path)
@@ -19,12 +19,14 @@ def load_experiment(path):
     result = list()
     for run in runs:
         runpath = os.path.join(path, run)
-        accuracy, loss, config = load_run(runpath)
+        accuracy, loss, training_iteration, timestamp config = load_run(runpath)
 
         result.append(
             dict(
                 accuracy=accuracy,
                 loss=loss,
+                training_iteration=training_iteration,
+
                 batchsize=config["batchsize"],
                 dataset=config["dataset"],
                 hidden_dims=config["hidden_dims"],
