@@ -61,46 +61,41 @@ class DualOutputRNN(torch.nn.Module):
         # stack the lists to new tensor (b,d,t,h,w)
         return logits_class, Pts
 
-    def loss(self, inputs, targets, alpha=None):
+    def early_loss(self, inputs, targets, alpha=None):
         predicted_logits, Pts = self.forward(inputs)
 
         logprobabilities = F.log_softmax(predicted_logits, dim=1)
 
-        if alpha is not None:
+        b, c, t, h, w = logprobabilities.shape
 
-            b, c, t, h, w = logprobabilities.shape
+        #logprobabilities_flat = logprobabilities.view(b * t * h * w, c)
+        #targets_flat = targets.view(b * t * h * w)
 
-            #logprobabilities_flat = logprobabilities.view(b * t * h * w, c)
-            #targets_flat = targets.view(b * t * h * w)
+        # an index at which time the classification took place
+        t_index = (torch.ones(b,h,w,t) * torch.arange(t).type(torch.FloatTensor)).transpose(1,3)
 
-            # an index at which time the classification took place
-            t_index = (torch.ones(b,h,w,t) * torch.arange(t).type(torch.FloatTensor)).transpose(1,3)
+        # the reward for early classification 1-(T/t)
+        #t_reward = 1 - t_index.repeat(b * h * w) / t
+        t_reward = 1 - t_index / t
 
-            # the reward for early classification 1-(T/t)
-            #t_reward = 1 - t_index.repeat(b * h * w) / t
-            t_reward = 1 - t_index / t
+        eye = torch.eye(c).type(torch.ByteTensor)
+        if torch.cuda.is_available():
+            eye = eye.cuda()
+            t_reward = t_reward.cuda()
 
-            eye = torch.eye(c).type(torch.ByteTensor)
-            if torch.cuda.is_available():
-                eye = eye.cuda()
-                t_reward = t_reward.cuda()
+        # [b, t, h, w, c]
+        targets_one_hot = eye[targets]
 
-            # [b, t, h, w, c]
-            targets_one_hot = eye[targets]
+        # implement the y*\hat{y} part of the loss function
+        # (permute moves classes to last dimenions -> same as targets_one_hot)
+        y_haty = torch.masked_select(logprobabilities.permute(0,2,3,4,1), targets_one_hot)
+        y_haty = y_haty.view(b, t, h, w).exp()
 
-            # implement the y*\hat{y} part of the loss function
-            # (permute moves classes to last dimenions -> same as targets_one_hot)
-            y_haty = torch.masked_select(logprobabilities.permute(0,2,3,4,1), targets_one_hot)
-            y_haty = y_haty.view(b, t, h, w).exp()
+        #reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+        reward_earliness = (Pts * y_haty * t_reward).sum(1).mean()
+        loss_classification = (Pts * F.nll_loss(logprobabilities, targets,reduction='none')).sum(1).mean()
 
-            #reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
-            reward_earliness = (Pts * y_haty * t_reward).sum(1).mean()
-            loss_classification = (Pts * F.nll_loss(logprobabilities, targets,reduction='none')).sum(1).mean()
-
-            loss =  alpha * loss_classification - (1 - alpha) * reward_earliness
-
-        else:
-            loss = F.nll_loss(logprobabilities, targets)
+        loss =  alpha * loss_classification - (1 - alpha) * reward_earliness
 
         stats = dict(
             loss=loss,
@@ -108,9 +103,86 @@ class DualOutputRNN(torch.nn.Module):
             reward_earliness=reward_earliness,
         )
 
-        prediction = self.predict(logprobabilities, Pts)
+        return loss, logprobabilities, Pts ,stats
 
-        return loss, prediction, Pts ,stats
+    def early_loss_simple(self, inputs, targets, alpha=None):
+        predicted_logits, Pts = self.forward(inputs)
+
+        logprobabilities = F.log_softmax(predicted_logits, dim=1)
+
+        b, c, t, h, w = logprobabilities.shape
+
+        # an index at which time the classification took place
+        t_index = (torch.ones(b,h,w,t) * torch.arange(t).type(torch.FloatTensor)).transpose(1,3).cuda()
+
+        #reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+        loss_earliness = (Pts*(t_index / t)).sum(1).mean()
+        loss_classification = (Pts * F.nll_loss(logprobabilities, targets,reduction='none')).sum(1).mean()
+
+        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness
+
+        stats = dict(
+            loss=loss,
+            loss_classification=loss_classification,
+            loss_earliness=loss_earliness,
+        )
+
+        return loss, logprobabilities, Pts ,stats
+
+    def early_loss_linear(self, inputs, targets, alpha=None):
+        """
+        Uses linear 1-P(actual class) loss. and the simple time regularization t/T
+        L = (1-y\hat{y}) - t/T
+        """
+        predicted_logits, Pts = self.forward(inputs)
+
+        logprobabilities = F.log_softmax(predicted_logits, dim=1)
+
+        b, c, t, h, w = logprobabilities.shape
+
+        # an index at which time the classification took place
+        t_index = (torch.ones(b,h,w,t) * torch.arange(t).type(torch.FloatTensor)).transpose(1,3).cuda()
+
+        eye = torch.eye(c).type(torch.ByteTensor)
+        if torch.cuda.is_available():
+            eye = eye.cuda()
+
+        # [b, t, h, w, c]
+        targets_one_hot = eye[targets]
+
+        # implement the y*\hat{y} part of the loss function
+        # (permute moves classes to last dimenions -> same as targets_one_hot)
+        y_haty = torch.masked_select(logprobabilities.permute(0, 2, 3, 4, 1), targets_one_hot)
+        y_haty = y_haty.view(b, t, h, w).exp()
+
+        #reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+        loss_earliness = (Pts*(t_index / t)).sum(1).mean()
+        loss_classification = (Pts*(1 - y_haty)).sum(1).mean()
+
+        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness
+
+        stats = dict(
+            loss=loss,
+            loss_classification=loss_classification,
+            loss_earliness=loss_earliness,
+        )
+
+        return loss, logprobabilities, Pts ,stats
+
+    def loss_cross_entropy(self, inputs, targets):
+
+        predicted_logits, Pts = self.forward(inputs)
+
+        logprobabilities = F.log_softmax(predicted_logits, dim=1)
+
+        loss = F.nll_loss(logprobabilities, targets)
+
+        stats = dict(
+            loss=loss,
+        )
+
+        return loss, logprobabilities, Pts ,stats
+
 
     def predict(self, logprobabilities, Pts):
         """

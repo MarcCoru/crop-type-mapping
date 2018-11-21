@@ -1,11 +1,12 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
-from models.AttentionRNN import AttentionRNN
+#from models.AttentionRNN import AttentionRNNs
 from utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
 from utils.classmetric import ClassMetric
 from utils.logger import Printer, VisdomLogger, Logger
 import argparse
+import numpy as np
 
 
 class Trainer():
@@ -15,6 +16,7 @@ class Trainer():
         self.epochs = config["epochs"]
         learning_rate = config["learning_rate"]
         self.earliness_factor = config["earliness_factor"]
+        self.switch_epoch = config["switch_epoch"]
 
         self.traindataloader = traindataloader
         self.validdataloader = validdataloader
@@ -22,11 +24,44 @@ class Trainer():
 
         self.visdom = VisdomLogger(env=config["visdomenv"])
         self.logger = Logger(columns=["accuracy"], modes=["train", "test"])
+        self.lossmode = config["loss_mode"] # early_reward,  twophase_early_reward, twophase_linear_loss, or twophase_early_simple
 
         self.model = model
 
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+
+    def loss_criterion(self, inputs, targets, epoch, earliness_factor):
+        """a wrapper around several possible loss functions for experiments"""
+
+        ## try to optimize for earliness only when classification is correct
+        if self.lossmode=="early_reward":
+            return model.early_loss(inputs,targets,earliness_factor)
+
+        # first cross entropy then early reward loss
+        elif self.lossmode == "twophase_early_reward":
+            if epoch < self.switch_epoch:
+                return self.model.loss_cross_entropy(inputs, targets)
+            else:
+                return self.model.early_loss_simple(inputs, targets, alpha=earliness_factor)
+
+        # first cross-entropy loss then linear classification loss and simple t/T regularization
+        elif self.lossmode=="twophase_linear_loss":
+            if epoch < self.switch_epoch:
+                return self.model.loss_cross_entropy(inputs, targets)
+            else:
+                return self.model.early_loss_linear(inputs, targets, alpha=earliness_factor)
+
+        # first cross entropy on all dates, then cross entropy plus simple t/T regularization
+        elif self.lossmode == "twophase_early_simple":
+            if epoch < self.switch_epoch:
+                return self.model.loss_cross_entropy(inputs, targets)
+            else:
+                return self.model.early_loss_simple(inputs, targets, alpha=earliness_factor)
+
+        else:
+            raise ValueError("wrong loss_mode please choose either 'early_reward',  "
+                             "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_early_simple'")
 
     def fit(self,epoch=0):
 
@@ -57,7 +92,9 @@ class Trainer():
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            loss, prediction, weights, stats = self.model.loss(inputs, targets, alpha=self.earliness_factor)
+            loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor)
+
+            prediction = model.predict(logprobabilities, weights)
 
             loss.backward()
             self.optimizer.step()
@@ -90,18 +127,26 @@ class Trainer():
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                loss, prediction, weights, stats = self.model.loss(inputs, targets, alpha=self.earliness_factor)
+                loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor)
+
+                prediction = model.predict(logprobabilities, weights)
 
                 stats = metric.add(stats)
                 stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
                                                           prediction.detach().cpu().numpy())
 
-
         self.visdom.confusion_matrix(metric.hist)
 
-        for i in range(3):
-            self.visdom.plot(inputs[i, :, 0 ,0 , 0], name="input {} (class {})".format(i,targets[i,0,0,0]))
-            self.visdom.bar(weights[i, :, 0, 0], name="P(t) sample "+str(i))
+        n=targets.shape[0]
+        for i in range(n):
+
+            classid = targets[i, 0, 0, 0].cpu().numpy()
+            classids = targets.unique()
+
+            Y = logprobabilities.exp()[i, :, :, 0, 0].transpose(0,1)
+            self.visdom.plot(Y, name="sample {} P(y) (class={})".format(i,classid), fillarea=True, showlegend=True, legend=["class {}".format(c) for c in classids])
+            self.visdom.plot(inputs[i, :, 0 ,0 , 0], name="sample {} x (class={})".format(i,classid))
+            self.visdom.bar(weights[i, :, 0, 0], name="sample {} P(t) (class={})".format(i, classid))
 
         printer.print(stats, iteration, epoch)
 
@@ -133,6 +178,16 @@ def parse_args():
         '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
     parser.add_argument(
         '-a','--earliness_factor', type=float, default=1, help='earliness factor')
+    parser.add_argument(
+        '-x', '--experiment', type=str, default="", help='experiment prefix')
+    parser.add_argument(
+        '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
+                                                                       'valid options are early_reward,  '
+                                                                       'twophase_early_reward, '
+                                                                       'twophase_linear_loss, or twophase_early_simple')
+    parser.add_argument(
+        '-s', '--switch_epoch', type=int, default=9999, help='epoch at which to switch the loss function '
+                                                             'from classification training to early training')
 
     parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
@@ -154,8 +209,14 @@ if __name__=="__main__":
     nclasses = traindataset.nclasses
 
     # handles multithreaded batching and shuffling
+
+    np.random.seed(0)
+    torch.random.manual_seed(0)
     traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
                                                   num_workers=args.workers, pin_memory=True)
+
+    np.random.seed(1)
+    torch.random.manual_seed(0)
     validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
                                                   num_workers=args.workers, pin_memory=True)
 
@@ -172,11 +233,15 @@ if __name__=="__main__":
     if torch.cuda.is_available():
         model = model.cuda()
 
+    visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
+
     config = dict(
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         earliness_factor=args.earliness_factor,
-        visdomenv=args.dataset
+        visdomenv=visdomenv,
+        switch_epoch=args.switch_epoch,
+        loss_mode=args.loss_mode
     )
 
     trainer = Trainer(model,traindataloader,validdataloader,config=config)
