@@ -123,7 +123,7 @@ class VisdomLogger():
 
         self.viz.bar(X,win=win,opts=opts)
 
-    def plot(self, X, name="plot"):
+    def plot(self, X, name="plot",**kwargs):
         """
         :param distribution: t
         """
@@ -138,7 +138,8 @@ class VisdomLogger():
             marginleft=20,
             marginright=20,
             marginbottom=20,
-            margintop=30
+            margintop=30,
+            **kwargs
         )
 
         self.viz.line(X ,win=win, opts=opts)
@@ -160,6 +161,26 @@ class VisdomLogger():
         self.viz.matplot(plt, win=name, opts=opts)
 
         pass
+
+    def plot_class_p(self,X):
+        plt.clf()
+
+        x = X.detach().cpu().numpy()
+        plt.plot(x[0, :])
+
+        name="confusion matrix"
+
+        plt.rcParams['figure.figsize'] = (6, 6)
+        #sn.set(font_scale=1.4)  # for label size
+        ax = sn.heatmap(cm, annot=True, annot_kws={"size": 11})  # font size
+        ax.set(xlabel='ground truth', ylabel='predicted', title="Confusion Matrix")
+        plt.tight_layout()
+        opts = dict(
+            resizeable=True
+        )
+
+        self.viz.matplot(plt, win=name, opts=opts)
+
 
 
     def plot_epochs(self, data):
