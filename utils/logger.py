@@ -2,53 +2,52 @@ import numpy as np
 import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 import seaborn as sn
 from visdom import Visdom
 
 class Printer():
 
-    def __init__(self, batchsize = None, N = None, prefix=""):
+    def __init__(self, batchsize = None):
         self.batchsize = batchsize
-        self.N = N
-        self.prefix = prefix
 
         self.last=datetime.datetime.now()
         self.lastepoch=0
 
-    def print(self, stats, iteration, epoch):
+    def print(self, stats, epoch, iteration=None, prefix=""):
         print_lst = list()
 
-        if self.N is None:
-            print_lst.append('Epoch {}: iteration: {}'.format(epoch, iteration))
-        else:
-            print_lst.append('Epoch {}: iteration: {}/{}'.format(epoch, iteration, self.N))
+        print_lst.append('Epoch {}:'.format(epoch))
+
+        if iteration is not None:
+            print_lst.append(" iteration: {}".format(iteration))
 
         for k, v in zip(stats.keys(), stats.values()):
-            if not np.isnan(v):
-                print_lst.append('{}: {:.2f}'.format(k, v))
+            if np.array(v).size == 1:
+                if not np.isnan(v):
+                    print_lst.append('{}: {:.2f}'.format(k, v))
 
         # replace line if epoch has not changed
         if self.lastepoch==epoch:
-            print('\r' + self.prefix + ', '.join(print_lst), end="")
+            print('\r' + prefix + ', '.join(print_lst), end="")
         else:
-            print("\n" + self.prefix + ', '.join(print_lst), end="")
+            print("\n" + prefix + ', '.join(print_lst), end="")
 
         self.last = datetime.datetime.now()
-
         self.lastepoch=epoch
-
 
 class Logger():
 
-    def __init__(self, columns, modes, csv=None, epoch=0, idx=0):
+    def __init__(self, columns, modes, epoch=0, idx=0, rootpath=None):
 
         self.columns=columns
         self.mode=modes[0]
         self.epoch=epoch
         self.idx = idx
         self.data = pd.DataFrame(columns=["epoch","iteration","mode"]+self.columns)
-        self.csv = csv
+        self.stored_arrays = dict()
+        self.rootpath=rootpath
 
     def resume(self, data):
         self.data = data
@@ -66,6 +65,24 @@ class Logger():
 
     def log(self, stats, epoch):
 
+        clean_stats = dict()
+        for k,v in stats.items():
+            if np.array(v).size == 1:
+                clean_stats[k] = v
+            else:
+                self.log_array(name=k,array=v, epoch=epoch)
+
+        self.log_numbers(clean_stats, epoch)
+
+    def log_array(self, name, array, epoch):
+
+        if name not in self.stored_arrays.keys():
+            self.stored_arrays[name] = list()
+
+        self.stored_arrays[name].append((epoch, array))
+
+    def log_numbers(self, stats, epoch):
+
         stats["epoch"] = epoch
         stats["mode"] = self.mode
 
@@ -77,13 +94,21 @@ class Logger():
     def get_data(self):
         return self.data
 
-    def save_csv(self, path=None):
-        if path is not None:
-            self.data.to_csv(path)
-        elif self.csv is not None:
-            self.data.to_csv(self.csv)
-        else:
-            raise ValueError("please provide either path argument or initialize Logger() with csv argument")
+    def save(self):
+
+        if not os.path.exists(self.rootpath):
+            os.makedirs(self.rootpath)
+
+        arrayfile = "{epoch}_{name}.npy"
+        csvfile = "data.csv"
+
+        for k,v in self.stored_arrays.items():
+            for el in v:
+                epoch, data = el
+                filename = arrayfile.format(epoch=epoch, name=k)
+                np.save(os.path.join(self.rootpath,filename),data)
+
+        self.data.to_csv(os.path.join(self.rootpath,csvfile))
 
 class VisdomLogger():
     def __init__(self,**kwargs):

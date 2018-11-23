@@ -7,23 +7,24 @@ from utils.classmetric import ClassMetric
 from utils.logger import Printer, VisdomLogger, Logger
 import argparse
 import numpy as np
-
+import os
 
 class Trainer():
 
-    def __init__(self,model, traindataloader, validdataloader, config):
+    def __init__(self, model, traindataloader, validdataloader, config):
 
         self.epochs = config["epochs"]
         learning_rate = config["learning_rate"]
         self.earliness_factor = config["earliness_factor"]
         self.switch_epoch = config["switch_epoch"]
+        self.batch_size = validdataloader.batch_size
 
         self.traindataloader = traindataloader
         self.validdataloader = validdataloader
         self.nclasses=traindataloader.dataset.nclasses
 
         self.visdom = VisdomLogger(env=config["visdomenv"])
-        self.logger = Logger(columns=["accuracy"], modes=["train", "test"])
+        self.logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=config["store"])
         self.lossmode = config["loss_mode"] # early_reward,  twophase_early_reward, twophase_linear_loss, or twophase_early_simple
         self.show_n_samples = config["show_n_samples"]
 
@@ -65,22 +66,41 @@ class Trainer():
                              "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_early_simple'")
 
     def fit(self,epoch=0):
+        printer = Printer()
 
         for epoch in range(epoch,self.epochs):
 
-            print()
+            self.logger.set_mode("train")
+            stats = self.train_epoch(epoch)
+            printer.print(stats, epoch, prefix="train: ")
 
-            self.train_epoch(epoch)
-            self.test_epoch(epoch)
+            self.logger.set_mode("test")
+            stats = self.test_epoch(epoch)
+            self.logger.log(stats, epoch)
+            printer.print(stats, epoch, prefix="valid: ")
+
+            self.visdom.confusion_matrix(stats["confusion_matrix"])
+
+            legend = ["class {}".format(c) for c in range(self.nclasses)]
+
+            targets = stats["targets"]
+
+            # either user-specified value or all available values
+            n_samples = self.show_n_samples if self.show_n_samples < targets.shape[0] else targets.shape[0]
+
+            for i in range(n_samples):
+                classid = targets[i, 0, 0, 0]
+
+                self.visdom.plot(stats["probas"][:, i, :, 0, 0].T, name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
+                                 showlegend=True, legend=legend)
+                self.visdom.plot(stats["inputs"][i, :, 0, 0, 0], name="sample {} x (class={})".format(i, classid))
+                self.visdom.bar(stats["weights"][i, :, 0, 0], name="sample {} P(t) (class={})".format(i, classid))
 
             self.visdom.plot_epochs(self.logger.get_data())
 
+        self.logger.save()
 
     def train_epoch(self, epoch):
-        self.logger.set_mode("train")
-
-        printer = Printer(prefix="train: ")
-
         # builds a confusion matrix
         metric = ClassMetric(num_classes=self.nclasses)
 
@@ -103,16 +123,9 @@ class Trainer():
             stats = metric.add(stats)
             stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
 
-        printer.print(stats, iteration, epoch)
-
-        self.logger.log(stats, epoch)
-
         return stats
 
     def test_epoch(self, epoch):
-        self.logger.set_mode("test")
-
-        printer = Printer(prefix="valid: ")
 
         # builds a confusion matrix
         #metric_maxvoted = ClassMetric(num_classes=self.nclasses)
@@ -136,23 +149,13 @@ class Trainer():
                 stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
                                                           prediction.detach().cpu().numpy())
 
-        self.visdom.confusion_matrix(metric.hist)
+        stats["confusion_matrix"] = metric.hist
+        stats["targets"] = targets.cpu().numpy()
+        stats["inputs"] = inputs.cpu().numpy()
+        stats["weights"] = weights.cpu().numpy()
 
-
-        b = targets.shape[0]
-        for i in range(self.show_n_samples if self.show_n_samples<b else b):
-
-            classid = targets[i, 0, 0, 0].cpu().numpy()
-            classids = targets.unique()
-
-            Y = logprobabilities.exp()[i, :, :, 0, 0].transpose(0,1)
-            self.visdom.plot(Y, name="sample {} P(y) (class={})".format(i,classid), fillarea=True, showlegend=True, legend=["class {}".format(c) for c in classids])
-            self.visdom.plot(inputs[i, :, 0 ,0 , 0], name="sample {} x (class={})".format(i,classid))
-            self.visdom.bar(weights[i, :, 0, 0], name="sample {} P(t) (class={})".format(i, classid))
-
-        printer.print(stats, iteration, epoch)
-
-        self.logger.log(stats, epoch)
+        probas = logprobabilities.exp().transpose(0, 1)
+        stats["probas"] = probas.cpu().numpy()
 
         return stats
 
@@ -183,6 +186,10 @@ def parse_args():
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
+        '--store', type=str, default="/tmp", help='store run logger results')
+    parser.add_argument(
+        '--run', type=str, default=None, help='run name')
+    parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
         '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
@@ -206,9 +213,9 @@ if __name__=="__main__":
         traindataset = SyntheticDataset(num_samples=2000, T=100)
         validdataset = SyntheticDataset(num_samples=1000, T=100)
     else:
-        traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=2,
+        traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=0,
                                   augment_data_noise=args.augment_data_noise)
-        validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=2)
+        validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=0)
 
     nclasses = traindataset.nclasses
 
@@ -220,7 +227,7 @@ if __name__=="__main__":
                                                   num_workers=args.workers, pin_memory=True)
 
     np.random.seed(1)
-    torch.random.manual_seed(0)
+    torch.random.manual_seed(1)
     validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
                                                   num_workers=args.workers, pin_memory=True)
 
@@ -237,7 +244,12 @@ if __name__=="__main__":
     if torch.cuda.is_available():
         model = model.cuda()
 
-    visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
+    if args.run is None:
+        visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
+        storepath = args.store
+    else:
+        visdomenv = args.run
+        storepath = os.path.join(args.store, args.run)
 
     if args.switch_epoch is None:
         args.switch_epoch = int(args.epochs/2)
@@ -249,7 +261,8 @@ if __name__=="__main__":
         visdomenv=visdomenv,
         switch_epoch=args.switch_epoch,
         loss_mode=args.loss_mode,
-        show_n_samples=args.show_n_samples
+        show_n_samples=args.show_n_samples,
+        store=storepath
     )
 
     trainer = Trainer(model,traindataloader,validdataloader,config=config)
