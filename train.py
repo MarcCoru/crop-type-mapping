@@ -25,6 +25,7 @@ class Trainer():
         self.visdom = VisdomLogger(env=config["visdomenv"])
         self.logger = Logger(columns=["accuracy"], modes=["train", "test"])
         self.lossmode = config["loss_mode"] # early_reward,  twophase_early_reward, twophase_linear_loss, or twophase_early_simple
+        self.show_n_samples = config["show_n_samples"]
 
         self.model = model
 
@@ -137,8 +138,9 @@ class Trainer():
 
         self.visdom.confusion_matrix(metric.hist)
 
-        n=targets.shape[0]
-        for i in range(n):
+
+        b = targets.shape[0]
+        for i in range(self.show_n_samples if self.show_n_samples<b else b):
 
             classid = targets[i, 0, 0, 0].cpu().numpy()
             classids = targets.unique()
@@ -179,14 +181,16 @@ def parse_args():
     parser.add_argument(
         '-a','--earliness_factor', type=float, default=1, help='earliness factor')
     parser.add_argument(
-        '-x', '--experiment', type=str, default="", help='experiment prefix')
+        '-x', '--experiment', type=str, default="test", help='experiment prefix')
+    parser.add_argument(
+        '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
         '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
                                                                        'valid options are early_reward,  '
                                                                        'twophase_early_reward, '
                                                                        'twophase_linear_loss, or twophase_early_simple')
     parser.add_argument(
-        '-s', '--switch_epoch', type=int, default=9999, help='epoch at which to switch the loss function '
+        '-s', '--switch_epoch', type=int, default=None, help='epoch at which to switch the loss function '
                                                              'from classification training to early training')
 
     parser.add_argument(
@@ -235,13 +239,17 @@ if __name__=="__main__":
 
     visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
 
+    if args.switch_epoch is None:
+        args.switch_epoch = int(args.epochs/2)
+
     config = dict(
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         earliness_factor=args.earliness_factor,
         visdomenv=visdomenv,
         switch_epoch=args.switch_epoch,
-        loss_mode=args.loss_mode
+        loss_mode=args.loss_mode,
+        show_n_samples=args.show_n_samples
     )
 
     trainer = Trainer(model,traindataloader,validdataloader,config=config)
