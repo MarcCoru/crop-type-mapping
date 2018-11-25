@@ -1,168 +1,11 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
-#from models.AttentionRNN import AttentionRNNs
 from utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
-from utils.classmetric import ClassMetric
-from utils.logger import Printer, VisdomLogger, Logger
 import argparse
 import numpy as np
 import os
-
-class Trainer():
-
-    def __init__(self, model, traindataloader, validdataloader, config):
-
-        self.epochs = config["epochs"]
-        learning_rate = config["learning_rate"]
-        self.earliness_factor = config["earliness_factor"]
-        self.switch_epoch = config["switch_epoch"]
-        self.batch_size = validdataloader.batch_size
-
-        self.traindataloader = traindataloader
-        self.validdataloader = validdataloader
-        self.nclasses=traindataloader.dataset.nclasses
-
-        self.visdom = VisdomLogger(env=config["visdomenv"])
-        self.logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=config["store"])
-        self.lossmode = config["loss_mode"] # early_reward,  twophase_early_reward, twophase_linear_loss, or twophase_early_simple
-        self.show_n_samples = config["show_n_samples"]
-
-        self.model = model
-
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-        # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-
-    def loss_criterion(self, inputs, targets, epoch, earliness_factor):
-        """a wrapper around several possible loss functions for experiments"""
-
-        ## try to optimize for earliness only when classification is correct
-        if self.lossmode=="early_reward":
-            return model.early_loss(inputs,targets,earliness_factor)
-
-        # first cross entropy then early reward loss
-        elif self.lossmode == "twophase_early_reward":
-            if epoch < self.switch_epoch:
-                return self.model.loss_cross_entropy(inputs, targets)
-            else:
-                return self.model.early_loss_simple(inputs, targets, alpha=earliness_factor)
-
-        # first cross-entropy loss then linear classification loss and simple t/T regularization
-        elif self.lossmode=="twophase_linear_loss":
-            if epoch < self.switch_epoch:
-                return self.model.loss_cross_entropy(inputs, targets)
-            else:
-                return self.model.early_loss_linear(inputs, targets, alpha=earliness_factor)
-
-        # first cross entropy on all dates, then cross entropy plus simple t/T regularization
-        elif self.lossmode == "twophase_early_simple":
-            if epoch < self.switch_epoch:
-                return self.model.loss_cross_entropy(inputs, targets)
-            else:
-                return self.model.early_loss_simple(inputs, targets, alpha=earliness_factor)
-
-        else:
-            raise ValueError("wrong loss_mode please choose either 'early_reward',  "
-                             "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_early_simple'")
-
-    def fit(self,epoch=0):
-        printer = Printer()
-
-        for epoch in range(epoch,self.epochs):
-
-            self.logger.set_mode("train")
-            stats = self.train_epoch(epoch)
-            printer.print(stats, epoch, prefix="train: ")
-
-            self.logger.set_mode("test")
-            stats = self.test_epoch(epoch)
-            self.logger.log(stats, epoch)
-            printer.print(stats, epoch, prefix="valid: ")
-
-            self.visdom.confusion_matrix(stats["confusion_matrix"])
-
-            legend = ["class {}".format(c) for c in range(self.nclasses)]
-
-            targets = stats["targets"]
-
-            # either user-specified value or all available values
-            n_samples = self.show_n_samples if self.show_n_samples < targets.shape[0] else targets.shape[0]
-
-            for i in range(n_samples):
-                classid = targets[i, 0]
-
-                self.visdom.plot(stats["probas"][:, i, :], name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
-                                 showlegend=True, legend=legend)
-                self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
-                self.visdom.bar(stats["weights"][i, :], name="sample {} P(t) (class={})".format(i, classid))
-
-            self.visdom.plot_epochs(self.logger.get_data())
-
-        self.logger.save()
-
-    def train_epoch(self, epoch):
-        # sets the model to train mode: dropout is applied
-        self.model.train()
-
-        # builds a confusion matrix
-        metric = ClassMetric(num_classes=self.nclasses)
-
-        for iteration, data in enumerate(self.traindataloader):
-            self.optimizer.zero_grad()
-
-            inputs, targets = data
-
-            if torch.cuda.is_available():
-                inputs = inputs.cuda()
-                targets = targets.cuda()
-
-            loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor)
-
-            prediction = model.predict(logprobabilities, weights)
-
-            loss.backward()
-            self.optimizer.step()
-
-            stats = metric.add(stats)
-            stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-
-        return stats
-
-    def test_epoch(self, epoch):
-        # sets the model to train mode: no dropout is applied
-        self.model.eval()
-
-        # builds a confusion matrix
-        #metric_maxvoted = ClassMetric(num_classes=self.nclasses)
-        metric = ClassMetric(num_classes=self.nclasses)
-        #metric_all_t = ClassMetric(num_classes=self.nclasses)
-
-        with torch.no_grad():
-            for iteration, data in enumerate(self.validdataloader):
-
-                inputs, targets = data
-
-                if torch.cuda.is_available():
-                    inputs = inputs.cuda()
-                    targets = targets.cuda()
-
-                loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor)
-
-                prediction = model.predict(logprobabilities, weights)
-
-                stats = metric.add(stats)
-                stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
-                                                          prediction.detach().cpu().numpy())
-
-        stats["confusion_matrix"] = metric.hist
-        stats["targets"] = targets.cpu().numpy()
-        stats["inputs"] = inputs.cpu().numpy()
-        stats["weights"] = weights.cpu().numpy()
-
-        probas = logprobabilities.exp().transpose(0, 1)
-        stats["probas"] = probas.cpu().numpy()
-
-        return stats
+from utils.trainer import Trainer
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -224,8 +67,6 @@ if __name__=="__main__":
 
     nclasses = traindataset.nclasses
 
-    # handles multithreaded batching and shuffling
-
     np.random.seed(0)
     torch.random.manual_seed(0)
     traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
@@ -235,7 +76,6 @@ if __name__=="__main__":
     torch.random.manual_seed(1)
     validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
                                                   num_workers=args.workers, pin_memory=True)
-
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
                               num_rnn_layers=args.num_rnn_layers, dropout=args.dropout)
@@ -244,7 +84,6 @@ if __name__=="__main__":
                              use_batchnorm=args.use_batchnorm)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
-
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -271,36 +110,4 @@ if __name__=="__main__":
     )
 
     trainer = Trainer(model,traindataloader,validdataloader,config=config)
-
     trainer.fit()
-
-    """
-    config = dict(
-         batchsize=32,
-         workers=4,
-         epochs = 4000,
-         hidden_dims = 2**10,
-         learning_rate = 1e-3,
-         earliness_factor=1,
-         switch_epoch = 4000,
-         num_rnn_layers=3,
-         dataset="Trace",
-         savepath="/home/marc/tmp/model_r1024_e4k.pth",
-         loadpath = None,
-         silent = False)
-
-    config = dict(
-        batchsize=32,
-        workers=0,
-        epochs=50,
-        hidden_dims=2**4,
-        learning_rate=1e-2,
-        earliness_factor=1,
-        switch_epoch=50,
-        num_rnn_layers=1,
-        dataset="Trace",
-        savepath="/home/marc/tmp/model_r1024_e4k.pth",
-        loadpath=None,
-        silent=False)
-        
-        """

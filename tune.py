@@ -1,54 +1,51 @@
 import ray
 import ray.tune as tune
-import train
-import os, sys, io
-import contextlib
 from models.DualOutputRNN import DualOutputRNN
 from utils.UCR_Dataset import UCRDataset
-from utils.classmetric import ClassMetric
 import torch
-import numpy as np
 from ray.tune.schedulers import HyperBandScheduler, AsyncHyperBandScheduler
 import argparse
 from hyperopt import hp
+from utils.trainer import Trainer
 
 class TrainDualOutputRNN(ray.tune.Trainable):
     def _setup(self, config):
-        batchsize = config["batchsize"]
-        workers = config["workers"]
-        hidden_dims = config["hidden_dims"]
-        learning_rate = config["learning_rate"]
-        num_rnn_layers = config["num_rnn_layers"]
-        dataset = config["dataset"]
-        self.earliness_factor = config["earliness_factor"]
-        data_noise = config["data_noise"]
 
-        traindataset = UCRDataset(dataset, partition="trainvalid", ratio=.75, randomstate=2, silent=True,
-                                                           augment_data_noise=data_noise)
-        validdataset = UCRDataset(dataset, partition="test", ratio=.75, randomstate=2, silent=True)
+        traindataset = UCRDataset(config["dataset"],
+                                  partition="trainvalid",
+                                  ratio=.8,
+                                  randomstate=config["fold"],
+                                  silent=True,
+                                  augment_data_noise=config["data_noise"])
+
+        validdataset = UCRDataset(config["dataset"],
+                                  partition="test",
+                                  ratio=.8,
+                                  randomstate=config["fold"],
+                                  silent=True)
         nclasses = traindataset.nclasses
 
         # handles multitxhreaded batching and shuffling
-        self.traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
-                                                           num_workers=workers,
+        self.traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=config["batchsize"], shuffle=True,
+                                                           num_workers=config["workers"],
                                                            pin_memory=False)
-        self.validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False,
-                                                      num_workers=workers, pin_memory=False)
+        self.validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=config["batchsize"], shuffle=False,
+                                                      num_workers=config["workers"], pin_memory=False)
 
         self.model = DualOutputRNN(input_dim=1,
                                    nclasses=nclasses,
-                                   hidden_dim=hidden_dims,
-                                   num_rnn_layers=num_rnn_layers,
-                                   use_batchnorm=True)
-
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
-        # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+                                   hidden_dim=config["hidden_dims"],
+                                   num_rnn_layers=config["num_rnn_layers"])
 
         if torch.cuda.is_available():
             self.model = self.model.cuda()
 
+        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, config)
+
+    """
     def train_epoch(self):
 
+        stats = self.trainer.train_epoch(epoch)
         # builds a confusion matrix
         metric = ClassMetric(num_classes=self.traindataloader.dataset.nclasses)
 
@@ -91,10 +88,12 @@ class TrainDualOutputRNN(ray.tune.Trainable):
                                                           prediction.detach().cpu().numpy())
 
         return stats
+    """
 
     def _train(self):
-        self.train_epoch()
-        return self.test_epoch()
+        # epoch is used to distinguish training phases. epoch=None will default to (first) cross entropy phase
+        self.trainer.train_epoch(epoch=None)
+        return self.trainer.test_epoch(epoch=None)
 
     def _save(self, path):
         path = path + ".pth"
@@ -128,23 +127,13 @@ if __name__=="__main__":
 
     ray.init(include_webui=False)
 
-    config = dict(
-        batchsize=32,
-        workers=0,
-        epochs=999,
-        hidden_dims=tune.grid_search([2 ** 4, 2 ** 6, 2 ** 8, 2 ** 10]),
-        learning_rate=tune.grid_search([1e-2, 1e-3]),
-        earliness_factor=1,
-        switch_epoch=999,
-        num_rnn_layers=tune.grid_search([2, 3, 4, 5]),
-        dataset=args.dataset,
-        savepath="/home/marc/tmp/model_r1024_e4k.pth",
-        loadpath=None,
-        silent=True)
-
+    #tune.grid_search(
     config = dict(
         batchsize=args.batchsize,
         workers=2,
+        epochs=20,
+        switch_epoch=9999,
+        fold = tune.grid_search([0,1,2,3,4]),
         hidden_dims=hp.choice("hidden_dims", [2**4,2**5,2**6,2**7,2**8,2**9]),
         learning_rate=hp.uniform("learning_rate", 1e-3,1e-1),
         data_noise=hp.uniform("data_noise", 0, 1e-1),
