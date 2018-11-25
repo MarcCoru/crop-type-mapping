@@ -88,7 +88,7 @@ class UCRDataset(torch.utils.data.Dataset):
         y = torch.from_numpy(np.array([self.y[idx] - 1])).type(torch.LongTensor)
 
         # add 1d hight and width dimensions and copy y for each time
-        return X.unsqueeze(-1).unsqueeze(-1), y.expand(X.shape[0]).unsqueeze(-1).unsqueeze(-1)
+        return X, y.expand(X.shape[0])
 
 if __name__ == "__main__":
 

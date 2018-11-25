@@ -59,7 +59,7 @@ class SyntheticDataset(torch.utils.data.Dataset):
         y = torch.from_numpy(np.array(self.y[idx])).type(torch.LongTensor)
 
         # add 1d hight and width dimensions and copy y for each time
-        return X.view(self.T,1,1,1),y.expand(self.T,1,1)
+        return X.view(self.T,1),y.expand(self.T)
 
 if __name__ == "__main__":
 

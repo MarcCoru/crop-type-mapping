@@ -89,18 +89,21 @@ class Trainer():
             n_samples = self.show_n_samples if self.show_n_samples < targets.shape[0] else targets.shape[0]
 
             for i in range(n_samples):
-                classid = targets[i, 0, 0, 0]
+                classid = targets[i, 0]
 
-                self.visdom.plot(stats["probas"][:, i, :, 0, 0].T, name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
+                self.visdom.plot(stats["probas"][:, i, :], name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
                                  showlegend=True, legend=legend)
-                self.visdom.plot(stats["inputs"][i, :, 0, 0, 0], name="sample {} x (class={})".format(i, classid))
-                self.visdom.bar(stats["weights"][i, :, 0, 0], name="sample {} P(t) (class={})".format(i, classid))
+                self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
+                self.visdom.bar(stats["weights"][i, :], name="sample {} P(t) (class={})".format(i, classid))
 
             self.visdom.plot_epochs(self.logger.get_data())
 
         self.logger.save()
 
     def train_epoch(self, epoch):
+        # sets the model to train mode: dropout is applied
+        self.model.train()
+
         # builds a confusion matrix
         metric = ClassMetric(num_classes=self.nclasses)
 
@@ -126,6 +129,8 @@ class Trainer():
         return stats
 
     def test_epoch(self, epoch):
+        # sets the model to train mode: no dropout is applied
+        self.model.eval()
 
         # builds a confusion matrix
         #metric_maxvoted = ClassMetric(num_classes=self.nclasses)
@@ -174,11 +179,11 @@ def parse_args():
     parser.add_argument(
         '-l', '--learning_rate', type=float, default=1e-2, help='learning rate')
     parser.add_argument(
+        '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
+    parser.add_argument(
         '-n', '--num_rnn_layers', type=int, default=1, help='number of RNN layers')
     parser.add_argument(
         '-r', '--hidden_dims', type=int, default=32, help='number of RNN hidden dimensions')
-    parser.add_argument(
-        '--use_batchnorm', action="store_true", help='use batchnorm instead of a bias vector')
     parser.add_argument(
         '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
     parser.add_argument(
@@ -233,7 +238,7 @@ if __name__=="__main__":
 
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
-                              num_rnn_layers=args.num_rnn_layers)
+                              num_rnn_layers=args.num_rnn_layers, dropout=args.dropout)
     elif args.model == "AttentionRNN":
         model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
                              use_batchnorm=args.use_batchnorm)
