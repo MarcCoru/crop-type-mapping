@@ -38,6 +38,9 @@ class Trainer():
         if self.lossmode=="early_reward":
             return self.model.early_loss(inputs,targets,earliness_factor)
 
+        elif self.lossmode=="loss_cross_entropy":
+            return self.model.loss_cross_entropy(inputs,targets,earliness_factor)
+
         # first cross entropy then early reward loss
         elif self.lossmode == "twophase_early_reward":
             if epoch < self.switch_epoch:
@@ -70,12 +73,12 @@ class Trainer():
 
             self.logger.set_mode("train")
             stats = self.train_epoch(epoch)
-            printer.print(stats, epoch, prefix="train: ")
+            printer.print(stats, epoch, prefix="\ntrain: ")
 
             self.logger.set_mode("test")
             stats = self.test_epoch(epoch)
             self.logger.log(stats, epoch)
-            printer.print(stats, epoch, prefix="valid: ")
+            printer.print(stats, epoch, prefix="\nvalid: ")
 
             self.visdom.confusion_matrix(stats["confusion_matrix"])
 
@@ -89,7 +92,8 @@ class Trainer():
             for i in range(n_samples):
                 classid = targets[i, 0]
 
-                self.visdom.plot(stats["probas"][:, i, :], name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
+                if len(stats["probas"].shape)==3:
+                    self.visdom.plot(stats["probas"][:, i, :], name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
                                  showlegend=True, legend=legend)
                 self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
                 self.visdom.bar(stats["weights"][i, :], name="sample {} P(t) (class={})".format(i, classid))

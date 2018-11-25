@@ -6,69 +6,63 @@ from models.convlstm.convlstm import ConvLSTM
 from models import AttentionModule
 
 class AttentionRNN(torch.nn.Module):
-    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5, num_rnn_layers=1, use_batchnorm=True):
+    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5, num_rnn_layers=1, dropout=.8):
         super(AttentionRNN, self).__init__()
 
         self.nclasses=nclasses
-        self.use_batchnorm = use_batchnorm
 
-        self.convlstm = ConvLSTM(input_size, input_dim, hidden_dim, kernel_size=(kernel_size[0],kernel_size[1]), num_layers=num_rnn_layers,
-                 batch_first=True, bias=not use_batchnorm, return_all_layers=False)
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_rnn_layers, bias=False,
+                            batch_first=True, dropout=dropout)
 
         self.attention = AttentionModule.Attention(hidden_dim)
 
-        if use_batchnorm:
-            self.bn_query = nn.BatchNorm1d(hidden_dim)
-            self.bn_context = nn.BatchNorm1d(hidden_dim)
-            self.bn_class = nn.BatchNorm1d(hidden_dim)
+        self.bn_outputs = nn.BatchNorm1d(hidden_dim)
+        self.bn_query = nn.BatchNorm1d(hidden_dim)
+        self.bn_class = nn.BatchNorm1d(hidden_dim)
 
-        self.conv2d_class = nn.Conv2d(in_channels=hidden_dim, out_channels=nclasses, kernel_size=kernel_size,
-                                      padding=(kernel_size[0] // 2, kernel_size[1] // 2),
-                                      bias=not use_batchnorm)
+        self.linear_class = nn.Linear(hidden_dim, nclasses, bias=True)
+
+        #self.conv2d_class = nn.Conv2d(in_channels=hidden_dim, out_channels=nclasses, kernel_size=kernel_size,
+        #                              padding=(kernel_size[0] // 2, kernel_size[1] // 2),
+        #                              bias=True)
 
     def forward(self,x):
 
-        layer_output_list, last_state_list = self.convlstm.forward(x)
-        outputs = layer_output_list[-1]
+        outputs, last_state_list = self.lstm.forward(x)
 
-        h, c = last_state_list[-1]
-        # reshape c from [b,d,h,w] to [b,t=1,d]
-        query = c.squeeze().unsqueeze(1)
+        b, t, d = outputs.shape
+        o_ = outputs.view(b, -1, d).permute(0, 2, 1)
+        outputs = self.bn_outputs(o_).permute(0, 2, 1).view(b, t, d)
 
+        h, c = last_state_list
 
-        # bring outputs form [b,t,d,h,w] to [b,t,d] (assuming h,w=1)
-        context = outputs.squeeze()
+        query = c[-1]
 
-        # bn
-        if self.use_batchnorm:
-            query = self.bn_query(query.permute(0, 2, 1)).permute(0, 2, 1)
-            context = self.bn_context(context.permute(0, 2, 1)).permute(0, 2, 1)
+        query = self.bn_query(query)
 
-        output, weights = self.attention(query, context)
+        output, weights = self.attention(query.unsqueeze(1),outputs)
 
-        if self.use_batchnorm:
-            self.bn_class(output.transpose(1, 2)).transpose(1, 2)
+        output = self.bn_class(output.squeeze(1))
 
-        # bring output from [b,t=1,d] to [b,d,h=1,w=1]
-        output = output.squeeze(1).unsqueeze(-1).unsqueeze(-1)
+        logits_class = self.linear_class.forward(output)
 
-        logits_class = self.conv2d_class.forward(output)
+        return logits_class, weights.squeeze(1)
 
-        # stack the lists to new tensor (b,d,t,h,w)
-        return logits_class, weights.permute(0,2,1).unsqueeze(-1)
-
-    def loss(self, inputs, targets, **kwargs):
+    def loss_cross_entropy(self, inputs, targets):
         predicted_logits, weights = self.forward(inputs)
 
         logprobabilities = F.log_softmax(predicted_logits, dim=1)
 
-        loss = F.nll_loss(logprobabilities, targets[:,0,:,:])
+        loss = F.nll_loss(logprobabilities, targets[:,0])
 
         stats = dict(
             loss=loss,
             )
 
-        return loss, logprobabilities.argmax(1), weights, stats
+        return loss, logprobabilities, weights, stats
+
+    def predict(self, logprobabilities, Pts):
+        return logprobabilities.argmax(1)
 
     def save(self, path="model.pth", **kwargs):
         print("\nsaving model to "+path)

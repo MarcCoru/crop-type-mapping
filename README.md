@@ -1,6 +1,12 @@
 Recurrent Neural Networks for Early Classification of Time Series
 ===
 
+#### Unittests
+
+```bash
+python tests/run_unittests.py
+```
+
 #### Data
 
 

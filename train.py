@@ -1,5 +1,6 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
+from models.AttentionRNN import AttentionRNN
 from utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
 import argparse
@@ -61,9 +62,9 @@ if __name__=="__main__":
         traindataset = SyntheticDataset(num_samples=2000, T=100)
         validdataset = SyntheticDataset(num_samples=1000, T=100)
     else:
-        traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=0,
+        traindataset = UCRDataset(args.dataset, partition="test", ratio=.75, randomstate=0,
                                   augment_data_noise=args.augment_data_noise)
-        validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=0)
+        validdataset = UCRDataset(args.dataset, partition="trainvalid", ratio=.75, randomstate=0)
 
     nclasses = traindataset.nclasses
 
@@ -81,7 +82,7 @@ if __name__=="__main__":
                               num_rnn_layers=args.num_rnn_layers, dropout=args.dropout)
     elif args.model == "AttentionRNN":
         model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
-                             use_batchnorm=args.use_batchnorm)
+                             dropout=args.dropout)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
 
