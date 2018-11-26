@@ -47,7 +47,7 @@ def load_experiment(path):
 
 def parse_experiment(experimentpath, outcsv=None, n=5):
     result = load_experiment(experimentpath)
-
+    result = pd.DataFrame(result)
     # average accuracy over the same columns (particularily over the fold variable...)
     grouped = result.groupby(["hidden_dims", "learning_rate", "num_rnn_layers"])["accuracy"]
     nfolds = grouped.count().rename("nfolds")
@@ -83,7 +83,9 @@ if __name__=="__main__":
 
     experimentpath = os.path.join(args.root, args.experiment)
 
-    parse_experiment(experimentpath, outcsv="/tmp/top5.csv")
+    result = parse_experiment(experimentpath, outcsv=None)
+
+    print(result)
 
 
 
