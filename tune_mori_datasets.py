@@ -1,6 +1,3 @@
-import sys
-sys.path.append("..")
-
 import ray
 import ray.tune as tune
 from models.DualOutputRNN import DualOutputRNN
@@ -67,11 +64,11 @@ class RayTrainer(ray.tune.Trainable):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-b', '--batchsize', type=int, default=32, help='Batch Size')
+        '-b', '--batchsize', type=int, default=128, help='Batch Size')
     parser.add_argument(
         '-c', '--cpu', type=int, default=2, help='number of CPUs allocated per trial run (default 2)')
     parser.add_argument(
-        '-g', '--gpu', type=float, default=.25,
+        '-g', '--gpu', type=float, default=.2,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
     parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
@@ -84,7 +81,7 @@ def tune_dataset(args):
     config = dict(
         batchsize=args.batchsize,
         workers=2,
-        epochs=20,
+        epochs=99999,
         switch_epoch=9999,
         earliness_factor=1,
         fold=tune.grid_search([0, 1, 2, 3, 4]),
@@ -123,28 +120,44 @@ def tune_dataset(args):
                 },
                 "run": RayTrainer,
                 "num_samples": 1,
-                "checkpoint_at_end": True,
+                "checkpoint_at_end": False,
                 "config": config
             }
         },
-        scheduler=ahb_scheduler,
+        #scheduler=ahb_scheduler,
         verbose=0) #
         #
         #
 
 if __name__=="__main__":
     import datetime
+    import os
+    import sys
 
     # parse input arguments
     args = parse_args()
 
+    datasets = [dataset.strip() for dataset in open("experiments/morietal2017/datasets.txt", 'r').readlines()]
+    
+    resultsdir = os.path.join(os.getenv("HOME"),"ray_results")
+       
+    processed_datasets = os.listdir(resultsdir)
+    
+    # remove all datasets that are present in the folder already
+    datasets = list(set(datasets).symmetric_difference(processed_datasets))
+ 
     # start ray server
     ray.init(include_webui=False)
 
-    datasets = [dataset.strip() for dataset in open("morietal2017/datasets.txt", 'r').readlines()]
 
     for dataset in datasets:
         time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print("{time} started tuning dataset {dataset}".format(time=time, dataset=dataset))
+        print("{time} started tuning dataset {dataset}".format(time=time, dataset=dataset),file=open(os.path.join(resultsdir,"datasets.log"), "a"))
         args.dataset = dataset
-        tune_dataset(args)
+        try:
+            tune_dataset(args)
+        except Exception as e:
+            print("error" + str(e))
+            pass
+        finally:
+            pass
