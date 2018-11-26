@@ -143,14 +143,10 @@ if __name__=="__main__":
     args = parse_args()
 
     datasets = [dataset.strip() for dataset in open("experiments/morietal2017/datasets.txt", 'r').readlines()]
-    
     resultsdir = os.path.join(os.getenv("HOME"),"ray_results")
-       
     processed_datasets = os.listdir(resultsdir)
-    
     # remove all datasets that are present in the folder already
     datasets = list(set(datasets).symmetric_difference(processed_datasets))
- 
     # start ray server
     ray.init(include_webui=False)
 
@@ -165,17 +161,10 @@ if __name__=="__main__":
             param_string = "num_hidden:{}, learning_rate:{}, num_rnn_layers:{}".format(*top.iloc[0].name)
             perf_string = "accuracy {:.2f} (+-{:.2f}) in {:.0f} folds".format(top.iloc[0].mean_accuracy,
                                                                 top.iloc[0].std_accuracy, top.iloc[0].nfolds)
-            print("{time} finished tuning dataset {dataset} {perf_string}, {param_perf_string}".format(
-                time=time,
-                dataset=dataset,
-                perf_string=perf_string,
-                param_string=param_string),
-                file=open(os.path.join(resultsdir, "datasets.log"), "a"))
+            print("{time} finished tuning dataset {dataset} {perf_string}, {param_string}".format(time=time,dataset=dataset,perf_string=perf_string,param_string=param_string),file=open(os.path.join(resultsdir, "datasets.log"), "a"))
 
         except KeyboardInterrupt:
             sys.exit(0)
         except Exception as e:
             print("error" + str(e))
-            pass
-        finally:
-            pass
+            continue
