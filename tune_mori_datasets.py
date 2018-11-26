@@ -128,7 +128,7 @@ def tune_dataset(args):
                 "config": config
             }
         },
-        local_dir=args.local_dir,
+        #local_dir=args.local_dir,
         #scheduler=ahb_scheduler,
         verbose=0) #
         #
@@ -162,6 +162,8 @@ if __name__=="__main__":
         try:
             tune_dataset(args)
             top = parse_experiment(experimentpath=os.path.join(resultsdir,dataset),outcsv=os.path.join(resultsdir,dataset,"params.csv"))
+        except KeyboardInterrupt:
+            sys.exit(0)
         except Exception as e:
             print("error" + str(e))
             pass
