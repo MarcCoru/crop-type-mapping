@@ -7,11 +7,13 @@ def load_run(path):
 
     result_file = os.path.join(path, "result.json")
     with open(result_file,'r') as f:
-        content = f.readlines()[-1]
+        lines = f.readlines()
 
-    result = json.loads(content)
-
-    return result["accuracy"], result["loss"], result["training_iteration"], result["timestamp"], result["config"]
+    if len(lines) > 0:
+        result = json.loads(lines[-1])
+        return result["accuracy"], result["loss"], result["training_iteration"], result["timestamp"], result["config"]
+    else:
+        return None
 
 def load_experiment(path):
     runs = os.listdir(path)
@@ -19,23 +21,47 @@ def load_experiment(path):
     result = list()
     for run in runs:
         runpath = os.path.join(path, run)
-        accuracy, loss, training_iteration, timestamp config = load_run(runpath)
+
+        run = load_run(runpath)
+        if run is None:
+            continue
+        else:
+            accuracy, loss, training_iteration, timestamp, config = run
 
         result.append(
             dict(
                 accuracy=accuracy,
                 loss=loss,
                 training_iteration=training_iteration,
-
                 batchsize=config["batchsize"],
                 dataset=config["dataset"],
                 hidden_dims=config["hidden_dims"],
                 num_rnn_layers=config["num_rnn_layers"],
-                learning_rate=config["learning_rate"]
+                learning_rate=config["learning_rate"],
+                fold=config["fold"],
+                dropout=config["dropout"]
             )
         )
 
     return result
+
+def parse_experiment(experimentpath, outcsv=None, n=5):
+    result = load_experiment(experimentpath)
+
+    # average accuracy over the same columns (particularily over the fold variable...)
+    grouped = result.groupby(["hidden_dims", "learning_rate", "num_rnn_layers"])["accuracy"]
+    nfolds = grouped.count().rename("nfolds")
+    mean_accuracy = grouped.mean().rename("mean_accuracy")
+    std_accuracy = grouped.std().rename("std_accuracy")
+
+    score = pd.concat([mean_accuracy, std_accuracy, nfolds], axis=1)
+
+    top = score.nlargest(n, "mean_accuracy")
+
+    if outcsv is not None:
+        top.to_csv(outcsv)
+
+    return top
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -54,12 +80,11 @@ if __name__=="__main__":
 
     args = parse_args()
 
-    result = load_experiment(os.path.join(args.root, args.experiment))
-    result = pd.DataFrame(result).sort_values("accuracy", ascending=False)
 
-    top = result.iloc[:args.top_k]
+    experimentpath = os.path.join(args.root, args.experiment)
 
-    print(top)
+    parse_experiment(experimentpath, outcsv="/tmp/top5.csv")
+
 
 
     pass
