@@ -157,11 +157,21 @@ if __name__=="__main__":
 
     for dataset in datasets:
         time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print("{time} started tuning dataset {dataset}".format(time=time, dataset=dataset),file=open(os.path.join(resultsdir,"datasets.log"), "a"))
         args.dataset = dataset
         try:
             tune_dataset(args)
             top = parse_experiment(experimentpath=os.path.join(resultsdir,dataset),outcsv=os.path.join(resultsdir,dataset,"params.csv"))
+            num_hidden, learning_rate, num_rnn_layers = top.iloc[0].name
+            param_string = "num_hidden:{}, learning_rate:{}, num_rnn_layers:{}".format(*top.iloc[0].name)
+            perf_string = "accuracy {:.2f} (+-{:.2f}) in {:.0f} folds".format(top.iloc[0].mean_accuracy,
+                                                                top.iloc[0].std_accuracy, top.iloc[0].nfolds)
+            print("{time} finished tuning dataset {dataset} {perf_string}, {param_perf_string}".format(
+                time=time,
+                dataset=dataset,
+                perf_string=perf_string,
+                param_string=param_string),
+                file=open(os.path.join(resultsdir, "datasets.log"), "a"))
+
         except KeyboardInterrupt:
             sys.exit(0)
         except Exception as e:
