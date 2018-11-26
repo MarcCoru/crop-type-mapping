@@ -132,17 +132,32 @@ def tune_dataset(args):
 if __name__=="__main__":
     import datetime
     import os
+    import sys
 
     # parse input arguments
     args = parse_args()
 
+    datasets = [dataset.strip() for dataset in open("experiments/morietal2017/datasets.txt", 'r').readlines()]
+    
+    resultsdir = os.path.join(os.getenv("HOME"),"ray_results")
+       
+    processed_datasets = os.listdir(resultsdir)
+    
+    # remove all datasets that are present in the folder already
+    datasets = list(set(datasets).symmetric_difference(processed_datasets))
+ 
     # start ray server
     ray.init(include_webui=False)
 
-    datasets = [dataset.strip() for dataset in open("experiments/morietal2017/datasets.txt", 'r').readlines()]
 
     for dataset in datasets:
         time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print("{time} started tuning dataset {dataset}".format(time=time, dataset=dataset),file=open(os.path.join(os.getenv("HOME"),"ray_results","datasets.log"), "a"))
+        print("{time} started tuning dataset {dataset}".format(time=time, dataset=dataset),file=open(os.path.join(resultsdir,"datasets.log"), "a"))
         args.dataset = dataset
-        tune_dataset(args)
+        try:
+            tune_dataset(args)
+        except Exception as e:
+            print("error" + str(e))
+            pass
+        finally:
+            pass
