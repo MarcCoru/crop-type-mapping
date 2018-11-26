@@ -68,6 +68,8 @@ def parse_args():
     parser.add_argument(
         'experiment', type=str, help='Experiment. Defined as subfolder in ray root directory')
     parser.add_argument(
+        '-c','--outcsv', type=str, default=None, help='output path for csv file')
+    parser.add_argument(
         '-r','--root', type=str, default=os.path.join(os.environ["HOME"], "ray_results"),
         help='ray root directory. Defaults to $HOME/ray_results')
     parser.add_argument(
@@ -83,7 +85,7 @@ if __name__=="__main__":
 
     experimentpath = os.path.join(args.root, args.experiment)
 
-    result = parse_experiment(experimentpath, outcsv=None)
+    result = parse_experiment(experimentpath, outcsv=args.outcsv)
 
     print(result)
 
