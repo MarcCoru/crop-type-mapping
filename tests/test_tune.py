@@ -5,7 +5,7 @@ import ray
 import ray.tune as tune
 from hyperopt import hp
 from ray.tune.schedulers import HyperBandScheduler
-from tune import TrainDualOutputRNN
+from tune import RayTrainer
 import unittest
 
 class TestTune(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestTune(unittest.TestCase):
                             "cpu": 2,
                             "gpu": 1,
                         },
-                        "run": TrainDualOutputRNN,
+                        "run": RayTrainer,
                         "num_samples": 1,
                         "checkpoint_at_end": False,
                         "config": config

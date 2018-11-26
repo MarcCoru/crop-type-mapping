@@ -33,3 +33,4 @@ docker build -t early_rnn .
 docker tag early_rnn marccoru/early_rnn
 docker push marccoru/early_rnn
 ```
+

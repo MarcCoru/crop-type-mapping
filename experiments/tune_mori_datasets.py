@@ -1,3 +1,6 @@
+import sys
+sys.path.append("..")
+
 import ray
 import ray.tune as tune
 from models.DualOutputRNN import DualOutputRNN
@@ -16,13 +19,14 @@ class RayTrainer(ray.tune.Trainable):
                                   ratio=.8,
                                   randomstate=config["fold"],
                                   silent=True,
-                                  augment_data_noise=config["data_noise"])
+                                  augment_data_noise=0)
 
         validdataset = UCRDataset(config["dataset"],
                                   partition="test",
                                   ratio=.8,
                                   randomstate=config["fold"],
                                   silent=True)
+
         nclasses = traindataset.nclasses
 
         # handles multitxhreaded batching andconfig shuffling
@@ -63,13 +67,9 @@ class RayTrainer(ray.tune.Trainable):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-d','--dataset', type=str, default="Trace", help='UCR Dataset. Will also name the experiment')
-    parser.add_argument(
         '-b', '--batchsize', type=int, default=32, help='Batch Size')
     parser.add_argument(
         '-c', '--cpu', type=int, default=2, help='number of CPUs allocated per trial run (default 2)')
-    parser.add_argument(
-        '-a', '--earliness_factor', type=float, default=.75, help='earliness factor')
     parser.add_argument(
         '-g', '--gpu', type=float, default=.25,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
@@ -86,12 +86,12 @@ def tune_dataset(args):
         workers=2,
         epochs=20,
         switch_epoch=9999,
+        earliness_factor=1,
         fold=tune.grid_search([0, 1, 2, 3, 4]),
-        hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
-        learning_rate=hp.uniform("learning_rate", 1e-4, 1e-2),
-        data_noise=hp.uniform("data_noise", 0, 1e-2),
-        dropout=hp.uniform("dropout", 0, 0.5),
-        num_rnn_layers=hp.choice("num_rnn_layers", [1, 2, 3, 4]),
+        hidden_dims=tune.grid_search([2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
+        learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
+        dropout=0.3,
+        num_rnn_layers=tune.grid_search([1,2,3,4]),
         dataset=args.dataset)
 
     hb_scheduler = HyperBandScheduler(
@@ -102,7 +102,7 @@ def tune_dataset(args):
     ahb_scheduler = AsyncHyperBandScheduler(
         reward_attr="accuracy",
         time_attr="training_iteration",
-        max_t=6,
+        max_t=10 if not args.smoke_test else 1,
         grace_period=1,
         reduction_factor=2,
         brackets=3
@@ -110,14 +110,6 @@ def tune_dataset(args):
 
     experiment_name = args.dataset
 
-    """
-    requires HyperOpt to be installed from source:
-    git clone https://github.com/hyperopt/hyperopt.git
-    python setup.py build
-    python setup.py install
-    """
-    algo = ray.tune.suggest.HyperOptSearch(space=config, max_concurrent=30, reward_attr="accuracy")
-
     tune.run_experiments(
         {
             experiment_name: {
@@ -125,76 +117,23 @@ def tune_dataset(args):
                     "cpu": args.cpu,
                     "gpu": args.gpu,
                 },
-                "run": RayTrainer,
-                "num_samples": 1 if args.smoke_test else 300,
-                "checkpoint_at_end": True,
-                "config": config
-            }
-        },
-        verbose=0,
-        search_alg=algo,
-        scheduler=ahb_scheduler)
-
-
-def main(args):
-    #tune.grid_search(
-
-    config = dict(
-        batchsize=args.batchsize,
-        workers=2,
-        epochs=20,
-        switch_epoch=9999,
-        fold=tune.grid_search([0, 1, 2, 3, 4]),
-        hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
-        learning_rate=hp.uniform("learning_rate", 1e-3, 1e-1),
-        data_noise=hp.uniform("data_noise", 0, 1e-1),
-        num_rnn_layers=hp.choice("num_rnn_layers", [1, 2, 3, 4]),
-        earliness_factor=args.earliness_factor,
-        dataset=args.dataset)
-
-    hb_scheduler = HyperBandScheduler(
-        time_attr="training_iteration",
-        reward_attr="accuracy",
-        max_t=1 if args.smoke_test else 30)
-
-    ahb_scheduler = AsyncHyperBandScheduler(
-        reward_attr="accuracy",
-        time_attr="training_iteration",
-        max_t=60,
-        grace_period=3,
-        reduction_factor=2,
-        brackets=5
-        )
-
-    experiment_name = args.dataset
-
-    """
-    requires HyperOpt to be installed from source:
-    git clone https://github.com/hyperopt/hyperopt.git
-    python setup.py build
-    python setup.py install
-    """
-    algo = ray.tune.suggest.HyperOptSearch(space=config, max_concurrent=30, reward_attr="neg_mean_loss")
-
-    tune.run_experiments(
-        {
-            experiment_name: {
-                "trial_resources": {
-                    "cpu": args.cpu,
-                    "gpu": args.gpu,
+                'stop': {
+                    'training_iteration': 10 if not args.smoke_test else 1,
+                    'time_total_s':600
                 },
                 "run": RayTrainer,
-                "num_samples": 1 if args.smoke_test else 300,
+                "num_samples": 1,
                 "checkpoint_at_end": True,
                 "config": config
             }
         },
-        verbose=0,
-        search_alg=algo,
-        scheduler=hb_scheduler)
-
+        scheduler=ahb_scheduler,
+        verbose=0) #
+        #
+        #
 
 if __name__=="__main__":
+    import datetime
 
     # parse input arguments
     args = parse_args()
@@ -202,7 +141,10 @@ if __name__=="__main__":
     # start ray server
     ray.init(include_webui=False)
 
-    for dataset in
+    datasets = [dataset.strip() for dataset in open("morietal2017/datasets.txt", 'r').readlines()]
 
-    # tune dataset
-    tune_dataset(args)
+    for dataset in datasets:
+        time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print("{time} started tuning dataset {dataset}".format(time=time, dataset=dataset))
+        args.dataset = dataset
+        tune_dataset(args)
