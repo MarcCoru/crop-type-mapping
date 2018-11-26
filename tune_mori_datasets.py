@@ -7,6 +7,7 @@ from ray.tune.schedulers import HyperBandScheduler, AsyncHyperBandScheduler
 import argparse
 from hyperopt import hp
 from utils.trainer import Trainer
+from utils.parse_rayresults import parse_experiment
 
 class RayTrainer(ray.tune.Trainable):
     def _setup(self, config):
@@ -71,6 +72,9 @@ def parse_args():
         '-g', '--gpu', type=float, default=.2,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
     parser.add_argument(
+        '-r', '--local_dir', type=str, default="~/ray_results",
+        help='ray local dir. defaults to ~/ray_results')
+    parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
     args, _ = parser.parse_known_args()
     return args
@@ -116,7 +120,7 @@ def tune_dataset(args):
                 },
                 'stop': {
                     'training_iteration': 10 if not args.smoke_test else 1,
-                    'time_total_s':600
+                    'time_total_s':600 if not args.smoke_test else 1,
                 },
                 "run": RayTrainer,
                 "num_samples": 1,
@@ -124,6 +128,7 @@ def tune_dataset(args):
                 "config": config
             }
         },
+        local_dir=args.local_dir,
         #scheduler=ahb_scheduler,
         verbose=0) #
         #
@@ -156,6 +161,7 @@ if __name__=="__main__":
         args.dataset = dataset
         try:
             tune_dataset(args)
+            top = parse_experiment(experimentpath=os.path.join(resultsdir,dataset),outcsv=os.path.join(resultsdir,dataset,"params.csv"))
         except Exception as e:
             print("error" + str(e))
             pass
