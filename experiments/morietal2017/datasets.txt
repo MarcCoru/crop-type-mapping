@@ -5,9 +5,9 @@ CBF
 ChlorineConcentration
 CinCECGTorso
 Coffee
-Cricket_X
-Cricket_Y
-Cricket_Z
+CricketX
+CricketY
+CricketZ
 DiatomSizeReduction
 ECG200
 ECGFiveDays

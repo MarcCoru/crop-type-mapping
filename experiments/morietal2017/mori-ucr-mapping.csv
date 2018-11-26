@@ -6,9 +6,9 @@ CBF;CBF
 ChlorineConcentration;ChlorineConcentration
 CinC_ECG_torso;CinCECGTorso
 Coffee;Coffee
-Cricket_X;Cricket_X
-Cricket_Y;Cricket_Y
-Cricket_Z;Cricket_Z
+Cricket_X;CricketX
+Cricket_Y;CricketY
+Cricket_Z;CricketZ
 DiatomSizeReduction;DiatomSizeReduction
 ECG200;ECG200
 ECGFiveDays;ECGFiveDays
