@@ -86,7 +86,7 @@ def tune_dataset(args):
         workers=2,
         epochs=20,
         switch_epoch=9999,
-        fold=tune.grid_search([0, 1, 2, 3, 4]),
+        fold=1,
         hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
         learning_rate=hp.uniform("learning_rate", 1e-4, 1e-2),
         data_noise=hp.uniform("data_noise", 0, 1e-2),
@@ -144,7 +144,7 @@ def main(args):
         workers=2,
         epochs=20,
         switch_epoch=9999,
-        fold=tune.grid_search([0, 1, 2, 3, 4]),
+        fold=1,
         hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
         learning_rate=hp.uniform("learning_rate", 1e-3, 1e-1),
         data_noise=hp.uniform("data_noise", 0, 1e-1),
@@ -201,8 +201,6 @@ if __name__=="__main__":
 
     # start ray server
     ray.init(include_webui=False)
-
-    for dataset in
 
     # tune dataset
     tune_dataset(args)
