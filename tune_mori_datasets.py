@@ -65,7 +65,7 @@ class RayTrainer(ray.tune.Trainable):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-b', '--batchsize', type=int, default=128, help='Batch Size')
+        '-b', '--batchsize', type=int, default=96, help='Batch Size')
     parser.add_argument(
         '-c', '--cpu', type=int, default=2, help='number of CPUs allocated per trial run (default 2)')
     parser.add_argument(
