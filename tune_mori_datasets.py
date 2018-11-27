@@ -76,6 +76,8 @@ def parse_args():
         help='ray local dir. defaults to ~/ray_results')
     parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
+    parser.add_argument(
+        '--skip-processed', action='store_true', help='skip already processed datasets (defined by presence of results folder)')
     args, _ = parser.parse_known_args()
     return args
 
@@ -88,7 +90,7 @@ def tune_dataset(args):
         epochs=99999,
         switch_epoch=9999,
         earliness_factor=1,
-        fold=tune.grid_search([0, 1, 2, 3, 4]),
+        fold=tune.grid_search([5,6,7,8,9]), #[0, 1, 2, 3, 4]),
         hidden_dims=tune.grid_search([2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
         learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
         dropout=0.3,
@@ -144,9 +146,12 @@ if __name__=="__main__":
 
     datasets = [dataset.strip() for dataset in open("experiments/morietal2017/datasets.txt", 'r').readlines()]
     resultsdir = os.path.join(os.getenv("HOME"),"ray_results")
-    processed_datasets = os.listdir(resultsdir)
-    # remove all datasets that are present in the folder already
-    datasets = list(set(datasets).symmetric_difference(processed_datasets))
+
+    if args.skip_processed:
+        processed_datasets = os.listdir(resultsdir)
+        # remove all datasets that are present in the folder already
+        datasets = list(set(datasets).symmetric_difference(processed_datasets))
+
     # start ray server
     ray.init(include_webui=False)
 
