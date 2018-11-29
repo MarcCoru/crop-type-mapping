@@ -6,6 +6,10 @@ import argparse
 def load_run(path):
 
     result_file = os.path.join(path, "result.json")
+
+    if not os.path.exists(result_file):
+        return None
+
     with open(result_file,'r') as f:
         lines = f.readlines()
 
@@ -47,6 +51,11 @@ def load_experiment(path):
 
 def parse_experiment(experimentpath, outcsv=None, n=5):
     result = load_experiment(experimentpath)
+
+    if len(result) == 0:
+        print("Warning! Experiment {} returned no runs".format(experimentpath))
+        return None
+
     result = pd.DataFrame(result)
     # average accuracy over the same columns (particularily over the fold variable...)
     grouped = result.groupby(["hidden_dims", "learning_rate", "num_rnn_layers"])["accuracy"]
@@ -57,6 +66,10 @@ def parse_experiment(experimentpath, outcsv=None, n=5):
     score = pd.concat([mean_accuracy, std_accuracy, nfolds], axis=1)
 
     top = score.nlargest(n, "mean_accuracy")
+
+    dataset = os.path.basename(experimentpath)
+    top.reset_index(inplace=True)
+    top["dataset"] = dataset
 
     if outcsv is not None:
         top.to_csv(outcsv)
@@ -78,9 +91,31 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
+def load_set_of_experiments(path):
+    experiments = os.listdir(path)
+
+    best_hyperparams = list()
+    for experiment in experiments:
+
+        experimentpath = os.path.join(path,experiment)
+
+        if os.path.isdir(experimentpath):
+            print("parsing experiment "+experiment)
+            result = parse_experiment(experimentpath=experimentpath, outcsv=None, n=1)
+            if result is not None:
+                best_hyperparams.append(result)
+
+    summary = pd.concat(best_hyperparams)
+
+    csvfile = os.path.join(path, "hyperparams.csv")
+    print("writing "+csvfile)
+    summary.to_csv(csvfile)
+
 if __name__=="__main__":
 
     args = parse_args()
+
+    load_set_of_experiments(args.root)
 
 
     experimentpath = os.path.join(args.root, args.experiment)
