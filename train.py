@@ -62,9 +62,9 @@ if __name__=="__main__":
         traindataset = SyntheticDataset(num_samples=2000, T=100)
         validdataset = SyntheticDataset(num_samples=1000, T=100)
     else:
-        traindataset = UCRDataset(args.dataset, partition="test", ratio=.75, randomstate=0,
+        traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=0,
                                   augment_data_noise=args.augment_data_noise)
-        validdataset = UCRDataset(args.dataset, partition="trainvalid", ratio=.75, randomstate=0)
+        validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=0)
 
     nclasses = traindataset.nclasses
 

@@ -12,14 +12,14 @@ class RayTrainer(ray.tune.Trainable):
     def _setup(self, config):
 
         traindataset = UCRDataset(config["dataset"],
-                                  partition="trainvalid",
+                                  partition="train",
                                   ratio=.8,
                                   randomstate=config["fold"],
                                   silent=True,
                                   augment_data_noise=config["data_noise"])
 
         validdataset = UCRDataset(config["dataset"],
-                                  partition="test",
+                                  partition="valid",
                                   ratio=.8,
                                   randomstate=config["fold"],
                                   silent=True)
