@@ -1,115 +1,130 @@
 import torch
-import numpy as np
 from models.DualOutputRNN import DualOutputRNN
+from models.AttentionRNN import AttentionRNN
 from utils.UCR_Dataset import UCRDataset
-from utils.classmetric import ClassMetric
-from utils.logger import Printer
+from utils.Synthetic_Dataset import SyntheticDataset
+import argparse
+import numpy as np
+import os
+from utils.trainer import Trainer
+import pandas as pd
 
-def main(batchsize=64,
-    workers=4,
-    epochs = 4000,
-    hidden_dims = 2**8,
-    learning_rate = 1e-2,
-    earliness_factor=1,
-    switch_epoch = 4000,
-    dataset="Trace",
-    savepath="tmp/model.pth",
-    loadpath = "/home/marc/tmp/model_trace_e4k.pth"):
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-d','--dataset', type=str, default="Trace", help='UCR Dataset. Will also name the experiment')
+    parser.add_argument(
+        '-b', '--batchsize', type=int, default=32, help='Batch Size')
+    parser.add_argument(
+        '-m', '--model', type=str, default="DualOutputRNN", help='Model variant')
+    parser.add_argument(
+        '-e', '--epochs', type=int, default=100, help='number of epochs')
+    parser.add_argument(
+        '-w', '--workers', type=int, default=4, help='number of CPU workers to load the next batch')
+    parser.add_argument(
+        '-l', '--learning_rate', type=float, default=1e-2, help='learning rate')
+    parser.add_argument(
+        '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
+    parser.add_argument(
+        '-n', '--num_rnn_layers', type=int, default=1, help='number of RNN layers')
+    parser.add_argument(
+        '-r', '--hidden_dims', type=int, default=32, help='number of RNN hidden dimensions')
+    parser.add_argument(
+        '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
+    parser.add_argument(
+        '-a','--earliness_factor', type=float, default=1, help='earliness factor')
+    parser.add_argument(
+        '-x', '--experiment', type=str, default="test", help='experiment prefix')
+    parser.add_argument(
+        '--store', type=str, default="/tmp", help='store run logger results')
+    parser.add_argument(
+        '--run', type=str, default=None, help='run name')
+    parser.add_argument(
+        '--hparams', type=str, default=None, help='hyperparams csv file')
+    parser.add_argument(
+        '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
+    parser.add_argument(
+        '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
+                                                                       'valid options are early_reward,  '
+                                                                       'twophase_early_reward, '
+                                                                       'twophase_linear_loss, or twophase_early_simple')
+    parser.add_argument(
+        '-s', '--switch_epoch', type=int, default=None, help='epoch at which to switch the loss function '
+                                                             'from classification training to early training')
 
-    dataset = UCRDataset(dataset, partition="eval")
-    nclasses = dataset.nclasses
+    parser.add_argument(
+        '--smoke-test', action='store_true', help='Finish quickly for testing')
+    args, _ = parser.parse_known_args()
+    return args
 
-    # handles multitxhreaded batching and shuffling
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batchsize, shuffle=False, num_workers=workers)
+if __name__=="__main__":
 
-    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims)
+    args = parse_args()
+
+
+    if args.hparams is not None:
+        # get hyperparameters from the hyperparameter file for the current dataset...
+        hparams = pd.read_csv(args.hparams).set_index("dataset").loc[args.dataset]
+        args.hidden_dims = int(hparams["hidden_dims"])
+        args.learning_rate = hparams["learning_rate"]
+        args.num_rnn_layers = int(hparams["num_rnn_layers"])
+        print("hyperparameter file {} provided... overwriting arguments from dataset {} with hidden_dims={}, "
+              "learning_rate={}, and num_rnn_layers={}".format(args.hparams,
+                                                                    args.dataset,
+                                                                    args.hidden_dims,
+                                                                    args.learning_rate,
+                                                                    args.num_rnn_layers))
+
+    if args.dataset == "synthetic":
+        traindataset = SyntheticDataset(num_samples=2000, T=100)
+        validdataset = SyntheticDataset(num_samples=1000, T=100)
+    else:
+        traindataset = UCRDataset(args.dataset, partition="trainvalid", augment_data_noise=args.augment_data_noise)
+        validdataset = UCRDataset(args.dataset, partition="test")
+
+    nclasses = traindataset.nclasses
+
+    np.random.seed(0)
+    torch.random.manual_seed(0)
+    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
+                                                  num_workers=args.workers, pin_memory=True)
+
+    np.random.seed(1)
+    torch.random.manual_seed(1)
+    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
+                                                  num_workers=args.workers, pin_memory=True)
+    if args.model == "DualOutputRNN":
+        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
+                              num_rnn_layers=args.num_rnn_layers, dropout=args.dropout)
+    elif args.model == "AttentionRNN":
+        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
+                             dropout=args.dropout)
+    else:
+        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
 
     if torch.cuda.is_available():
         model = model.cuda()
 
-    snapshot = model.load(path=loadpath)
-    epoch = snapshot["epoch"]
-    print("loaded model state at epoch " + str(epoch))
+    if args.run is None:
+        visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
+        storepath = args.store
+    else:
+        visdomenv = args.run
+        storepath = os.path.join(args.store, args.run)
 
-    trainargs = dict(
-        switch_epoch=switch_epoch,
-        earliness_factor=earliness_factor,
+    if args.switch_epoch is None:
+        args.switch_epoch = int(args.epochs/2)
+
+    config = dict(
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        earliness_factor=args.earliness_factor,
+        visdomenv=visdomenv,
+        switch_epoch=args.switch_epoch,
+        loss_mode=args.loss_mode,
+        show_n_samples=args.show_n_samples,
+        store=storepath
     )
 
-    print()
-    test_epoch(epoch, model, dataloader, trainargs)
-
-def train_epoch(epoch, model, dataloader, optimizer, trainargs):
-
-    printer = Printer(prefix="train: ")
-
-    # builds a confusion matrix
-    metric = ClassMetric(num_classes=dataloader.dataset.nclasses)
-
-    logged_loss_early = list()
-    logged_loss_class = list()
-    for iteration, data in enumerate(dataloader):
-        optimizer.zero_grad()
-
-        inputs, targets = data
-
-        if torch.cuda.is_available():
-            inputs = inputs.cuda()
-            targets = targets.cuda()
-
-        if epoch < trainargs["switch_epoch"]:
-            loss, logprobabilities = model.loss(inputs, targets)
-            logged_loss_class.append(loss.detach().cpu().numpy())
-        else:
-            loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
-            logged_loss_early.append(loss.detach().cpu().numpy())
-
-        maxclass = logprobabilities.argmax(1)
-        prediction = maxclass.mode(1)[0]
-
-        stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-
-        loss.backward()
-        optimizer.step()
-
-    stats["loss_early"] = np.array(logged_loss_early).mean()
-    stats["loss_class"] = np.array(logged_loss_class).mean()
-
-    printer.print(stats, iteration, epoch)
-
-def test_epoch(epoch, model, dataloader, trainargs):
-    printer = Printer(prefix="eval: ")
-
-    # builds a confusion matrix
-    metric = ClassMetric(num_classes=dataloader.dataset.nclasses)
-
-    logged_loss_early = list()
-    logged_loss_class = list()
-    with torch.no_grad():
-        for iteration, data in enumerate(dataloader):
-
-            inputs, targets = data
-
-            if torch.cuda.is_available():
-                inputs = inputs.cuda()
-                targets = targets.cuda()
-
-            if epoch < trainargs["switch_epoch"]:
-                loss, logprobabilities = model.loss(inputs, targets)
-                logged_loss_class.append(loss.detach().cpu().numpy())
-            else:
-                loss, logprobabilities = model.loss(inputs, targets, earliness_factor=trainargs["earliness_factor"])
-                logged_loss_early.append(loss.detach().cpu().numpy())
-
-            maxclass = logprobabilities.argmax(1)
-            prediction = maxclass.mode(1)[0]
-
-            stats = metric(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-
-    stats["loss_early"] = np.array(logged_loss_early).mean()
-    stats["loss_class"] = np.array(logged_loss_class).mean()
-
-    printer.print(stats, iteration, epoch)
-
-if __name__=="__main__":
-    main()
+    trainer = Trainer(model,traindataloader,validdataloader,config=config)
+    trainer.fit()
