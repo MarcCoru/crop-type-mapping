@@ -60,7 +60,7 @@ if __name__=="__main__":
 
     args = parse_args()
     root = args.root #
-    csvfile = os.path.join(root,"eval_results.csv")
+    csvfile = os.path.join(root, args.experiment, "eval_results.csv")
     resume = args.resume
 
     hparams = pd.read_csv(args.hparams).set_index("dataset")
