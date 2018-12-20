@@ -30,24 +30,26 @@ def parse_args():
     parser.add_argument(
         '-r', '--hidden_dims', type=int, default=32, help='number of RNN hidden dimensions')
     parser.add_argument(
-        '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
-    parser.add_argument(
         '-a','--earliness_factor', type=float, default=1, help='earliness factor')
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
         '--store', type=str, default="/tmp", help='store run logger results')
     parser.add_argument(
-        '--run', type=str, default=None, help='run name')
+        '--run', type=str, default="eval", help='run name')
+    parser.add_argument(
+        '--load_weights', type=str, default=None, help='load model path file')
+    parser.add_argument(
+        '--entropy_factor', type=str, default=0, help='regularize with entropy term on the P(t) distribution high values spread P(t)')
     parser.add_argument(
         '--hparams', type=str, default=None, help='hyperparams csv file')
     parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
-        '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
+        '--loss_mode', type=str, default="twophase_early_linear", help='which loss function to choose. '
                                                                        'valid options are early_reward,  '
                                                                        'twophase_early_reward, '
-                                                                       'twophase_linear_loss, or twophase_early_simple')
+                                                                       'twophase_linear_loss, or twophase_cross_entropy')
     parser.add_argument(
         '-s', '--switch_epoch', type=int, default=None, help='epoch at which to switch the loss function '
                                                              'from classification training to early training')
@@ -57,10 +59,89 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
+def eval(
+        dataset,
+        batchsize,
+        workers,
+        num_rnn_layers,
+        dropout,
+        hidden_dims,
+        store="/tmp",
+        epochs=30,
+        switch_epoch=30,
+        learning_rate=1e-3,
+        run="run",
+        earliness_factor=.75,
+        show_n_samples=1,
+        modelname="DualOutputRNN",
+        loss_mode=None,
+        load_weights=None,
+        entropy_factor=0
+    ):
+
+    if dataset == "synthetic":
+        traindataset = SyntheticDataset(num_samples=2000, T=100)
+        validdataset = SyntheticDataset(num_samples=1000, T=100)
+    else:
+        traindataset = UCRDataset(dataset, partition="trainvalid")
+        validdataset = UCRDataset(dataset, partition="test")
+
+    nclasses = traindataset.nclasses
+
+    np.random.seed(0)
+    torch.random.manual_seed(0)
+    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=batchsize, shuffle=True,
+                                                  num_workers=workers, pin_memory=True)
+
+    np.random.seed(1)
+    torch.random.manual_seed(1)
+    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=batchsize, shuffle=False,
+                                                  num_workers=workers, pin_memory=True)
+    if modelname == "DualOutputRNN":
+        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims,
+                              num_rnn_layers=num_rnn_layers, dropout=dropout)
+    elif modelname == "AttentionRNN":
+        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers=num_rnn_layers,
+                             dropout=dropout)
+    else:
+        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
+
+    if load_weights is not None:
+        model.load(load_weights)
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+    if run is None:
+        visdomenv = "{}_{}_{}".format(args.experiment, dataset,args.loss_mode.replace("_","-"))
+        storepath = store
+    else:
+        visdomenv = run
+        storepath = os.path.join(store, run)
+
+    if switch_epoch is None:
+        switch_epoch = int(epochs/2)
+
+    config = dict(
+        epochs=epochs,
+        learning_rate=learning_rate,
+        earliness_factor=earliness_factor,
+        visdomenv=visdomenv,
+        switch_epoch=switch_epoch,
+        loss_mode=loss_mode,
+        show_n_samples=show_n_samples,
+        store=storepath,
+        entropy_factor=entropy_factor
+    )
+
+    trainer = Trainer(model,traindataloader,validdataloader,config=config)
+    logged_data = trainer.fit()
+
+    return logged_data
+
 if __name__=="__main__":
 
     args = parse_args()
-
 
     if args.hparams is not None:
         # get hyperparameters from the hyperparameter file for the current dataset...
@@ -75,56 +156,20 @@ if __name__=="__main__":
                                                                     args.learning_rate,
                                                                     args.num_rnn_layers))
 
-    if args.dataset == "synthetic":
-        traindataset = SyntheticDataset(num_samples=2000, T=100)
-        validdataset = SyntheticDataset(num_samples=1000, T=100)
-    else:
-        traindataset = UCRDataset(args.dataset, partition="trainvalid", augment_data_noise=args.augment_data_noise)
-        validdataset = UCRDataset(args.dataset, partition="test")
-
-    nclasses = traindataset.nclasses
-
-    np.random.seed(0)
-    torch.random.manual_seed(0)
-    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
-                                                  num_workers=args.workers, pin_memory=True)
-
-    np.random.seed(1)
-    torch.random.manual_seed(1)
-    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
-                                                  num_workers=args.workers, pin_memory=True)
-    if args.model == "DualOutputRNN":
-        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
-                              num_rnn_layers=args.num_rnn_layers, dropout=args.dropout)
-    elif args.model == "AttentionRNN":
-        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
-                             dropout=args.dropout)
-    else:
-        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-    if args.run is None:
-        visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
-        storepath = args.store
-    else:
-        visdomenv = args.run
-        storepath = os.path.join(args.store, args.run)
-
-    if args.switch_epoch is None:
-        args.switch_epoch = int(args.epochs/2)
-
-    config = dict(
-        epochs=args.epochs,
-        learning_rate=args.learning_rate,
-        earliness_factor=args.earliness_factor,
-        visdomenv=visdomenv,
-        switch_epoch=args.switch_epoch,
-        loss_mode=args.loss_mode,
-        show_n_samples=args.show_n_samples,
-        store=storepath
+    logged_data = eval(
+        dataset = args.dataset,
+        batchsize = args.batchsize,
+        workers = args.workers,
+        num_rnn_layers = args.num_rnn_layers,
+        dropout = args.dropout,
+        hidden_dims = args.hidden_dims,
+        store = args.store,
+        epochs = args.epochs,
+        switch_epoch = args.switch_epoch,
+        learning_rate = args.learning_rate,
+        run = args.run,
+        earliness_factor = args.earliness_factor,
+        show_n_samples = args.show_n_samples,
+        load_weights=args.load_weights,
+        loss_mode=args.loss_mode
     )
-
-    trainer = Trainer(model,traindataloader,validdataloader,config=config)
-    trainer.fit()

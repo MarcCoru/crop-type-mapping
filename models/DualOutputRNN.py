@@ -4,6 +4,9 @@ import torch.nn.functional as F
 import torch.utils.data
 from models.convlstm.convlstm import ConvLSTM
 
+def entropy(p):
+    return -(p*torch.log(p)).sum(1)
+
 class DualOutputRNN(torch.nn.Module):
     def __init__(self, input_dim=1, hidden_dim=3, nclasses=5, num_rnn_layers=1, dropout=0.2):
 
@@ -52,7 +55,7 @@ class DualOutputRNN(torch.nn.Module):
         # stack the lists to new tensor (b,d,t,h,w)
         return logits_class, Pts
 
-    def early_loss_linear(self, inputs, targets, alpha=None):
+    def early_loss_linear(self, inputs, targets, alpha=None, entropy_factor=0):
         """
         Uses linear 1-P(actual class) loss. and the simple time regularization t/T
         L = (1-y\hat{y}) - t/T
@@ -92,7 +95,60 @@ class DualOutputRNN(torch.nn.Module):
         loss_earliness = (Pts*(t_index / t)).sum(1).mean()
         loss_classification = (Pts*(1 - y_haty)).sum(1).mean()
 
-        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness
+        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness - entropy_factor * entropy(Pts).mean()
+
+        stats = dict(
+            loss=loss,
+            loss_classification=loss_classification,
+            loss_earliness=loss_earliness,
+        )
+
+        return loss, logprobabilities, Pts ,stats
+
+    def early_loss_cross_entropy(self, inputs, targets, alpha=None, entropy_factor=0):
+        """
+        Uses linear 1-P(actual class) loss. and the simple time regularization t/T
+        L = (1-y\hat{y}) - t/T
+        """
+        predicted_logits, Pts = self.forward(inputs)
+
+        logprobabilities = F.log_softmax(predicted_logits, dim=2)
+
+        b, t, c = logprobabilities.shape
+
+        # linear increasing t index for time regularization
+        """
+        t_index
+                              0 -> T
+        tensor([[ 0.,  1.,  2.,  ..., 97., 98., 99.],
+                [ 0.,  1.,  2.,  ..., 97., 98., 99.],
+        batch   [ 0.,  1.,  2.,  ..., 97., 98., 99.],
+                ...,
+                [ 0.,  1.,  2.,  ..., 97., 98., 99.],
+                [ 0.,  1.,  2.,  ..., 97., 98., 99.],
+                [ 0.,  1.,  2.,  ..., 97., 98., 99.]])  
+        """
+        t_index = (torch.ones(b,t) * torch.arange(t).type(torch.FloatTensor)).cuda()
+
+        eye = torch.eye(c).type(torch.ByteTensor)
+        if torch.cuda.is_available():
+            eye = eye.cuda()
+
+        # [b, t, c]
+        targets_one_hot = eye[targets]
+
+        # implement the y*\hat{y} part of the loss function
+        y_haty = torch.masked_select(logprobabilities, targets_one_hot)
+        y_haty = y_haty.view(b, t).exp()
+
+        #reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
+        loss_earliness = (Pts*(t_index / t)).sum(1).mean()
+
+        #loss_classification = (Pts*(1 - y_haty)).sum(1).mean()
+        b, t, c = logprobabilities.shape
+        loss_classification = F.nll_loss(logprobabilities.view(b * t, c), targets.view(b * t))
+
+        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness - entropy_factor * entropy(Pts).mean()
 
         stats = dict(
             loss=loss,

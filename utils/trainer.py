@@ -1,6 +1,7 @@
 import torch
 from utils.classmetric import ClassMetric
 from utils.logger import Printer, VisdomLogger, Logger
+import os
 
 class Trainer():
 
@@ -9,16 +10,20 @@ class Trainer():
         self.epochs = config["epochs"]
         learning_rate = config["learning_rate"]
         self.earliness_factor = config["earliness_factor"]
-        self.switch_epoch = "switch_epoch" if config["switch_epoch"] in config.keys() else 9999
+        self.switch_epoch = config["switch_epoch"] if "switch_epoch" in config.keys() else 9999
         self.batch_size = validdataloader.batch_size
 
         self.traindataloader = traindataloader
         self.validdataloader = validdataloader
         self.nclasses=traindataloader.dataset.nclasses
 
+        self.entropy_factor = config["entropy_factor"] if "entropy_factor" in config.keys() else 0
+
+        self.store = config["store"]
+
         if "visdomenv" in config.keys():
             self.visdom = VisdomLogger(env=config["visdomenv"])
-            self.logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=config["store"])
+            self.logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=self.store)
             self.show_n_samples = config["show_n_samples"]
 
         # early_reward,  twophase_early_reward, twophase_linear_loss, or twophase_early_simple
@@ -29,7 +34,7 @@ class Trainer():
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
 
-    def loss_criterion(self, inputs, targets, epoch, earliness_factor):
+    def loss_criterion(self, inputs, targets, epoch, earliness_factor, entropy_factor):
         """a wrapper around several possible loss functions for experiments"""
         if epoch is None:
             return self.model.loss_cross_entropy(inputs, targets)
@@ -53,18 +58,18 @@ class Trainer():
             if epoch < self.switch_epoch:
                 return self.model.loss_cross_entropy(inputs, targets)
             else:
-                return self.model.early_loss_linear(inputs, targets, alpha=earliness_factor)
+                return self.model.early_loss_linear(inputs, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
 
         # first cross entropy on all dates, then cross entropy plus simple t/T regularization
-        elif self.lossmode == "twophase_early_simple":
+        elif self.lossmode == "twophase_cross_entropy":
             if epoch < self.switch_epoch:
                 return self.model.loss_cross_entropy(inputs, targets)
             else:
-                return self.model.early_loss_simple(inputs, targets, alpha=earliness_factor)
+                return self.model.early_loss_cross_entropy(inputs, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
 
         else:
             raise ValueError("wrong loss_mode please choose either 'early_reward',  "
-                             "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_early_simple'")
+                             "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_cross_entropy'")
 
     def fit(self,epoch=0):
         printer = Printer()
@@ -101,6 +106,8 @@ class Trainer():
             self.visdom.plot_epochs(self.logger.get_data())
 
         self.logger.save()
+        self.model.save(os.path.join(self.store, "model_{}.pth".format(epoch)))
+        return self.logger.data
 
     def train_epoch(self, epoch):
         # sets the model to train mode: dropout is applied
@@ -118,7 +125,7 @@ class Trainer():
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor)
+            loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor, self.entropy_factor)
 
             prediction = self.model.predict(logprobabilities, weights)
 
@@ -148,7 +155,7 @@ class Trainer():
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor)
+                loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor, self.entropy_factor)
 
                 prediction = self.model.predict(logprobabilities, weights)
 
