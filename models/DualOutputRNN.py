@@ -95,7 +95,12 @@ class DualOutputRNN(torch.nn.Module):
         loss_earliness = (Pts*(t_index / t)).sum(1).mean()
         loss_classification = (Pts*(1 - y_haty)).sum(1).mean()
 
-        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness - entropy_factor * entropy(Pts).mean()
+        loss = alpha * loss_classification + (1 - alpha) * loss_earliness
+
+        # NOTE adding this term even with zero factor may make results unstable -> rnn outputs nan
+        if not entropy_factor == 0:
+            loss = loss - entropy_factor * entropy(Pts).mean()
+
 
         stats = dict(
             loss=loss,
@@ -148,7 +153,11 @@ class DualOutputRNN(torch.nn.Module):
         b, t, c = logprobabilities.shape
         loss_classification = F.nll_loss(logprobabilities.view(b * t, c), targets.view(b * t))
 
-        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness - entropy_factor * entropy(Pts).mean()
+        loss =  alpha * loss_classification + (1 - alpha) * loss_earliness
+
+        # NOTE adding this term even with zero factor may make results unstable -> rnn outputs nan
+        if not entropy_factor == 0:
+            loss = loss - entropy_factor * entropy(Pts).mean()
 
         stats = dict(
             loss=loss,
