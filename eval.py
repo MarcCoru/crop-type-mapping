@@ -70,7 +70,7 @@ def eval(
         epochs=30,
         switch_epoch=30,
         learning_rate=1e-3,
-        run="run",
+        visdomenv="run",
         earliness_factor=.75,
         show_n_samples=1,
         modelname="DualOutputRNN",
@@ -109,15 +109,20 @@ def eval(
     if load_weights is not None:
         model.load(load_weights)
 
+        # parse epoch 29 from filename e.g., 'models/TwoPatterns/run/model_29.pth'
+        start_epoch = int(os.path.basename(load_weights).split("_")[-1].split(".")[0])
+    else:
+        start_epoch = 0
+
     if torch.cuda.is_available():
         model = model.cuda()
 
-    if run is None:
-        visdomenv = "{}_{}_{}".format(args.experiment, dataset,args.loss_mode.replace("_","-"))
-        storepath = store
-    else:
-        visdomenv = run
-        storepath = os.path.join(store, run)
+    #if run is None:
+    #    visdomenv = "{}_{}_{}".format(args.experiment, dataset,args.loss_mode.replace("_","-"))
+    #    storepath = store
+    #else:
+    #    visdomenv = run
+    #storepath = os.path.join(store, dataset)
 
     if switch_epoch is None:
         switch_epoch = int(epochs/2)
@@ -130,12 +135,12 @@ def eval(
         switch_epoch=switch_epoch,
         loss_mode=loss_mode,
         show_n_samples=show_n_samples,
-        store=storepath,
+        store=store,
         entropy_factor=entropy_factor
     )
 
     trainer = Trainer(model,traindataloader,validdataloader,config=config)
-    logged_data = trainer.fit()
+    logged_data = trainer.fit(start_epoch=start_epoch)
 
     return logged_data
 
@@ -167,7 +172,7 @@ if __name__=="__main__":
         epochs = args.epochs,
         switch_epoch = args.switch_epoch,
         learning_rate = args.learning_rate,
-        run = args.run,
+        visdomenv = args.run,
         earliness_factor = args.earliness_factor,
         show_n_samples = args.show_n_samples,
         load_weights=args.load_weights,

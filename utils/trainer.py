@@ -71,10 +71,10 @@ class Trainer():
             raise ValueError("wrong loss_mode please choose either 'early_reward',  "
                              "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_cross_entropy'")
 
-    def fit(self,epoch=0):
+    def fit(self,start_epoch=0):
         printer = Printer()
 
-        for epoch in range(epoch,self.epochs):
+        for epoch in range(start_epoch,self.epochs):
 
             self.logger.set_mode("train")
             stats = self.train_epoch(epoch)

@@ -28,10 +28,28 @@ def parse_args():
     parser.add_argument(
         '--hparams', type=str, default=None, help='hyperparams csv file')
     parser.add_argument(
+        '--root', type=str, default="/data/remote/early_rnn/", help='root folder')
+    parser.add_argument(
+        '--experiment', type=str, default="experiment", help='experiment subfolder in root')
+    parser.add_argument(
+        '--weight_folder', type=str, default=None, help='folder containing model weights to restore from. '
+                                                        'needs to follow the structure <weight_folder>/<dataset>/run/model_<epochs>.pth')
+    parser.add_argument(
+        '--load_epoch', type=int, default=29, help='load epoch from the path files in the weight_folder...'
+                                                   'a file <weight_folder>/<dataset>/run/model_<epochs>.pth'
+                                                   'with the corresponding epoch must exist')
+    parser.add_argument(
+        '--resume', action='store_true', help='skip previously processed runs')
+    parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
         '-s', '--switch_epoch', type=int, default=None, help='epoch at which to switch the loss function '
                                                              'from classification training to early training')
+    parser.add_argument(
+        '--loss_mode', type=str, default="twophase_early_linear", help='which loss function to choose. '
+                                                                       'valid options are early_reward,  '
+                                                                       'twophase_early_reward, '
+                                                                       'twophase_linear_loss, or twophase_cross_entropy')
 
     parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
@@ -41,8 +59,9 @@ def parse_args():
 if __name__=="__main__":
 
     args = parse_args()
-    csvfile = "/data/remote/early_rnn/eval_results.csv"
-    resume = False
+    root = args.root #
+    csvfile = os.path.join(root,"eval_results.csv")
+    resume = args.resume
 
     hparams = pd.read_csv(args.hparams).set_index("dataset")
 
@@ -63,8 +82,13 @@ if __name__=="__main__":
         args.learning_rate = params["learning_rate"]
         args.num_rnn_layers = int(params["num_rnn_layers"])
 
-        args.epochs = 30
-        args.store = os.path.join("/data/remote/early_rnn/models",dataset)
+        args.store = os.path.join(os.path.join(root,args.experiment,"models",dataset))
+        visdomenv = args.experiment+"_"+dataset
+
+        if args.weight_folder is not None:
+            load_weights = os.path.join(args.weight_folder, dataset, "run", "model_{epoch}.pth".format(epoch=args.load_epoch))
+        else:
+            load_weights = None
 
         try:
             logged_data = eval(
@@ -79,6 +103,9 @@ if __name__=="__main__":
                 switch_epoch = args.switch_epoch,
                 learning_rate = args.learning_rate,
                 earliness_factor = args.earliness_factor,
+                loss_mode=args.loss_mode,
+                visdomenv=visdomenv,
+                load_weights=load_weights
             )
 
             last_row = logged_data.iloc[-1]
