@@ -144,7 +144,7 @@ if __name__=="__main__":
     # parse input arguments
     args = parse_args()
 
-    datasets = [dataset.strip() for dataset in open("experiments/morietal2017/datasets.txt", 'r').readlines()]
+    datasets = [dataset.strip() for dataset in open("experiments/morietal2017/UCR_dataset_names.txt", 'r').readlines()]
     resultsdir = os.path.join(os.getenv("HOME"),"ray_results")
 
     if args.skip_processed:
