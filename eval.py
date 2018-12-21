@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument(
         '--load_weights', type=str, default=None, help='load model path file')
     parser.add_argument(
-        '--entropy_factor', type=str, default=0, help='regularize with entropy term on the P(t) distribution high values spread P(t)')
+        '--entropy_factor', type=float, default=0, help='regularize with entropy term on the P(t) distribution high values spread P(t)')
     parser.add_argument(
         '--hparams', type=str, default=None, help='hyperparams csv file')
     parser.add_argument(
@@ -176,5 +176,6 @@ if __name__=="__main__":
         earliness_factor = args.earliness_factor,
         show_n_samples = args.show_n_samples,
         load_weights=args.load_weights,
-        loss_mode=args.loss_mode
+        loss_mode=args.loss_mode,
+        entropy_factor=args.entropy_factor
     )
