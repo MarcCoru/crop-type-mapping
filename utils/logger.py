@@ -129,9 +129,8 @@ class VisdomLogger():
         self.plot_epochs(data)
 
     def bar(self,X, name="barplot"):
-        """
-        :param distribution: t
-        """
+        X[np.isnan(X)] = 0
+
         win = name.replace(" ","_")
 
         opts = dict(
@@ -149,9 +148,9 @@ class VisdomLogger():
         self.viz.bar(X,win=win,opts=opts)
 
     def plot(self, X, name="plot",**kwargs):
-        """
-        :param distribution: t
-        """
+
+        X[np.isnan(X)] = 0
+
         win = "pl_"+name.replace(" ","_")
 
         opts = dict(
