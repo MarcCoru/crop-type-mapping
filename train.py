@@ -1,6 +1,7 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
 from models.AttentionRNN import AttentionRNN
+from models.conv_shapelets import ConvShapeletModel
 from utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
 import argparse
@@ -83,6 +84,12 @@ if __name__=="__main__":
     elif args.model == "AttentionRNN":
         model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
                              dropout=args.dropout)
+    elif args.model == "Conv1D":
+        model = ConvShapeletModel(n_shapelets_per_size={20: 50, 30: 50},
+                          ts_dim=1,
+                          n_classes=nclasses,
+                          distillation=True,
+                          ratio_n_shapelets=1)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
 
