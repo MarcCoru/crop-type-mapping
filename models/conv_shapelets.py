@@ -58,12 +58,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         If distillation==True, the same temperature is used to train both the
         cumbersome and the distilled models.
         Do not touch that parameter unless you are sure of what you do!
-    ratio_n_shapelets: float (optional, default: 1.)
-        Only used if distillation==True. Ratio of the number of shapelets in the
-        cumbersome model to that in the distilled model. Supposed to be >= 1.
-        (cumbersome model is supposed to be larger than the distilled model).
-        If not 1, the numbers of shapelets specified in n_shapelets_per_size are
-        those for the distilled model.
     ratio_loss_soft: float (optional, default: .9)
         Only used if distillation==True. Ratio of the soft-target part in the
         loss function where the total loss is:
@@ -117,9 +111,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
                  n_shapelets_per_size=None,  # dict sz_shp -> n_shp
                  ts_dim=50,
                  n_classes=None,
-                 distillation=False,
-                 ratio_n_shapelets=1.,
-                 adv_eps=None,
                  load_from_disk=None,
                  ):
         super(ConvShapeletModel, self).__init__()
@@ -133,9 +124,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
             self.n_shapelets_per_size = n_shapelets_per_size
             self.ts_dim = ts_dim
             self.n_classes = n_classes
-            self.distillation = distillation
-            self.ratio_n_shapelets = ratio_n_shapelets
-            self.adv_eps = adv_eps
 
             self._set_layers_and_optim()
 
