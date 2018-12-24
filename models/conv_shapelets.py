@@ -9,20 +9,6 @@ from torch.autograd import Variable
 
 __author__ = 'Romain Tavenard romain.tavenard[at]univ-rennes2.fr'
 
-def tslearn2torch(X, y=None):
-    X_ = torch.Tensor(numpy.transpose(X, (0, 2, 1)))
-    if y is None:
-        return X_
-
-    classes = sorted(list(set(y)))
-    y_ = numpy.zeros((X_.shape[0], ))
-    for i, v in enumerate(classes):
-        y_[y == v] = i
-    y_ = torch.Tensor(y_).type(torch.int64)
-    z = torch.zeros(len(y_), len(numpy.bincount(y_)))
-    y_ = z.scatter_(1, torch.tensor([[i] for i in y_]), 1)
-    return X_, y_
-
 class ConvShapeletModel(nn.Module, BaseEstimator):
     """Convolutional variant of the Learning Time-Series Shapelets model.
     Convolutional variant means that the local distance computations are
@@ -131,16 +117,18 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         self.shapelet_sizes = sorted(self.n_shapelets_per_size.keys())
         self.shapelet_blocks = self._get_shapelet_blocks()
         self.logreg_layer = nn.Linear(self.n_shapelets, self.n_classes)
+        self.decision_layer = nn.Linear(self.n_shapelets, 1)
 
     def _get_shapelet_blocks(self):
         return nn.ModuleList([
             nn.Conv1d(in_channels=self.ts_dim,
                       out_channels=self.n_shapelets_per_size[shapelet_size],
-                      kernel_size=shapelet_size)
+                      kernel_size=shapelet_size,
+                      padding=shapelet_size//2)
             for shapelet_size in self.shapelet_sizes
         ])
 
-    def _temporal_pooling(self, x, shapelet_size):
+    def _temporal_pooling(self, x):
         pool_size = x.size(-1)
         pooled_x = nn.MaxPool1d(kernel_size=pool_size)(x)
         return pooled_x.view(pooled_x.size(0), -1)
@@ -149,26 +137,27 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         features_maxpooled = []
         for shp_sz, block in zip(self.shapelet_sizes, self.shapelet_blocks):
             f = block(x)
-            f_maxpooled = self._temporal_pooling(f, shp_sz)
+            f_maxpooled = list()
+            for t in range(1, f.shape[2]):
+                f_maxpooled.append(self._temporal_pooling(f[:,:,:t]))
+            f_maxpooled = torch.stack(f_maxpooled, dim=1)
             features_maxpooled.append(f_maxpooled)
         return torch.cat(features_maxpooled, dim=-1)
 
     def loss_cross_entropy(self, inputs, targets):
-        logits = self._logits(inputs.transpose(1,2))
+        logits, pts = self._logits(inputs.transpose(1,2))
 
-        logprobabilities = F.log_softmax(logits, dim=1)
+        logprobabilities = F.log_softmax(logits, dim=-1)
 
-        b, t, d = inputs.shape
+        batchsize, n_times, n_features = logprobabilities.shape
 
-        Pts = torch.ones([b,t])/t
-
-        loss = F.nll_loss(logprobabilities, targets[:,0])
+        loss = F.nll_loss(logprobabilities.view(batchsize*n_times,n_features), targets.view(batchsize*n_times))
 
         stats = dict(
             loss=loss,
         )
 
-        return loss, logprobabilities, Pts, stats
+        return loss, logprobabilities, pts, stats
 
     def early_loss_linear(self, inputs, targets, alpha=None, entropy_factor=0):
         return self.loss_cross_entropy(inputs, targets)
@@ -189,17 +178,37 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
     def n_shapelets(self):
         return sum(self.n_shapelets_per_size.values())
 
+    def attentionbudget(self, deltas):
+        budget = torch.ones(deltas.shape).cuda()
+
+        pts = list()
+        for t in range(1,deltas.shape[1]):
+            pt = deltas[:,t] * budget[:,t-1]
+            budget[:,t] = budget[:,t-1] - pt
+            pts.append(pt)
+
+        # last time
+        pt = budget[:,-1]
+        budget[:, -1] = budget[:, -1] - pt
+        pts.append(pt)
+
+        return torch.stack(pts,dim=-1), budget
+
+
     def _logits(self, x):
         shapelet_features = self._features(x)
         logits = self.logreg_layer(shapelet_features)
-        return logits
+        deltas = self.decision_layer(shapelet_features)
+        deltas = F.softmax(deltas.squeeze(),dim=1)
+        pts, budget = self.attentionbudget(deltas)
+        return logits, pts
 
     def forward(self, x, temperature=1):
-        logits = self._logits(x)
-        return nn.Softmax(dim=-1)(logits / temperature)
+        logits, deltas = self._logits(x)
+        return nn.Softmax(dim=-1)(logits / temperature), deltas
 
     def predict(self, logprobabilities, Pts):
-        return logprobabilities.argmax(1)
+        return logprobabilities[:,-1,:].argmax(-1)
 
     def transform(self, X):
         X_ = tslearn2torch(X)
