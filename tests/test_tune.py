@@ -6,6 +6,7 @@ import ray.tune as tune
 from hyperopt import hp
 from ray.tune.schedulers import HyperBandScheduler
 from tune import RayTrainer
+from tune_mori_datasets_conv1d import RayTrainerConv1D
 import unittest
 
 class TestTune(unittest.TestCase):
@@ -13,7 +14,9 @@ class TestTune(unittest.TestCase):
     def test_Tune_Trace(self):
 
         try:
-            ray.init(include_webui=False)
+            if not ray.is_initialized():
+                ray.init(include_webui=False)
+
             dataset = "Trace"
             # tune.grid_search(
             config = dict(
@@ -57,3 +60,51 @@ class TestTune(unittest.TestCase):
 
         except Exception as e:
             self.fail("Failed Tune: " + str(e))
+
+    def test_Tune_Trace_Conv1D(self):
+
+        try:
+            if not ray.is_initialized():
+                ray.init(include_webui=False)
+            dataset = "Trace"
+            # tune.grid_search(
+            config = dict(
+                batchsize=32,
+                workers=2,
+                epochs=99999,
+                switch_epoch=9999,
+                earliness_factor=1,
+                fold=tune.grid_search([0]),
+                hidden_dims=tune.grid_search([25]),
+                learning_rate=tune.grid_search([1e-2]),
+                num_layers=tune.grid_search([1, 2]),
+                dataset=dataset)
+
+            experiment_name = dataset
+
+            tune.run_experiments(
+                {
+                    experiment_name: {
+                        "trial_resources": {
+                            "cpu": 2,
+                            "gpu": 1,
+                        },
+                        'stop': {
+                            'training_iteration': 1,
+                            'time_total_s': 1,
+                        },
+                        "run": RayTrainerConv1D,
+                        "num_samples": 1,
+                        "checkpoint_at_end": False,
+                        "config": config
+                    }
+                },
+                # local_dir=args.local_dir,
+                # scheduler=ahb_scheduler,
+                verbose=0)  #
+
+        except Exception as e:
+            self.fail("Failed Tune: " + str(e))
+
+if __name__ == '__main__':
+    unittest.main()

@@ -7,7 +7,7 @@ import argparse
 from utils.trainer import Trainer
 from utils.parse_rayresults import parse_experiment
 
-class RayTrainer(ray.tune.Trainable):
+class RayTrainerConv1D(ray.tune.Trainable):
     def _setup(self, config):
 
         traindataset = UCRDataset(config["dataset"],
@@ -108,7 +108,7 @@ def tune_dataset(args):
                     'training_iteration': 10 if not args.smoke_test else 1,
                     'time_total_s':600 if not args.smoke_test else 1,
                 },
-                "run": RayTrainer,
+                "run": RayTrainerConv1D,
                 "num_samples": 1,
                 "checkpoint_at_end": False,
                 "config": config
