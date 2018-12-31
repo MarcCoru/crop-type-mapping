@@ -199,7 +199,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         shapelet_features = self._features(x)
         logits = self.logreg_layer(shapelet_features)
         deltas = self.decision_layer(shapelet_features)
-        deltas = F.softmax(deltas.squeeze(),dim=1)
+        deltas = F.softmax(deltas.squeeze(-1),dim=1)
         pts, budget = self.attentionbudget(deltas)
         return logits, pts
 
