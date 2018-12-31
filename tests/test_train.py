@@ -7,7 +7,7 @@ from utils.UCR_Dataset import UCRDataset
 from models.DualOutputRNN import DualOutputRNN
 from models.AttentionRNN import AttentionRNN
 from models.conv_shapelets import ConvShapeletModel
-from train import build_n_shapelet_dict
+from models.conv_shapelets import build_n_shapelet_dict
 import torch
 import logging
 
@@ -133,8 +133,8 @@ class TestTrain(unittest.TestCase):
             validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=8, shuffle=False,
                                                           num_workers=0, pin_memory=True)
 
-            n_shapelets_per_size = build_n_shapelet_dict(num_layers=3, hidden_dims=50)
-            model = ConvShapeletModel(n_shapelets_per_size=n_shapelets_per_size,
+            model = ConvShapeletModel(num_layers=3,
+                                      hidden_dims=50,
                                       ts_dim=1,
                                       n_classes=nclasses)
 
