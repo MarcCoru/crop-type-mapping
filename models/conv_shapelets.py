@@ -29,46 +29,10 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
     n_classes: int (optional, default: None)
         Number of classes in the classification problem
         None should be used only if `load_from_disk` is set
-    lr: float (optional, default: 0.01)
-        Learning rate
-    epochs: int (optional, default: 500)
-        Number of training epochs
-    batch_size: int (optional, default: 64)
-        Batch size for training procedure
-    lambda_w: float (optional, default: 0.01)
-        L2 regularizer weight in the optimized loss
-    distillation: boolean (optional, default: False)
-        Either a distilled model should be trained.
-    temperature: float (optional, default: 1.)
-        Temperature parameter of the softmax function for the training phase.
-        If distillation==True, the same temperature is used to train both the
-        cumbersome and the distilled models.
-        Do not touch that parameter unless you are sure of what you do!
-    ratio_loss_soft: float (optional, default: .9)
-        Only used if distillation==True. Ratio of the soft-target part in the
-        loss function where the total loss is:
-        ratio_loss_soft * L_soft + (1 - ratio_loss_soft) * L_hard / T^2
-        where T is the temperature of the model
-    adv_eps: float (optional, default: None)
-        Epsilon parameter for the adversarial examples generation.
-        If None, no adversarial examples are included.
-    init_shapelets: list of numpy arrays (optional, default: None)
-        Initial shapelets to be used. If None, shapelets are drawn from a
-        standard normal distribution.
-        Otherwise, each element in the list should be an array of shape
-        (n_shp, shp_sz, ts_dim) where shp_sz is a
-        shapelet size for which there should be n_shp in the model.
-    verbose: boolean (optional, default: True)
-        Should verbose mode be activated
-    save_summaries_folder: str or None (optional, default: None)
-        If not None, TensorBoard summary is saved in the given folder
     load_from_disk: str or None (optional, default: None)
         If not None, the model is built from the path given
-    warm_start: boolean (optional, default: False)
-        If False, shapelets are re-initialized at each call to fit.
-        If True, shapelets are initialized at the first call to fit and any
-        subsequent call to fit will use the already-learned shapelets as
-        starting point.
+    use_time_as_feature: bool (optional, default: True)
+        insert the time index as additional feature to the input data.
 
     Note
     ----
@@ -98,10 +62,14 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
                  ts_dim=50,
                  n_classes=None,
                  load_from_disk=None,
+                 use_time_as_feature=False
                  ):
         super(ConvShapeletModel, self).__init__()
         self.X_fit_ = None
         self.y_fit_ = None
+        self.use_time_as_feature = use_time_as_feature
+        if use_time_as_feature:
+            ts_dim += 1 # time index as additional input
 
         if load_from_disk is not None:
             self.verbose = True
@@ -179,7 +147,10 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         return sum(self.n_shapelets_per_size.values())
 
     def attentionbudget(self, deltas):
-        budget = torch.ones(deltas.shape).cuda()
+
+        budget = torch.ones(deltas.shape)
+        if torch.cuda.is_available():
+            budget = budget.cuda()
 
         pts = list()
         for t in range(1,deltas.shape[1]):
@@ -194,8 +165,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
         return torch.stack(pts,dim=-1), budget
 
-
     def _logits(self, x):
+        if self.use_time_as_feature:
+            x = add_time_feature_to_input(x)
         shapelet_features = self._features(x)
         logits = self.logreg_layer(shapelet_features)
         deltas = self.decision_layer(shapelet_features)
@@ -209,10 +181,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def predict(self, logprobabilities, Pts):
         return logprobabilities[:,-1,:].argmax(-1)
-
-    def transform(self, X):
-        X_ = tslearn2torch(X)
-        return self._features(X_).detach().numpy()
 
     def get_shapelets(self):
         shapelets = []
@@ -260,9 +228,27 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
         self._set_layers_and_optim()
         self.load_state_dict(model_state)
-        self.optimizer.load_state_dict(optimizer_state)
+        #self.optimizer.load_state_dict(optimizer_state)
         self.eval()  # If at some point we wanted to use batchnorm or dropout
 
         return snapshot
 
+def add_time_feature_to_input(x):
+    """
+    adds an additional time feature as additional input dimension.
+    the time feature increases with sequence length from zero to one
 
+    :param x: input tensor of dimensions (batchsize, ts_dim, ts_len)
+    :return: expanded output tensor of dimensions (batchsize, ts_dim+1, ts_len)
+    """
+
+    batchsize, ts_dim, ts_len = x.shape
+    # create range
+    time_feature = torch.arange(0., float(ts_len)) / ts_len
+    # repeat for each batch element
+    time_feature = time_feature.repeat(batchsize, 1, 1)
+    # move to GPU if available
+    if torch.cuda.is_available():
+        time_feature = time_feature.cuda()
+    # append time_feature to x
+    return torch.cat([x, time_feature], dim=1)
