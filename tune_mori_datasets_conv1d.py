@@ -1,6 +1,6 @@
 import ray
 import ray.tune as tune
-from models.DualOutputRNN import DualOutputRNN
+from models.conv_shapelets import ConvShapeletModel
 from utils.UCR_Dataset import UCRDataset
 import torch
 import argparse
@@ -32,10 +32,11 @@ class RayTrainer(ray.tune.Trainable):
         self.validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=config["batchsize"], shuffle=False,
                                                       num_workers=config["workers"], pin_memory=False)
 
-        self.model = DualOutputRNN(input_dim=1,
-                                   nclasses=nclasses,
-                                   hidden_dim=config["hidden_dims"],
-                                   num_rnn_layers=config["num_rnn_layers"])
+        self.model = ConvShapeletModel(num_layers=config["num_layers"],
+                                       hidden_dims=config["hidden_dims"],
+                                       ts_dim=1,
+                                       n_classes=nclasses,
+                                       use_time_as_feature=True)
 
         if torch.cuda.is_available():
             self.model = self.model.cuda()
@@ -88,11 +89,10 @@ def tune_dataset(args):
         epochs=99999,
         switch_epoch=9999,
         earliness_factor=1,
-        fold=tune.grid_search([5,6,7,8,9]), #[0, 1, 2, 3, 4]),
-        hidden_dims=tune.grid_search([2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
+        fold=tune.grid_search([0, 1, 2, 3, 4]),
+        hidden_dims=tune.grid_search([25,50,75]),
         learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
-        dropout=0.3,
-        num_rnn_layers=tune.grid_search([1,2,3,4]),
+        num_layers=tune.grid_search([1,2,3,4]),
         dataset=args.dataset)
 
     experiment_name = args.dataset
