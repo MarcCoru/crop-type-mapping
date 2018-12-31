@@ -57,18 +57,6 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
-def build_n_shapelet_dict(num_layers, hidden_dims):
-    """
-    Builds a dictionary of format {<kernel_length_in_percentage_of_T>:<num_hidden_dimensions> , ...}
-    returns n shapelets per size
-    e.g., {10: 100, 20: 100, 30: 100, 40: 100}
-    """
-    n_shapelets_per_size = dict()
-    for layer in range(num_layers):
-        shapelet_width = (layer + 1) * 10  # in 10% increments of sequencelength percantage: 10% 20% 30% etc.
-        n_shapelets_per_size[shapelet_width] = hidden_dims
-    return n_shapelets_per_size
-
 if __name__=="__main__":
 
     args = parse_args()
@@ -99,10 +87,10 @@ if __name__=="__main__":
         model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_layers,
                              dropout=args.dropout)
     elif args.model == "Conv1D":
-        n_shapelets_per_size = build_n_shapelet_dict(args.num_layers, args.hidden_dims)
-        model = ConvShapeletModel(n_shapelets_per_size=n_shapelets_per_size,
-                          ts_dim=1,
-                          n_classes=nclasses)
+        model = ConvShapeletModel(num_layers=args.num_layers,
+                                  hidden_dims=args.hidden_dims,
+                                  ts_dim=1,
+                                  n_classes=nclasses)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
 
