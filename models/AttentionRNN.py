@@ -61,6 +61,10 @@ class AttentionRNN(torch.nn.Module):
 
         return loss, logprobabilities, weights, stats
 
+    def early_loss_linear(self, inputs, targets, alpha=None):
+        print("No early_loss_linear implemented in AttentionRNN will use simple cross entropy!")
+        return self.loss_cross_entropy(inputs, targets)
+
     def predict(self, logprobabilities, Pts):
         return logprobabilities.argmax(1)
 
