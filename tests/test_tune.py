@@ -3,10 +3,10 @@ sys.path.append("..")
 
 import ray
 import ray.tune as tune
-from hyperopt import hp
+import hyperopt as hp
 from ray.tune.schedulers import HyperBandScheduler
-from tune import RayTrainer
-from tune_mori_datasets_conv1d import RayTrainerConv1D
+from tune import RayTrainerDualOutputRNN as RayTrainer
+from tune import RayTrainerConv1D
 import unittest
 
 class TestTune(unittest.TestCase):
