@@ -23,6 +23,14 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         Dictionary giving, for each shapelet size (key),
         the number of such shapelets to be trained (value)
         None should be used only if `load_from_disk` is set
+    num_layers: int (optional, default: 1)
+        number of convolutional layers that each convolve the input once.
+        num_layers will be ignored if n_shapelets_per_size is specified
+    num_hidden: int (optional, default: 50)
+        number of hidden dinemnsions (number of convolutional kernels) per layers.
+        all layers have the same number of hidden dims.
+        If differnet hidden dims per layer are necessary use n_shapelets_per_size
+        num_hidden will be ignored if n_shapelets_per_size is specified
     ts_dim: int (optional, default: None)
         Dimensionality (number of modalities) of the time series considered
         None should be used only if `load_from_disk` is set
@@ -58,7 +66,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
     .. [1] J. Grabocka et al. Learning Time-Series Shapelets. SIGKDD 2014.
     """
     def __init__(self,
-                 n_shapelets_per_size=None,  # dict sz_shp -> n_shp
+                 num_layers=1,
+                 hidden_dims=50,
+                 n_shapelets_per_size=None,
                  ts_dim=50,
                  n_classes=None,
                  load_from_disk=None,
@@ -70,6 +80,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         self.use_time_as_feature = use_time_as_feature
         if use_time_as_feature:
             ts_dim += 1 # time index as additional input
+
+        if n_shapelets_per_size is None:
+            n_shapelets_per_size = build_n_shapelet_dict(num_layers=num_layers, hidden_dims=hidden_dims)
 
         if load_from_disk is not None:
             self.verbose = True
@@ -252,3 +265,15 @@ def add_time_feature_to_input(x):
         time_feature = time_feature.cuda()
     # append time_feature to x
     return torch.cat([x, time_feature], dim=1)
+
+def build_n_shapelet_dict(num_layers, hidden_dims):
+    """
+    Builds a dictionary of format {<kernel_length_in_percentage_of_T>:<num_hidden_dimensions> , ...}
+    returns n shapelets per size
+    e.g., {10: 100, 20: 100, 30: 100, 40: 100}
+    """
+    n_shapelets_per_size = dict()
+    for layer in range(num_layers):
+        shapelet_width = (layer + 1) * 10  # in 10% increments of sequencelength percantage: 10% 20% 30% etc.
+        n_shapelets_per_size[shapelet_width] = hidden_dims
+    return n_shapelets_per_size
