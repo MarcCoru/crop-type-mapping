@@ -26,9 +26,11 @@ def parse_args():
     parser.add_argument(
         '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
     parser.add_argument(
-        '-n', '--num_rnn_layers', type=int, default=1, help='number of RNN layers')
+        '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
+                                                        'RNN layers for recurrent models and as number of convolutions'
+                                                        'for convolutional models...')
     parser.add_argument(
-        '-r', '--hidden_dims', type=int, default=32, help='number of RNN hidden dimensions')
+        '-r', '--hidden_dims', type=int, default=32, help='number of hidden dimensions per layer stacked hidden dimensions')
     parser.add_argument(
         '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
     parser.add_argument(
@@ -55,6 +57,18 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
+def build_n_shapelet_dict(num_layers, hidden_dims):
+    """
+    Builds a dictionary of format {<kernel_length_in_percentage_of_T>:<num_hidden_dimensions> , ...}
+    returns n shapelets per size
+    e.g., {10: 100, 20: 100, 30: 100, 40: 100}
+    """
+    n_shapelets_per_size = dict()
+    for layer in range(num_layers):
+        shapelet_width = (layer + 1) * 10  # in 10% increments of sequencelength percantage: 10% 20% 30% etc.
+        n_shapelets_per_size[shapelet_width] = hidden_dims
+    return n_shapelets_per_size
+
 if __name__=="__main__":
 
     args = parse_args()
@@ -80,12 +94,13 @@ if __name__=="__main__":
                                                   num_workers=args.workers, pin_memory=True)
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
-                              num_rnn_layers=args.num_rnn_layers, dropout=args.dropout)
+                              num_rnn_layers=args.num_layers, dropout=args.dropout)
     elif args.model == "AttentionRNN":
-        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_rnn_layers,
+        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_layers,
                              dropout=args.dropout)
     elif args.model == "Conv1D":
-        model = ConvShapeletModel(n_shapelets_per_size={10: 100, 20: 100, 30: 100, 40: 100},
+        n_shapelets_per_size = build_n_shapelet_dict(args.num_layers, args.hidden_dims)
+        model = ConvShapeletModel(n_shapelets_per_size=n_shapelets_per_size,
                           ts_dim=1,
                           n_classes=nclasses)
     else:

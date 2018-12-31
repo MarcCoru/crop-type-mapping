@@ -19,7 +19,7 @@ class Trainer():
 
         self.entropy_factor = config["entropy_factor"] if "entropy_factor" in config.keys() else 0
 
-        self.store = config["store"]
+        self.store = config["store"] if "store" in config.keys() else "/tmp"
 
         if "visdomenv" in config.keys():
             self.visdom = VisdomLogger(env=config["visdomenv"])
@@ -44,7 +44,7 @@ class Trainer():
             return self.model.early_loss(inputs,targets,earliness_factor)
 
         elif self.lossmode=="loss_cross_entropy":
-            return self.model.loss_cross_entropy(inputs,targets,earliness_factor)
+            return self.model.loss_cross_entropy(inputs,targets)
 
         # first cross entropy then early reward loss
         elif self.lossmode == "twophase_early_reward":
