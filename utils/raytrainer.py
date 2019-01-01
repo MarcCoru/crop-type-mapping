@@ -3,7 +3,7 @@ from models.conv_shapelets import ConvShapeletModel
 from utils.UCR_Dataset import UCRDataset
 import torch
 from utils.trainer import Trainer
-import ray
+import ray.tune
 
 class RayTrainerDualOutputRNN(ray.tune.Trainable):
     def _setup(self, config):
@@ -33,7 +33,7 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
         self.model = DualOutputRNN(input_dim=1,
                                    nclasses=nclasses,
                                    hidden_dim=config["hidden_dims"],
-                                   num_rnn_layers=config["num_rnn_layers"])
+                                   num_rnn_layers=config["num_layers"])
 
         if torch.cuda.is_available():
             self.model = self.model.cuda()
