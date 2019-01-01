@@ -189,7 +189,10 @@ class DualOutputRNN(torch.nn.Module):
         """
         b, t, c = logprobabilities.shape
         t_class = Pts.argmax(1)  # [c]
-        eye = torch.eye(t).type(torch.ByteTensor).cuda()
+        eye = torch.eye(t).type(torch.ByteTensor)
+
+        if torch.cuda.is_available():
+            eye = eye.cuda()
 
         prediction_all_times = logprobabilities.argmax(2)
         prediction_at_t = torch.masked_select(prediction_all_times, eye[t_class])
