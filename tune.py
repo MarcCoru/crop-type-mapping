@@ -81,10 +81,10 @@ def get_hyperparameter_search_space(experiment, args):
             epochs=99999, # will be overwritten by training_iteration criterion
             switch_epoch=9999,
             earliness_factor=1,
-            fold=tune.grid_search([0, 1, 2, 3, 4]),
+            fold=tune.grid_search([0]),
             hidden_dims=tune.grid_search([25,50,75]),
             learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
-            num_layers=tune.grid_search([1,2,3,4]),
+            num_layers=tune.grid_search([3,4]),
             dataset=args.dataset)
 
     elif experiment == "test_conv1d":
