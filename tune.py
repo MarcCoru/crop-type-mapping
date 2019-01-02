@@ -81,10 +81,10 @@ def get_hyperparameter_search_space(experiment, args):
             epochs=99999, # will be overwritten by training_iteration criterion
             switch_epoch=9999,
             earliness_factor=1,
-            fold=tune.grid_search([0]),
-            hidden_dims=tune.grid_search([25,50,75]),
-            learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
-            num_layers=tune.grid_search([3,4]),
+            fold=tune.grid_search([0,1,2,3,4]),
+            hidden_dims=tune.grid_search([10,25,50,75]),
+            learning_rate=tune.grid_search([1e-2,1e-3]),
+            num_layers=tune.grid_search([2,3,4]),
             dataset=args.dataset)
 
     elif experiment == "test_conv1d":
@@ -204,9 +204,9 @@ def tune_mori_datasets(args):
 
         except KeyboardInterrupt:
             sys.exit(0)
-        #except Exception as e:
-        #    print("error" + str(e))
-        #    continue
+        except Exception as e:
+            print("error" + str(e))
+            continue
 
 def print_best(top, filename):
     """

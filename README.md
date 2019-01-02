@@ -1,6 +1,15 @@
 Recurrent Neural Networks for Early Classification of Time Series
 ===
 
+### DGX set up
+
+delete unnecessary preinstalled depenencies...
+```bash
+sudo rm -r /opt/conda
+sudo rm -rf /usr/local/onnx
+sudo rm -rf /opt/caffe2
+```
+
 #### Unittests
 
 ```bash
