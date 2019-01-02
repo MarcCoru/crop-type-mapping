@@ -200,6 +200,8 @@ def tune_mori_datasets(args):
 
             print_best(top,filename=os.path.join(resultsdir, "datasets.log"))
 
+            parse_hyperparameters_from_experiments(resultsdir)
+
         except KeyboardInterrupt:
             sys.exit(0)
         #except Exception as e:
@@ -304,7 +306,11 @@ def parse_experiment(experimentpath, outcsv=None, n=5):
 
     return top
 
-def load_set_of_experiments(path):
+def parse_hyperparameters_from_experiments(path, outpath=None):
+
+    if outpath is None:
+        outpath = path
+
     experiments = os.listdir(path)
 
     best_hyperparams = list()
@@ -320,7 +326,7 @@ def load_set_of_experiments(path):
 
     summary = pd.concat(best_hyperparams)
 
-    csvfile = os.path.join(path, "hyperparams.csv")
+    csvfile = os.path.join(outpath, "hyperparams.csv")
     print("writing "+csvfile)
     summary.to_csv(csvfile)
 

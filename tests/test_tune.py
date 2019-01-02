@@ -3,7 +3,7 @@ sys.path.append("..")
 
 import ray
 import unittest
-from tune import get_hyperparameter_search_space, tune_dataset_rnn, tune_mori_datasets
+from tune import get_hyperparameter_search_space, tune_dataset_rnn, tune_mori_datasets, parse_hyperparameters_from_experiments
 import logging
 import shutil
 import os
@@ -25,7 +25,7 @@ class TestTune(unittest.TestCase):
                 cpu=2,
                 dataset='Trace',
                 experiment='test_rnn',
-                gpu=0,
+                gpu=0.5,
                 local_dir='/tmp',
                 skip_processed=False,
                 smoke_test=True)
@@ -45,27 +45,7 @@ class TestTune(unittest.TestCase):
                 cpu=2,
                 dataset='Trace',
                 experiment='test_conv1d',
-                gpu=0,
-                local_dir='/tmp',
-                skip_processed=False,
-                smoke_test=True)
-            config = get_hyperparameter_search_space(args.experiment, args)
-            tune_dataset_rnn(args,config)
-        except Exception as e:
-            self.fail(self.fail(logging.exception(e)))
-
-    def test_Tune_FiftyWords_Conv1d(self):
-
-        try:
-            if not ray.is_initialized():
-                ray.init(include_webui=False)
-
-            args = Namespace(
-                batchsize=32,
-                cpu=2,
-                dataset='FiftyWords',
-                experiment='test_conv1d',
-                gpu=0,
+                gpu=0.5,
                 local_dir='/tmp',
                 skip_processed=False,
                 smoke_test=True)
@@ -134,6 +114,10 @@ class TestTune(unittest.TestCase):
             self.assertTrue(os.path.exists("/tmp/test_rnn/TwoPatterns/params.csv"))
         except Exception as e:
             self.fail(self.fail(logging.exception(e)))
+
+    def test_parse_hparam_output(self):
+        parse_hyperparameters_from_experiments("data/tune_results", outpath="/tmp")
+        self.assertTrue(os.path.exists("/tmp/hyperparams.csv"))
 
 if __name__ == '__main__':
     unittest.main()
