@@ -177,7 +177,7 @@ def tune_mori_datasets(args):
         os.makedirs(resultsdir)
 
     if args.skip_processed:
-        processed_datasets = os.listdir(resultsdir)
+        processed_datasets = [f for f in os.listdir(resultsdir) if os.path.isdir(f)]
         # remove all datasets that are present in the folder already
         datasets = list(set(datasets).symmetric_difference(processed_datasets))
 
