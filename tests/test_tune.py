@@ -54,6 +54,26 @@ class TestTune(unittest.TestCase):
         except Exception as e:
             self.fail(self.fail(logging.exception(e)))
 
+    def test_Tune_FiftyWords_Conv1d(self):
+
+        try:
+            if not ray.is_initialized():
+                ray.init(include_webui=False)
+
+            args = Namespace(
+                batchsize=32,
+                cpu=2,
+                dataset='FiftyWords',
+                experiment='test_conv1d',
+                gpu=0,
+                local_dir='/tmp',
+                skip_processed=False,
+                smoke_test=True)
+            config = get_hyperparameter_search_space(args.experiment, args)
+            tune_dataset_rnn(args,config)
+        except Exception as e:
+            self.fail(self.fail(logging.exception(e)))
+
     def test_tune_mori_datasets_conv1d(self):
         if os.path.exists("/tmp/test_conv1d"):
             shutil.rmtree("/tmp/test_conv1d")
@@ -61,7 +81,7 @@ class TestTune(unittest.TestCase):
         # create fake dataset.txt
         datasetfile = "/tmp/test_conv1d_datasets.txt"
         with open(datasetfile,"w") as file:
-            file.write("Trace\nTwoPatterns")
+            file.write("FiftyWords\nTrace\nTwoPatterns")
 
         try:
             if not ray.is_initialized():
@@ -81,6 +101,7 @@ class TestTune(unittest.TestCase):
             self.assertTrue(os.path.exists("/tmp/test_conv1d/datasets.log"))
             self.assertTrue(os.path.exists("/tmp/test_conv1d/Trace/params.csv"))
             self.assertTrue(os.path.exists("/tmp/test_conv1d/TwoPatterns/params.csv"))
+            self.assertTrue(os.path.exists("/tmp/test_conv1d/FiftyWords/params.csv"))
         except Exception as e:
             self.fail(self.fail(logging.exception(e)))
 
