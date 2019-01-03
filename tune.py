@@ -326,7 +326,7 @@ def parse_hyperparameters_from_experiments(path, outpath=None):
 
     summary = pd.concat(best_hyperparams)
 
-    csvfile = os.path.join(outpath, "hyperparams.csv")
+    csvfile = os.path.join(outpath, "hyperparams_conv1d.csv")
     print("writing "+csvfile)
     summary.to_csv(csvfile)
 

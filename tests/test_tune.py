@@ -117,7 +117,7 @@ class TestTune(unittest.TestCase):
 
     def test_parse_hparam_output(self):
         parse_hyperparameters_from_experiments("data/tune_results", outpath="/tmp")
-        self.assertTrue(os.path.exists("/tmp/hyperparams.csv"))
+        self.assertTrue(os.path.exists("/tmp/hyperparams_conv1d.csv"))
 
 if __name__ == '__main__':
     unittest.main()

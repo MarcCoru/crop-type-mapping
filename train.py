@@ -5,9 +5,11 @@ from models.conv_shapelets import ConvShapeletModel
 from utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
 import argparse
+from argparse import Namespace
 import numpy as np
 import os
 from utils.trainer import Trainer
+import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -43,6 +45,8 @@ def parse_args():
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
+        '--hyperparametercsv', type=str, default=None, help='hyperparams csv file')
+    parser.add_argument(
         '--store', type=str, default="/tmp", help='store run logger results')
     parser.add_argument(
         '--run', type=str, default=None, help='run name')
@@ -62,8 +66,38 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
+def readHyperparameterCSV(args):
+    print("reading "+args.hyperparametercsv)
+
+    # get hyperparameters from the hyperparameter file for the current dataset...
+    hparams = pd.read_csv(args.hyperparametercsv)
+
+    # select only current dataset
+    hparams = hparams.set_index("dataset").loc[args.dataset]
+
+    args_dict = vars(args)
+
+    for key,value in hparams.iteritems():
+
+        # ignore empty columns
+        if 'Unnamed' not in key:
+
+            # only overwrite if key exists in parsed arguments
+            if key in args_dict.keys():
+                datatype_function = type(args_dict[key])
+                value = datatype_function(value)
+
+                # cast value to same datatype as in argparse
+                args_dict[key] = value
+
+                print("overwriting {key} with {value}".format(key=key,value=value))
+
+    return Namespace(**args_dict)
 
 def main(args):
+
+    if args.hyperparametercsv is not None:
+        args = readHyperparameterCSV(args)
 
     traindataloader = getDataloader(dataset=args.dataset,
                                     partition=args.train_on,

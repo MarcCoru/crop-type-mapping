@@ -1,8 +1,9 @@
 import sys
 sys.path.append("..")
 
-from train import getDataloader, getModel
+from train import getDataloader, getModel, readHyperparameterCSV
 import torch
+import argparse
 
 import unittest
 
@@ -79,6 +80,51 @@ class TestTrain(unittest.TestCase):
         model = getModel(args)
 
         self.assertTrue(len(model.state_dict()) == 8)
+
+    def test_readHyperparameterCSV_conv1d(self):
+
+        args = Namespace(
+            hyperparametercsv="data/hyperparams_conv1d.csv",
+            dataset="Trace",
+            num_layers=999, # <- should be overwritten by the csv file, but datatype should be preserved
+            hidden_dims=999, # <- should be overwritten by the csv file, but datatype should be preserved
+            ts_dim=1,
+            nclasses=2)
+
+        args = readHyperparameterCSV(args)
+
+        # those values should have been overwritten by the CSV hyperparameter file
+        self.assertTrue(args.hidden_dims == 25)
+        self.assertTrue(args.num_layers == 4)
+
+        # make sure the datatype from the csv (default float) is overwritten by the datatype from previous argument
+        self.assertTrue(isinstance(args.hidden_dims, int))
+
+        # must be instance of argparse namespace
+        self.assertTrue(isinstance(args,argparse.Namespace))
+
+    def test_readHyperparameterCSV_rnn(self):
+
+        args = Namespace(
+            hyperparametercsv="data/hyperparams_rnn.csv",
+            dataset="Trace",
+            num_rnn_layers=999, # <- should be overwritten by the csv file, but datatype should be preserved
+            hidden_dims=999, # <- should be overwritten by the csv file, but datatype should be preserved
+            ts_dim=1,
+            nclasses=2)
+
+        args = readHyperparameterCSV(args)
+
+        # those values should have been overwritten by the CSV hyperparameter file
+        self.assertTrue(args.hidden_dims == 512)
+        self.assertTrue(args.num_rnn_layers == 4)
+
+        # make sure the datatype from the csv (default float) is overwritten by the datatype from previous argument
+        self.assertTrue(isinstance(args.hidden_dims, int))
+
+        # must be instance of argparse namespace
+        self.assertTrue(isinstance(args,argparse.Namespace))
+
 
 if __name__ == '__main__':
     unittest.main()
