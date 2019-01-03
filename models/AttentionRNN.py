@@ -6,21 +6,21 @@ from models.convlstm.convlstm import ConvLSTM
 from models import AttentionModule
 
 class AttentionRNN(torch.nn.Module):
-    def __init__(self, input_dim=3, hidden_dim=3, input_size=(1,1), kernel_size=(1,1), nclasses=5, num_rnn_layers=1, dropout=.8):
+    def __init__(self, input_dim=3, hidden_dims=3, input_size=(1,1), kernel_size=(1,1), nclasses=5, num_rnn_layers=1, dropout=.8):
         super(AttentionRNN, self).__init__()
 
         self.nclasses=nclasses
 
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_rnn_layers, bias=False,
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dims, num_layers=num_rnn_layers, bias=False,
                             batch_first=True, dropout=dropout)
 
-        self.attention = AttentionModule.Attention(hidden_dim)
+        self.attention = AttentionModule.Attention(hidden_dims)
 
-        self.bn_outputs = nn.BatchNorm1d(hidden_dim)
-        self.bn_query = nn.BatchNorm1d(hidden_dim)
-        self.bn_class = nn.BatchNorm1d(hidden_dim)
+        self.bn_outputs = nn.BatchNorm1d(hidden_dims)
+        self.bn_query = nn.BatchNorm1d(hidden_dims)
+        self.bn_class = nn.BatchNorm1d(hidden_dims)
 
-        self.linear_class = nn.Linear(hidden_dim, nclasses, bias=True)
+        self.linear_class = nn.Linear(hidden_dims, nclasses, bias=True)
 
         #self.conv2d_class = nn.Conv2d(in_channels=hidden_dim, out_channels=nclasses, kernel_size=kernel_size,
         #                              padding=(kernel_size[0] // 2, kernel_size[1] // 2),

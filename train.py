@@ -24,6 +24,11 @@ def parse_args():
     parser.add_argument(
         '-l', '--learning_rate', type=float, default=1e-2, help='learning rate')
     parser.add_argument(
+        '--train_on', type=str, default="train", help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'train')")
+    parser.add_argument(
+        '--test_on', type=str, default="valid",
+        help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
+    parser.add_argument(
         '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
     parser.add_argument(
         '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
@@ -57,45 +62,25 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
-if __name__=="__main__":
 
-    args = parse_args()
+def main(args):
 
-    if args.dataset == "synthetic":
-        traindataset = SyntheticDataset(num_samples=2000, T=100)
-        validdataset = SyntheticDataset(num_samples=1000, T=100)
-    else:
-        traindataset = UCRDataset(args.dataset, partition="train", ratio=.75, randomstate=0,
-                                  augment_data_noise=args.augment_data_noise)
-        validdataset = UCRDataset(args.dataset, partition="valid", ratio=.75, randomstate=0)
+    traindataloader = getDataloader(dataset=args.dataset,
+                                    partition=args.train_on,
+                                    batch_size=args.batchsize,
+                                    num_workers=args.workers,
+                                    shuffle=True,
+                                    pin_memory=True)
 
-    nclasses = traindataset.nclasses
+    testdataloader = getDataloader(dataset=args.dataset,
+                                   partition=args.test_on,
+                                   batch_size=args.batchsize,
+                                   num_workers=args.workers,
+                                   shuffle=False,
+                                   pin_memory=True)
 
-    np.random.seed(0)
-    torch.random.manual_seed(0)
-    traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=args.batchsize, shuffle=True,
-                                                  num_workers=args.workers, pin_memory=True)
-
-    np.random.seed(1)
-    torch.random.manual_seed(1)
-    validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=args.batchsize, shuffle=False,
-                                                  num_workers=args.workers, pin_memory=True)
-    if args.model == "DualOutputRNN":
-        model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout)
-    elif args.model == "AttentionRNN":
-        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=args.hidden_dims, num_rnn_layers=args.num_layers,
-                             dropout=args.dropout)
-    elif args.model == "Conv1D":
-        model = ConvShapeletModel(num_layers=args.num_layers,
-                                  hidden_dims=args.hidden_dims,
-                                  ts_dim=1,
-                                  n_classes=nclasses)
-    else:
-        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
-
-    if torch.cuda.is_available():
-        model = model.cuda()
+    args.nclasses = traindataloader.dataset.nclasses
+    model = getModel(args)
 
     if args.run is None:
         visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
@@ -103,9 +88,6 @@ if __name__=="__main__":
     else:
         visdomenv = args.run
         storepath = os.path.join(args.store, args.run)
-
-    if args.switch_epoch is None:
-        args.switch_epoch = int(args.epochs/2)
 
     config = dict(
         epochs=args.epochs,
@@ -118,5 +100,45 @@ if __name__=="__main__":
         store=storepath
     )
 
-    trainer = Trainer(model,traindataloader,validdataloader,config=config)
+    trainer = Trainer(model,traindataloader,testdataloader,config=config)
     trainer.fit()
+
+def getDataloader(dataset, partition, **kwargs):
+
+    if dataset == "synthetic":
+        torchdataset = SyntheticDataset(num_samples=2000, T=100)
+    else:
+        torchdataset = UCRDataset(dataset, partition=partition, ratio=.75, randomstate=0)
+
+    # create a random seed from the partition name -> seed must be different for each partition
+    seed = sum([ord(ch) for ch in partition])
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
+
+    return torch.utils.data.DataLoader(torchdataset, **kwargs)
+
+def getModel(args):
+    # Get Model
+    if args.model == "DualOutputRNN":
+        model = DualOutputRNN(input_dim=1, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
+                              num_rnn_layers=args.num_layers, dropout=args.dropout)
+    elif args.model == "AttentionRNN":
+        model = AttentionRNN(input_dim=1, nclasses=args.nclasses, hidden_dims=args.hidden_dims, num_rnn_layers=args.num_layers,
+                             dropout=args.dropout)
+    elif args.model == "Conv1D":
+        model = ConvShapeletModel(num_layers=args.num_layers,
+                                  hidden_dims=args.hidden_dims,
+                                  ts_dim=1,
+                                  n_classes=args.nclasses)
+    else:
+        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN', 'AttentionRNN', or 'Conv1D'")
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+    return model
+
+if __name__=="__main__":
+
+    args = parse_args()
+    main(args)

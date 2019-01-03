@@ -100,5 +100,9 @@ class TestTune(unittest.TestCase):
 
         self.assertListEqual(available_datasets, expected_available_datasets)
 
+    def test_wafer(self):
+        dataset = UCRDataset("Wafer")
+        pass
+
 if __name__ == '__main__':
     unittest.main()

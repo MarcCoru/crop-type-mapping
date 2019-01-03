@@ -8,17 +8,17 @@ def entropy(p):
     return -(p*torch.log(p)).sum(1)
 
 class DualOutputRNN(torch.nn.Module):
-    def __init__(self, input_dim=1, hidden_dim=3, nclasses=5, num_rnn_layers=1, dropout=0.2):
+    def __init__(self, input_dim=1, hidden_dims=3, nclasses=5, num_rnn_layers=1, dropout=0.2):
 
         super(DualOutputRNN, self).__init__()
 
         self.nclasses=nclasses
 
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_rnn_layers, bias=False, batch_first=True, dropout=dropout)
-        self.bn = nn.BatchNorm1d(hidden_dim)
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dims, num_layers=num_rnn_layers, bias=False, batch_first=True, dropout=dropout)
+        self.bn = nn.BatchNorm1d(hidden_dims)
 
-        self.linear_class = nn.Linear(hidden_dim,nclasses, bias=True)
-        self.linear_dec = nn.Linear(hidden_dim, 1, bias=True)
+        self.linear_class = nn.Linear(hidden_dims,nclasses, bias=True)
+        self.linear_dec = nn.Linear(hidden_dims, 1, bias=True)
 
         torch.nn.init.normal_(self.linear_dec.bias, mean=-1e1, std=1e-1)
 
@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
     nclasses = len(set(y_train))
 
-    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=64)
+    model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dims=64)
 
     model.fit(X_train, y_train, epochs=100, switch_epoch=50 ,earliness_factor=1e-3, batchsize=75, learning_rate=.01)
     model.save("/tmp/model_200_e0.001.pth")
