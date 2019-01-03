@@ -100,3 +100,5 @@ class TestTune(unittest.TestCase):
 
         self.assertListEqual(available_datasets, expected_available_datasets)
 
+if __name__ == '__main__':
+    unittest.main()

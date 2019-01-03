@@ -36,8 +36,8 @@ Trace
 TwoLeadECG
 TwoPatterns
 UWaveGestureLibraryX
-UwaveGestureLibraryY
-UwaveGestureLibraryZ
+UWaveGestureLibraryY
+UWaveGestureLibraryZ
 Wafer
 WordSynonyms
 Yoga
