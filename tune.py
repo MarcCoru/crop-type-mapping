@@ -83,7 +83,7 @@ def get_hyperparameter_search_space(experiment, args):
             earliness_factor=1,
             fold=tune.grid_search([0,1,2,3,4]),
             hidden_dims=tune.grid_search([10,25,50,75]),
-            learning_rate=tune.grid_search([1e-2,1e-3]),
+            learning_rate=tune.grid_search([1e-1,1e-2,1e-3,1e-4]),
             num_layers=tune.grid_search([2,3,4]),
             dataset=args.dataset)
 

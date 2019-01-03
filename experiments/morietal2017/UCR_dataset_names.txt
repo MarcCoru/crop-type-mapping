@@ -26,8 +26,8 @@ MedicalImages
 MoteStrain
 OliveOil
 OSULeaf
-SonyAIBORobotSurface
-SonyAIBORobotSurfaceII
+SonyAIBORobotSurface1
+SonyAIBORobotSurface2
 StarLightCurves
 SwedishLeaf
 Symbols
