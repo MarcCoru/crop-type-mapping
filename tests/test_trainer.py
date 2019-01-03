@@ -27,7 +27,7 @@ class TestTrainer(unittest.TestCase):
             validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=8, shuffle=False,
                                                           num_workers=0, pin_memory=True)
 
-            model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=20,
+            model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dims=20,
                                   num_rnn_layers=1, dropout=.2)
 
             if torch.cuda.is_available():
@@ -62,7 +62,7 @@ class TestTrainer(unittest.TestCase):
             validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=8, shuffle=False,
                                                           num_workers=0, pin_memory=True)
 
-            model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=20,
+            model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dims=20,
                                   num_rnn_layers=1, dropout=.2)
 
             if torch.cuda.is_available():
@@ -97,7 +97,7 @@ class TestTrainer(unittest.TestCase):
             validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=8, shuffle=False,
                                                           num_workers=0, pin_memory=True)
 
-            model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=20,
+            model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dims=20,
                                  num_rnn_layers=1,
                                  dropout=.2)
 

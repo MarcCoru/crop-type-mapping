@@ -49,8 +49,6 @@ def parse_args():
     parser.add_argument(
         '--store', type=str, default="/tmp", help='store run logger results')
     parser.add_argument(
-        '--run', type=str, default=None, help='run name')
-    parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
         '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
@@ -61,9 +59,11 @@ def parse_args():
         '-s', '--switch_epoch', type=int, default=None, help='epoch at which to switch the loss function '
                                                              'from classification training to early training')
 
-    parser.add_argument(
-        '--smoke-test', action='store_true', help='Finish quickly for testing')
     args, _ = parser.parse_known_args()
+
+    if args.switch_epoch is None:
+        args.switch_epoch = args.epochs
+
     return args
 
 def readHyperparameterCSV(args):
@@ -116,12 +116,7 @@ def main(args):
     args.nclasses = traindataloader.dataset.nclasses
     model = getModel(args)
 
-    if args.run is None:
-        visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
-        storepath = args.store
-    else:
-        visdomenv = args.run
-        storepath = os.path.join(args.store, args.run)
+    visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
 
     config = dict(
         epochs=args.epochs,
@@ -131,7 +126,7 @@ def main(args):
         switch_epoch=args.switch_epoch,
         loss_mode=args.loss_mode,
         show_n_samples=args.show_n_samples,
-        store=storepath
+        store=args.store
     )
 
     trainer = Trainer(model,traindataloader,testdataloader,config=config)
@@ -139,12 +134,16 @@ def main(args):
 
 def getDataloader(dataset, partition, **kwargs):
 
+    # The random state must be fixed for training and validation being separate -> split if ratio>random_number
+    trainvalid_random_seed = 0
+
+    # The random state for create a random seed from the partition name -> seed must be different for each partition
+
     if dataset == "synthetic":
         torchdataset = SyntheticDataset(num_samples=2000, T=100)
     else:
-        torchdataset = UCRDataset(dataset, partition=partition, ratio=.75, randomstate=0)
+        torchdataset = UCRDataset(dataset, partition=partition, ratio=.75, randomstate=trainvalid_random_seed)
 
-    # create a random seed from the partition name -> seed must be different for each partition
     seed = sum([ord(ch) for ch in partition])
     np.random.seed(seed)
     torch.random.manual_seed(seed)

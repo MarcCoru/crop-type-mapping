@@ -1,9 +1,12 @@
 import sys
 sys.path.append("..")
 
+import train
 from train import getDataloader, getModel, readHyperparameterCSV
+
 import torch
 import argparse
+import os
 
 import unittest
 
@@ -124,6 +127,83 @@ class TestTrain(unittest.TestCase):
 
         # must be instance of argparse namespace
         self.assertTrue(isinstance(args,argparse.Namespace))
+
+    def test_train_Conv1D(self):
+
+        args = Namespace(
+            batchsize=128,
+            dataset='Trace',
+            earliness_factor=0.75,
+            epochs=2,
+            switch_epoch=1,
+            experiment='test',
+            hidden_dims=50,
+            hyperparametercsv="data/hyperparams_conv1d.csv",
+            learning_rate=0.01,
+            loss_mode='twophase_linear_loss',
+            model='Conv1D',
+            num_layers=3,
+            show_n_samples=1,
+            store='/tmp',
+            test_on='valid',
+            train_on='train',
+            workers=2)
+
+        train.main(args)
+
+        self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
+
+    def test_train_DualOutputRNN(self):
+
+        args = Namespace(
+            batchsize=128,
+            dataset='Trace',
+            earliness_factor=0.75,
+            epochs=2,
+            switch_epoch=1,
+            experiment='test',
+            hidden_dims=50,
+            hyperparametercsv="data/hyperparams_rnn.csv",
+            learning_rate=0.01,
+            loss_mode='twophase_linear_loss',
+            model='DualOutputRNN',
+            num_layers=3,
+            show_n_samples=1,
+            dropout=0.4,
+            store='/tmp',
+            test_on='valid',
+            train_on='train',
+            workers=2)
+
+        train.main(args)
+
+        self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
+
+    def test_train_AttentionRNN(self):
+
+        args = Namespace(
+            batchsize=128,
+            dataset='Trace',
+            earliness_factor=0.75,
+            epochs=2,
+            switch_epoch=1,
+            experiment='test',
+            hidden_dims=50,
+            hyperparametercsv="data/hyperparams_rnn.csv",
+            learning_rate=0.01,
+            loss_mode='twophase_linear_loss',
+            model='AttentionRNN',
+            num_layers=3,
+            show_n_samples=1,
+            dropout=0.4,
+            store='/tmp',
+            test_on='valid',
+            train_on='train',
+            workers=2)
+
+        train.main(args)
+
+        self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
 
 
 if __name__ == '__main__':
