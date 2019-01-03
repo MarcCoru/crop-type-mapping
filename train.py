@@ -114,6 +114,7 @@ def main(args):
                                    pin_memory=True)
 
     args.nclasses = traindataloader.dataset.nclasses
+    args.seqlength = traindataloader.dataset.sequencelength
     model = getModel(args)
 
     visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
@@ -137,16 +138,16 @@ def getDataloader(dataset, partition, **kwargs):
     # The random state must be fixed for training and validation being separate -> split if ratio>random_number
     trainvalid_random_seed = 0
 
-    # The random state for create a random seed from the partition name -> seed must be different for each partition
-
     if dataset == "synthetic":
         torchdataset = SyntheticDataset(num_samples=2000, T=100)
     else:
         torchdataset = UCRDataset(dataset, partition=partition, ratio=.75, randomstate=trainvalid_random_seed)
 
-    seed = sum([ord(ch) for ch in partition])
-    np.random.seed(seed)
-    torch.random.manual_seed(seed)
+
+    # The random state for create a random seed from the partition name -> seed must be different for each partition
+    #seed = sum([ord(ch) for ch in partition])
+    #np.random.seed(seed)
+    #torch.random.manual_seed(seed)
 
     return torch.utils.data.DataLoader(torchdataset, **kwargs)
 
@@ -162,7 +163,9 @@ def getModel(args):
         model = ConvShapeletModel(num_layers=args.num_layers,
                                   hidden_dims=args.hidden_dims,
                                   ts_dim=1,
-                                  n_classes=args.nclasses)
+                                  n_classes=args.nclasses,
+                                  use_time_as_feature=True,
+                                  seqlength=args.seqlength)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN', 'AttentionRNN', or 'Conv1D'")
 

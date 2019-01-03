@@ -72,12 +72,26 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
                  ts_dim=50,
                  n_classes=None,
                  load_from_disk=None,
-                 use_time_as_feature=False
+                 use_time_as_feature=False,
+                 drop_probability=0.5,
+                 seqlength=100,
+                 scaleshapeletsize=True
                  ):
+
         super(ConvShapeletModel, self).__init__()
         self.X_fit_ = None
         self.y_fit_ = None
         self.use_time_as_feature = use_time_as_feature
+
+        self.seqlength = seqlength
+        self.scaleshapeletsize = scaleshapeletsize
+
+        # batchnormalization after convolution
+        self.batchnorm_module = nn.BatchNorm1d(hidden_dims*num_layers)
+
+        # dropout
+        self.dropout_module = nn.Dropout(drop_probability)
+
         if use_time_as_feature:
             ts_dim += 1 # time index as additional input
 
@@ -96,6 +110,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def _set_layers_and_optim(self):
         self.shapelet_sizes = sorted(self.n_shapelets_per_size.keys())
+        if self.scaleshapeletsize:
+            [int(size / 100 * self.seqlength) for size in self.shapelet_sizes]
+
         self.shapelet_blocks = self._get_shapelet_blocks()
         self.logreg_layer = nn.Linear(self.n_shapelets, self.n_classes)
         self.decision_layer = nn.Linear(self.n_shapelets, 1)
@@ -127,7 +144,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def loss_cross_entropy(self, inputs, targets):
         logits, pts = self._logits(inputs.transpose(1,2))
-
         logprobabilities = F.log_softmax(logits, dim=-1)
 
         batchsize, n_times, n_features = logprobabilities.shape
@@ -178,10 +194,19 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
         return torch.stack(pts,dim=-1), budget
 
+    def _batchnorm(self, x):
+        x = x.transpose(2, 1)
+        x = self.batchnorm_module(x)
+        return x.transpose(2, 1)
+
     def _logits(self, x):
         if self.use_time_as_feature:
             x = add_time_feature_to_input(x)
+
         shapelet_features = self._features(x)
+        shapelet_features = self._batchnorm(shapelet_features)
+        shapelet_features = self.dropout_module(shapelet_features)
+
         logits = self.logreg_layer(shapelet_features)
         deltas = self.decision_layer(shapelet_features)
         deltas = F.softmax(deltas.squeeze(-1),dim=1)
