@@ -91,15 +91,15 @@ def get_hyperparameter_search_space(experiment, args):
         return dict(
             batchsize=args.batchsize,
             workers=2,
-            epochs=60,  # pure train epochs. then one validation...
+            epochs=30,  # pure train epochs. then one validation...
             switch_epoch=9999,
             earliness_factor=1,
-            fold=tune.grid_search([0, 1, 2]),
             hidden_dims=tune.grid_search([25, 50, 75]),
-            learning_rate=tune.grid_search([1e-1, 1e-2]),
-            num_layers=tune.grid_search([4, 5, 6, 7]),
+            num_layers=tune.grid_search([7,6,5,4]),
             drop_probability=0.5,
-            shapelet_width_increment=tune.grid_search([10, 30, 50]),
+            shapelet_width_increment=tune.grid_search([10,30,50]),
+            learning_rate=tune.grid_search([1e-1, 1e-2]),
+            fold=tune.grid_search([0, 1, 2]),
             dataset=args.dataset)
 
     elif experiment == "test_conv1d":
