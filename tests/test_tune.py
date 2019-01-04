@@ -3,7 +3,7 @@ sys.path.append("..")
 
 import ray
 import unittest
-from tune import get_hyperparameter_search_space, tune_dataset_rnn, tune_mori_datasets, parse_hyperparameters_from_experiments
+from tune import get_hyperparameter_search_space, tune_dataset_rnn, tune_mori_datasets
 import logging
 import shutil
 import os
@@ -82,9 +82,6 @@ class TestTune(unittest.TestCase):
             tune_mori_datasets(args)
 
             self.assertTrue(os.path.exists("/tmp/test_conv1d/datasets.log"))
-            self.assertTrue(os.path.exists("/tmp/test_conv1d/Trace/params.csv"))
-            self.assertTrue(os.path.exists("/tmp/test_conv1d/TwoPatterns/params.csv"))
-            self.assertTrue(os.path.exists("/tmp/test_conv1d/FiftyWords/params.csv"))
         except Exception as e:
             self.fail(self.fail(logging.exception(e)))
 
@@ -113,14 +110,8 @@ class TestTune(unittest.TestCase):
             tune_mori_datasets(args)
 
             self.assertTrue(os.path.exists("/tmp/test_rnn/datasets.log"))
-            self.assertTrue(os.path.exists("/tmp/test_rnn/Trace/params.csv"))
-            self.assertTrue(os.path.exists("/tmp/test_rnn/TwoPatterns/params.csv"))
         except Exception as e:
             self.fail(self.fail(logging.exception(e)))
-
-    def test_parse_hparam_output(self):
-        parse_hyperparameters_from_experiments("data/tune_results", outpath="/tmp")
-        self.assertTrue(os.path.exists("/tmp/hyperparams_conv1d.csv"))
 
 if __name__ == '__main__':
     unittest.main()

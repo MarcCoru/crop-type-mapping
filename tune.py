@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import pandas as pd
+from utils.rayresultsparser import RayResultsParser
 
 
 def parse_args():
@@ -187,6 +188,8 @@ def tune_mori_datasets(args):
 
     :param args: argparse arguments forwarded further
     """
+    rayresultparser = RayResultsParser()
+
     datasets = [dataset.strip() for dataset in open(args.datasetfile, 'r').readlines()]
     resultsdir = os.path.join(args.local_dir, args.experiment)
     args.local_dir = resultsdir
@@ -213,12 +216,16 @@ def tune_mori_datasets(args):
             if not os.path.exists(experimentpath):
                 os.makedirs(experimentpath)
 
-            top = parse_experiment(experimentpath=experimentpath,
-                                   outcsv=os.path.join(experimentpath, "params.csv"))
+            if args.experiment == "test_conv1d" or args.experiment == "conv1d":
+                searched_parameters = ["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"]
+            elif args.experiment == "test_rnn" or args.experiment == "rnn":
+                searched_parameters=["hidden_dims", "learning_rate", "num_layers"]
+            rayresultparser.get_best_hyperparameters(resultsdir, outpath=resultsdir,
+                                                     group_by=searched_parameters)
 
-            print_best(top,filename=os.path.join(resultsdir, "datasets.log"))
+            top = rayresultparser._get_n_best_runs(experimentpath=experimentpath,n=1,group_by=searched_parameters)
+            print_best(top, filename=os.path.join(resultsdir, "datasets.log"))
 
-            parse_hyperparameters_from_experiments(resultsdir)
 
         except KeyboardInterrupt:
             sys.exit(0)
@@ -249,104 +256,6 @@ def print_best(top, filename):
                                                                                           perf_string=perf_string,
                                                                                           param_string=param_string),
           file=open(filename, "a"))
-
-
-def load_run(path):
-
-    result_file = os.path.join(path, "result.json")
-
-    if not os.path.exists(result_file):
-        return None
-
-    with open(result_file,'r') as f:
-        lines = f.readlines()
-
-    if len(lines) > 0:
-        result = json.loads(lines[-1])
-        return result["accuracy"], result["loss"], result["training_iteration"], result["timestamp"], result["config"]
-    else:
-        return None
-
-def load_experiment(path):
-    runs = os.listdir(path)
-
-    result = list()
-    for run in runs:
-        runpath = os.path.join(path, run)
-
-        run = load_run(runpath)
-        if run is None:
-            continue
-        else:
-            accuracy, loss, training_iteration, timestamp, config = run
-
-        result.append(
-            dict(
-                accuracy=accuracy,
-                loss=loss,
-                training_iteration=training_iteration,
-                batchsize=config["batchsize"],
-                dataset=config["dataset"],
-                hidden_dims=config["hidden_dims"],
-                num_layers=config["num_layers"],
-                learning_rate=config["learning_rate"],
-                fold=config["fold"],
-                dropout=config["dropout"] if "dropout" in config.keys() else None
-            )
-        )
-
-    return result
-
-def parse_experiment(experimentpath, outcsv=None, n=5):
-    result = load_experiment(experimentpath)
-
-    if len(result) == 0:
-        print("Warning! Experiment {} returned no runs".format(experimentpath))
-        return None
-
-    result = pd.DataFrame(result)
-    # average accuracy over the same columns (particularily over the fold variable...)
-    grouped = result.groupby(["hidden_dims", "learning_rate", "num_layers"])["accuracy"]
-    nfolds = grouped.count().rename("nfolds")
-    mean_accuracy = grouped.mean().rename("mean_accuracy")
-    std_accuracy = grouped.std().rename("std_accuracy")
-
-    score = pd.concat([mean_accuracy, std_accuracy, nfolds], axis=1)
-
-    top = score.nlargest(n, "mean_accuracy")
-
-    dataset = os.path.basename(experimentpath)
-    top.reset_index(inplace=True)
-    top["dataset"] = dataset
-
-    if outcsv is not None:
-        top.to_csv(outcsv)
-
-    return top
-
-def parse_hyperparameters_from_experiments(path, outpath=None):
-
-    if outpath is None:
-        outpath = path
-
-    experiments = os.listdir(path)
-
-    best_hyperparams = list()
-    for experiment in experiments:
-
-        experimentpath = os.path.join(path,experiment)
-
-        if os.path.isdir(experimentpath):
-            print("parsing experiment "+experiment)
-            result = parse_experiment(experimentpath=experimentpath, outcsv=None, n=1)
-            if result is not None:
-                best_hyperparams.append(result)
-
-    summary = pd.concat(best_hyperparams)
-
-    csvfile = os.path.join(outpath, "hyperparams_conv1d.csv")
-    print("writing "+csvfile)
-    summary.to_csv(csvfile)
 
 if __name__=="__main__":
 
