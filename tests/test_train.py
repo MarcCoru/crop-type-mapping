@@ -91,7 +91,8 @@ class TestTrain(unittest.TestCase):
             num_layers=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             hidden_dims=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             ts_dim=1,
-            nclasses=2)
+            nclasses=2,
+            dropout=0.5)
 
         args = readHyperparameterCSV(args)
 

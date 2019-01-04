@@ -43,6 +43,11 @@ def parse_args():
     parser.add_argument(
         '-a','--earliness_factor', type=float, default=1, help='earliness factor')
     parser.add_argument(
+        '--shapelet_width_increment', type=int, default=10,
+        help='increments in shapelet width in either percent of total sequencelength '
+             'by using --shapelet-width-in-percent flag. or in number of features.')
+    parser.add_argument('--shapelet-width-in-percent', action='store_true', help="interpret shapelet_width as percentage of full sequence")
+    parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
         '--hyperparametercsv', type=str, default=None, help='hyperparams csv file')
@@ -165,7 +170,10 @@ def getModel(args):
                                   ts_dim=1,
                                   n_classes=args.nclasses,
                                   use_time_as_feature=True,
-                                  seqlength=args.seqlength)
+                                  seqlength=args.seqlength,
+                                  scaleshapeletsize=args.shapelet_width_in_percent,
+                                  drop_probability=args.dropout,
+                                  shapelet_width_increment=args.shapelet_width_increment)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN', 'AttentionRNN', or 'Conv1D'")
 

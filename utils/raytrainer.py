@@ -74,6 +74,8 @@ class RayTrainerConv1D(ray.tune.Trainable):
                                   randomstate=config["fold"],
                                   silent=True)
 
+        self.epochs = config["epochs"]
+
         nclasses = traindataset.nclasses
 
         # handles multitxhreaded batching andconfig shuffling
@@ -87,7 +89,10 @@ class RayTrainerConv1D(ray.tune.Trainable):
                                        hidden_dims=config["hidden_dims"],
                                        ts_dim=1,
                                        n_classes=nclasses,
-                                       use_time_as_feature=True)
+                                       use_time_as_feature=True,
+                                       drop_probability=config["drop_probability"],
+                                       scaleshapeletsize=False,
+                                       shapelet_width_increment=config["shapelet_width_increment"])
 
         if torch.cuda.is_available():
             self.model = self.model.cuda()
@@ -97,8 +102,8 @@ class RayTrainerConv1D(ray.tune.Trainable):
     def _train(self):
         # epoch is used to distinguish training phases. epoch=None will default to (first) cross entropy phase
 
-        # train five epochs and then infer once. to avoid overhead on these small datasets
-        for i in range(5):
+        # train epochs and then infer once. to avoid overhead on these small datasets
+        for i in range(self.epochs):
             self.trainer.train_epoch(epoch=None)
 
         return self.trainer.test_epoch(epoch=None)

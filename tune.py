@@ -75,16 +75,31 @@ def get_hyperparameter_search_space(experiment, args):
 
     elif experiment == "conv1d":
 
+        #initial search space for conv1d (Jan 2nd 2019)
+        #return dict(
+        #    batchsize=args.batchsize,
+        #    workers=2,
+        #    epochs=99999, # will be overwritten by training_iteration criterion
+        #    switch_epoch=9999,
+        #    earliness_factor=1,
+        #    fold=tune.grid_search([0,1,2,3,4]),
+        #    hidden_dims=tune.grid_search([10,25,50,75]),
+        #    learning_rate=tune.grid_search([1e-1,1e-2,1e-3,1e-4]),
+        #    num_layers=tune.grid_search([2,3,4]),
+        #    dataset=args.dataset)
+
         return dict(
             batchsize=args.batchsize,
             workers=2,
-            epochs=99999, # will be overwritten by training_iteration criterion
+            epochs=60,  # pure train epochs. then one validation...
             switch_epoch=9999,
             earliness_factor=1,
-            fold=tune.grid_search([0,1,2,3,4]),
-            hidden_dims=tune.grid_search([10,25,50,75]),
-            learning_rate=tune.grid_search([1e-1,1e-2,1e-3,1e-4]),
-            num_layers=tune.grid_search([2,3,4]),
+            fold=tune.grid_search([0, 1, 2]),
+            hidden_dims=tune.grid_search([25, 50, 75]),
+            learning_rate=tune.grid_search([1e-1, 1e-2]),
+            num_layers=tune.grid_search([4, 5, 6, 7]),
+            drop_probability=0.5,
+            shapelet_width_increment=tune.grid_search([10, 30, 50]),
             dataset=args.dataset)
 
     elif experiment == "test_conv1d":
@@ -126,7 +141,7 @@ def tune_dataset_rnn(args, config):
                     "gpu": args.gpu,
                 },
                 'stop': {
-                    'training_iteration': 10 if not args.smoke_test else 1,
+                    'training_iteration': 5 if not args.smoke_test else 1,
                     'time_total_s':600 if not args.smoke_test else 1,
                 },
                 "run": RayTrainerDualOutputRNN,
@@ -151,7 +166,7 @@ def tune_dataset_conv1d(args, config):
                     "gpu": args.gpu,
                 },
                 'stop': {
-                    'training_iteration': 10 if not args.smoke_test else 1,
+                    'training_iteration': 1, # 1 iteration = 60 training epochs plus 1 eval epoch
                     'time_total_s':600 if not args.smoke_test else 1,
                 },
                 "run": RayTrainerConv1D,

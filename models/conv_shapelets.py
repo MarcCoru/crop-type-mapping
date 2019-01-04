@@ -75,7 +75,8 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
                  use_time_as_feature=False,
                  drop_probability=0.5,
                  seqlength=100,
-                 scaleshapeletsize=True
+                 scaleshapeletsize=True,
+                 shapelet_width_increment=10
                  ):
 
         super(ConvShapeletModel, self).__init__()
@@ -96,7 +97,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
             ts_dim += 1 # time index as additional input
 
         if n_shapelets_per_size is None:
-            n_shapelets_per_size = build_n_shapelet_dict(num_layers=num_layers, hidden_dims=hidden_dims)
+            n_shapelets_per_size = build_n_shapelet_dict(num_layers=num_layers,
+                                                         hidden_dims=hidden_dims,
+                                                         width_increments=shapelet_width_increment)
 
         if load_from_disk is not None:
             self.verbose = True
@@ -291,7 +294,7 @@ def add_time_feature_to_input(x):
     # append time_feature to x
     return torch.cat([x, time_feature], dim=1)
 
-def build_n_shapelet_dict(num_layers, hidden_dims):
+def build_n_shapelet_dict(num_layers, hidden_dims, width_increments=10):
     """
     Builds a dictionary of format {<kernel_length_in_percentage_of_T>:<num_hidden_dimensions> , ...}
     returns n shapelets per size
@@ -299,6 +302,6 @@ def build_n_shapelet_dict(num_layers, hidden_dims):
     """
     n_shapelets_per_size = dict()
     for layer in range(num_layers):
-        shapelet_width = (layer + 1) * 10  # in 10% increments of sequencelength percantage: 10% 20% 30% etc.
+        shapelet_width = (layer + 1) * width_increments  # in 10 feature increments of sequencelength percantage: 10 20 30 etc.
         n_shapelets_per_size[shapelet_width] = hidden_dims
     return n_shapelets_per_size
