@@ -23,6 +23,8 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
 
         nclasses = traindataset.nclasses
 
+        self.epochs = config["epochs"]
+
         # handles multitxhreaded batching andconfig shuffling
         self.traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=config["batchsize"], shuffle=True,
                                                            num_workers=config["workers"],
@@ -32,7 +34,7 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
 
         self.model = DualOutputRNN(input_dim=1,
                                    nclasses=nclasses,
-                                   hidden_dim=config["hidden_dims"],
+                                   hidden_dims=config["hidden_dims"],
                                    num_rnn_layers=config["num_layers"])
 
         if torch.cuda.is_available():
@@ -44,7 +46,7 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
         # epoch is used to distinguish training phases. epoch=None will default to (first) cross entropy phase
 
         # train five epochs and then infer once. to avoid overhead on these small datasets
-        for i in range(5):
+        for i in range(self.epochs):
             self.trainer.train_epoch(epoch=None)
 
         return self.trainer.test_epoch(epoch=None)

@@ -78,7 +78,10 @@ class TestTrain(unittest.TestCase):
             hidden_dims=20,
             ts_dim=1,
             nclasses=2,
-            seqlength=100)
+            seqlength=100,
+            shapelet_width_in_percent=False,
+            dropout=0.5,
+            shapelet_width_increment=10)
 
         model = getModel(args)
 
@@ -145,7 +148,10 @@ class TestTrain(unittest.TestCase):
             store='/tmp',
             test_on='valid',
             train_on='train',
-            workers=2)
+            workers=2,
+            shapelet_width_in_percent=False,
+            dropout=0.5,
+            shapelet_width_increment=10)
 
         train.main(args)
 

@@ -63,7 +63,7 @@ def get_hyperparameter_search_space(experiment, args):
         return dict(
             batchsize=args.batchsize,
             workers=2,
-            epochs=99999,
+            epochs=1,
             switch_epoch=9999,
             earliness_factor=1,
             fold=tune.grid_search([5]), #[0, 1, 2, 3, 4]),
@@ -107,14 +107,17 @@ def get_hyperparameter_search_space(experiment, args):
         return dict(
             batchsize=args.batchsize,
             workers=2,
-            epochs=99999, # will be overwritten by training_iteration criterion
+            epochs=1, # will be overwritten by training_iteration criterion
             switch_epoch=9999,
             earliness_factor=1,
             fold=tune.grid_search([0]),
             hidden_dims=tune.grid_search([25,50]),
             learning_rate=tune.grid_search([1e-2]),
             num_layers=tune.grid_search([1]),
-            dataset=args.dataset)
+            dataset=args.dataset,
+            drop_probability=0.5,
+            shapelet_width_increment=tune.grid_search([10]),
+        )
 
     else:
         raise ValueError("please insert valid experiment name for search space (either 'rnn' or 'conv1d')")

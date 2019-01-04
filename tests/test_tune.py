@@ -75,7 +75,10 @@ class TestTune(unittest.TestCase):
                 gpu=0,
                 local_dir='/tmp',
                 skip_processed=False,
-                smoke_test=True)
+                smoke_test=True,
+                drop_probability=0.5,
+                shapelet_width_increment=10,
+                )
             tune_mori_datasets(args)
 
             self.assertTrue(os.path.exists("/tmp/test_conv1d/datasets.log"))

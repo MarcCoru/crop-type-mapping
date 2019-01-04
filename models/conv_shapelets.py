@@ -87,9 +87,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         self.seqlength = seqlength
         self.scaleshapeletsize = scaleshapeletsize
 
-        # batchnormalization after convolution
-        self.batchnorm_module = nn.BatchNorm1d(hidden_dims*num_layers)
-
         # dropout
         self.dropout_module = nn.Dropout(drop_probability)
 
@@ -100,6 +97,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
             n_shapelets_per_size = build_n_shapelet_dict(num_layers=num_layers,
                                                          hidden_dims=hidden_dims,
                                                          width_increments=shapelet_width_increment)
+
+        # batchnormalization after convolution
+        self.batchnorm_module = nn.BatchNorm1d(sum(n_shapelets_per_size.values()))
 
         if load_from_disk is not None:
             self.verbose = True
