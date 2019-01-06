@@ -3,7 +3,7 @@ import sys
 sys.path.append("..")
 
 import train
-from train import getDataloader, getModel, readHyperparameterCSV
+from train import getDataloader, getModel, readHyperparameterCSV, parse_dataset_names, get_datasets_from_hyperparametercsv
 
 import torch
 import argparse
@@ -153,9 +153,11 @@ class TestTrain(unittest.TestCase):
             dropout=0.5,
             shapelet_width_increment=10,
             overwrite=True,
-            test_every_n_epochs=1)
+            test_every_n_epochs=1,
+            train_valid_split_ratio=0.75,
+            train_valid_split_seed=0)
 
-        train.main(args)
+        train.train(args)
 
         self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
 
@@ -180,9 +182,11 @@ class TestTrain(unittest.TestCase):
             train_on='train',
             workers=2,
             overwrite=True,
-            test_every_n_epochs=1)
+            test_every_n_epochs=1,
+            train_valid_split_ratio=0.75,
+            train_valid_split_seed=0)
 
-        train.main(args)
+        train.train(args)
 
         self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
 
@@ -207,12 +211,66 @@ class TestTrain(unittest.TestCase):
             train_on='train',
             workers=2,
             overwrite=True,
-            test_every_n_epochs=1)
+            test_every_n_epochs=1,
+            train_valid_split_ratio=0.75,
+            train_valid_split_seed=0)
 
-        train.main(args)
+        train.train(args)
 
         self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
 
+    def test_parse_dataset_names(self):
+
+        #,should raise error on dataset 'Someotherdataset' not being in hyperparameters
+        with self.assertRaises(ValueError):
+            parse_dataset_names(
+                Namespace(
+                    hyperparametercsv="data/hyperparams_conv1d.csv",
+                    datasets=["Trace","Someotherdataset","TwoPatterns"]
+                )
+            )
+
+        # should raise error asking for more input
+        with self.assertRaises(ValueError):
+            parse_dataset_names(
+                Namespace(
+                    hyperparametercsv=None,
+                    datasets=None
+                )
+            )
+
+        args = parse_dataset_names(
+                Namespace(
+                    hyperparametercsv=None,
+                    datasets=["Trace"]
+                )
+            )
+        self.assertEqual(args.datasets,["Trace"])
+
+        args = parse_dataset_names(
+            Namespace(
+                hyperparametercsv="data/hyperparams_conv1d.csv",
+                datasets=None
+            )
+        )
+        self.assertEqual(len(args.datasets), 38, "expected 38 datasets in 'data/hyperparams_conv1d.csv'")
+
+        args = parse_dataset_names(
+            Namespace(
+                hyperparametercsv="data/hyperparams_conv1d.csv",
+                datasets=["TwoPatterns","InlineSkate"]
+            )
+        )
+        self.assertEqual(args.datasets, ["TwoPatterns","InlineSkate"], "expected 2 datasets that are also "
+                                                                       "present in 'data/hyperparams_conv1d.csv'")
+
+    def test_get_datasets_from_hyperparametercsv(self):
+        datasets = get_datasets_from_hyperparametercsv("data/hyperparams_conv1d.csv")
+
+        ref_datasets = ['NonInvasiveFatalECGThorax2',  'SonyAIBORobotSurface2',  'MoteStrain',  'CricketZ',  'FacesUCR',  'NonInvasiveFatalECGThorax1',  'SwedishLeaf',  'Symbols',  'FaceAll',  'GunPoint',  'OSULeaf',  'StarLightCurves',  'DiatomSizeReduction',  'FiftyWords',  'CBF',  'WordSynonyms',  'ECGFiveDays',  'TwoLeadECG',  'CricketX',  'FaceFour',  'Mallat',  'OliveOil',  'UWaveGestureLibraryX',  'SonyAIBORobotSurface1',  'Haptics',  'Trace',  'Yoga',  'SyntheticControl',  'Fish',  'Adiac',  'ChlorineConcentration',  'CricketY',  'CinCECGTorso',  'Beef',  'InlineSkate',  'MedicalImages',  'ItalyPowerDemand',  'TwoPatterns']
+
+        self.assertEqual(datasets,ref_datasets)
+        self.assertIsInstance(datasets,list)
 
 if __name__ == '__main__':
     unittest.main()

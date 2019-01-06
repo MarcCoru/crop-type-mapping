@@ -8,11 +8,15 @@ import argparse
 from argparse import Namespace
 from utils.trainer import Trainer
 import pandas as pd
+import os
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-d','--dataset', type=str, default="Trace", help='UCR Dataset. Will also name the experiment')
+        '-d','--datasets', type=str,default=None, nargs='+', help='UCR Datasets to train on. Multiple values are allowed. '
+                                                'Will also define name of the experiment. '
+                                                'if not specified, will use all datasets of hyperparametercsv'
+                                                '(requires --hyperparametercsv)')
     parser.add_argument(
         '-b', '--batchsize', type=int, default=32, help='Batch Size')
     parser.add_argument(
@@ -24,7 +28,8 @@ def parse_args():
     parser.add_argument(
         '-l', '--learning_rate', type=float, default=1e-2, help='learning rate')
     parser.add_argument(
-        '--train_on', type=str, default="train", help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'train')")
+        '--train_on', type=str, default="train", help="dataset partition to train. Choose from 'train', 'valid', "
+                                                      "'trainvalid', 'eval' (default 'train')")
     parser.add_argument(
         '--test_on', type=str, default="valid",
         help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
@@ -36,6 +41,14 @@ def parse_args():
                                                         'for convolutional models...')
     parser.add_argument(
         '-r', '--hidden_dims', type=int, default=32, help='number of hidden dimensions per layer stacked hidden dimensions')
+    parser.add_argument(
+        '--train-valid-split-seed', type=int, default=0,
+        help='random seed for splitting of train and validation datasets. '
+             'only applies for --train_on train and --test_on valid. see also --train-valid-ratio')
+    parser.add_argument(
+        '--train-valid-split-ratio', type=float, default=.75,
+        help='ratio of splitting the train dataset in training and validation partitions. '
+             'only applies for --train_on train and --test_on valid. see also --train-valid-split-seed')
     parser.add_argument(
         '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
     parser.add_argument(
@@ -71,7 +84,31 @@ def parse_args():
     if args.switch_epoch is None:
         args.switch_epoch = args.epochs
 
+    args = parse_dataset_names(args)
+
     return args
+
+def parse_dataset_names(args):
+    if args.hyperparametercsv is not None:
+        datasets_with_hyperparameters = get_datasets_from_hyperparametercsv(args.hyperparametercsv)
+
+    if args.datasets is not None and args.hyperparametercsv is not None:
+        missing_datasets = [dataset for dataset in args.datasets if dataset not in datasets_with_hyperparameters]
+        if len(missing_datasets) > 0:
+            msg = "Datasets {} not present in hyperparametercsv {}. Please choose from {}"
+            raise ValueError(msg.format(", ".join(missing_datasets),
+                                        args.hyperparametercsv,
+                                        ", ".join(datasets_with_hyperparameters)))
+
+    if args.datasets is None and args.hyperparametercsv is not None:
+        args.datasets = datasets_with_hyperparameters
+
+    if args.datasets is None and args.hyperparametercsv is None:
+        raise ValueError("No --datasets and --hyperparametercsv provided. Either specifify the specific dataset "
+                         "or provide a list of datasets in --hyperparametercsv")
+
+    return args
+
 
 def readHyperparameterCSV(args):
     print("reading "+args.hyperparametercsv)
@@ -101,7 +138,7 @@ def readHyperparameterCSV(args):
 
     return Namespace(**args_dict)
 
-def main(args):
+def train(args):
 
     if args.hyperparametercsv is not None:
         args = readHyperparameterCSV(args)
@@ -111,14 +148,18 @@ def main(args):
                                     batch_size=args.batchsize,
                                     num_workers=args.workers,
                                     shuffle=True,
-                                    pin_memory=True)
+                                    pin_memory=True,
+                                    train_valid_split_ratio=args.train_valid_split_ratio,
+                                    train_valid_split_seed=args.train_valid_split_seed)
 
     testdataloader = getDataloader(dataset=args.dataset,
                                    partition=args.test_on,
                                    batch_size=args.batchsize,
                                    num_workers=args.workers,
                                    shuffle=False,
-                                   pin_memory=True)
+                                   pin_memory=True,
+                                   train_valid_split_ratio=args.train_valid_split_ratio,
+                                   train_valid_split_seed=args.train_valid_split_seed)
 
     args.nclasses = traindataloader.dataset.nclasses
     args.seqlength = traindataloader.dataset.sequencelength
@@ -134,7 +175,7 @@ def main(args):
         switch_epoch=args.switch_epoch,
         loss_mode=args.loss_mode,
         show_n_samples=args.show_n_samples,
-        store=args.store,
+        store=os.path.join(args.store,args.dataset),
         overwrite=args.overwrite,
         test_every_n_epochs=args.test_every_n_epochs
     )
@@ -142,21 +183,12 @@ def main(args):
     trainer = Trainer(model,traindataloader,testdataloader,**config)
     trainer.fit()
 
-def getDataloader(dataset, partition, **kwargs):
-
-    # The random state must be fixed for training and validation being separate -> split if ratio>random_number
-    trainvalid_random_seed = 0
+def getDataloader(dataset, partition, train_valid_split_ratio=0.75,train_valid_split_seed=0, **kwargs):
 
     if dataset == "synthetic":
         torchdataset = SyntheticDataset(num_samples=2000, T=100)
     else:
-        torchdataset = UCRDataset(dataset, partition=partition, ratio=.75, randomstate=trainvalid_random_seed)
-
-
-    # The random state for create a random seed from the partition name -> seed must be different for each partition
-    #seed = sum([ord(ch) for ch in partition])
-    #np.random.seed(seed)
-    #torch.random.manual_seed(seed)
+        torchdataset = UCRDataset(dataset, partition=partition, ratio=train_valid_split_ratio, randomstate=train_valid_split_seed)
 
     return torch.utils.data.DataLoader(torchdataset, **kwargs)
 
@@ -186,7 +218,11 @@ def getModel(args):
 
     return model
 
+def get_datasets_from_hyperparametercsv(hyperparametercsv):
+    return list(pd.read_csv(hyperparametercsv)["dataset"])
+
 if __name__=="__main__":
 
     args = parse_args()
-    main(args)
+    for args.dataset in args.datasets:
+        train(args)

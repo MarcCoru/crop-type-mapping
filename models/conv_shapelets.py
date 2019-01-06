@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from sklearn.base import BaseEstimator
 import numpy
+import os
 
 from torch.autograd import Variable
 
@@ -262,6 +263,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
             params=params,
             config=kwargs
         )
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(data, path)
 
     def load(self, path):

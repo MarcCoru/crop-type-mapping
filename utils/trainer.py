@@ -163,8 +163,14 @@ class Trainer():
     def get_classification_model_name(self):
         return os.path.join(self.store, "model_{}.pth".format(CLASSIFICATION_PHASE_NAME))
 
+    def get_classification_log_name(self):
+        return os.path.join(self.store, "log_{}.csv".format(CLASSIFICATION_PHASE_NAME))
+
     def get_earliness_model_name(self):
         return os.path.join(self.store, "model_{}.pth".format(EARLINESS_PHASE_NAME))
+
+    def get_earliness_log_name(self):
+        return os.path.join(self.store, "log_{}.csv".format(EARLINESS_PHASE_NAME))
 
     def starting_phase_classification_event(self):
         print("starting training phase classification")
@@ -172,6 +178,8 @@ class Trainer():
     def ending_phase_classification_event(self):
         print("ending training phase classification")
         self.snapshot(self.get_classification_model_name())
+        print("Saving log to {}".format(self.get_classification_log_name()))
+        self.logger.get_data().to_csv(self.get_classification_log_name())
 
     def starting_phase_earliness_event(self):
         print("starting training phase earliness")
@@ -179,6 +187,8 @@ class Trainer():
     def ending_phase_earliness_event(self):
         print("ending training phase earliness")
         self.snapshot(self.get_earliness_model_name())
+        print("Saving log to {}".format(self.get_earliness_log_name()))
+        self.logger.get_data().to_csv(os.path.join(self.store, "log_earliness.csv"))
 
     def train_epoch(self, epoch):
         # sets the model to train mode: dropout is applied
