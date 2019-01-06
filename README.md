@@ -8,6 +8,8 @@ delete unnecessary preinstalled depenencies...
 sudo rm -r /opt/conda
 sudo rm -rf /usr/local/onnx
 sudo rm -rf /opt/caffe2
+sudo apt-get install rsync screen
+
 ```
 
 #### Unittests

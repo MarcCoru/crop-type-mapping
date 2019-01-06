@@ -95,10 +95,10 @@ def get_hyperparameter_search_space(experiment, args):
             epochs=30,  # pure train epochs. then one validation...
             switch_epoch=9999,
             earliness_factor=1,
-            hidden_dims=tune.grid_search([25, 50, 75]),
-            num_layers=tune.grid_search([7,6,5,4]),
+            hidden_dims=tune.grid_search([50, 75, 100]),
+            num_layers=tune.grid_search([8,6,4]),
             drop_probability=0.5,
-            shapelet_width_increment=tune.grid_search([10,30,50]),
+            shapelet_width_increment=tune.grid_search([30, 50, 70]),
             learning_rate=tune.grid_search([1e-1, 1e-2]),
             fold=tune.grid_search([0, 1, 2]),
             dataset=args.dataset)
