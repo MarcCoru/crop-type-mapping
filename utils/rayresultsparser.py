@@ -106,3 +106,11 @@ class RayResultsParser():
             summary.to_csv(csvfile)
 
         return summary
+
+if __name__=="__main__":
+    parser = RayResultsParser()
+    summary = parser.get_best_hyperparameters("/data/remote/hyperparams_conv1d_v2/conv1d",
+                                    outpath="/data/remote/hyperparams_conv1d_v2/hyperparams.csv",
+                                    group_by=["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"])
+
+    print(summary.set_index("dataset")[["mean_accuracy","std_accuracy"]])

@@ -70,7 +70,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
                  hidden_dims=50,
                  n_shapelets_per_size=None,
                  ts_dim=50,
-                 n_classes=None,
+                 n_classes=2,
                  load_from_disk=None,
                  use_time_as_feature=False,
                  drop_probability=0.5,
@@ -251,17 +251,24 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         for shp, block in zip(l_shapelets, self.shapelet_blocks):
             block.weight.data = shp.view(block.weight.shape)
 
-    def save(self, path="model.pth"):
+    def save(self, path="model.pth",**kwargs):
         print("Saving model to " + path)
         params = self.get_params()
         params["model_state"] = self.state_dict()
         params["X_fit_"] = self.X_fit_
         params["y_fit_"] = self.y_fit_
-        torch.save(params, path)
+        # merge kwargs in params
+        data = dict(
+            params=params,
+            config=kwargs
+        )
+        torch.save(data, path)
 
     def load(self, path):
         print("Loading model from " + path)
-        snapshot = torch.load(path, map_location="cpu")
+        data = torch.load(path, map_location="cpu")
+        snapshot = data["params"]
+        config = data["config"]
         model_state = snapshot.pop('model_state', snapshot)
         self.X_fit_ = snapshot.pop('X_fit_', snapshot)
         self.y_fit_ = snapshot.pop('y_fit_', snapshot)
@@ -271,6 +278,9 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         self.load_state_dict(model_state)
         #self.optimizer.load_state_dict(optimizer_state)
         self.eval()  # If at some point we wanted to use batchnorm or dropout
+
+        for k,v in config.items():
+            snapshot[k] = v
 
         return snapshot
 

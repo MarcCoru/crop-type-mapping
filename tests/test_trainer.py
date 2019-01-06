@@ -1,7 +1,7 @@
 import sys
 sys.path.append("..")
 
-from utils.trainer import Trainer
+from utils.trainer import Trainer, CLASSIFICATION_PHASE_NAME, EARLINESS_PHASE_NAME
 from utils.Synthetic_Dataset import SyntheticDataset
 from utils.UCR_Dataset import UCRDataset
 from models.DualOutputRNN import DualOutputRNN
@@ -10,6 +10,7 @@ from models.conv_shapelets import ConvShapeletModel
 from models.conv_shapelets import build_n_shapelet_dict
 import torch
 import logging
+import os
 
 import unittest
 
@@ -41,13 +42,14 @@ class TestTrainer(unittest.TestCase):
                 switch_epoch=1,
                 loss_mode="twophase_linear_loss",
                 show_n_samples=0,
-                store="/tmp"
+                store="/tmp",
+                overwrite=True
             )
 
-            trainer = Trainer(model, traindataloader, validdataloader, config=config)
+            trainer = Trainer(model, traindataloader, validdataloader, **config)
             trainer.fit()
         except Exception as e:
-            self.fail("Failed tests: "+str(e))
+            self.fail(logging.exception(e))
 
     def test_Trainer_TwoPatterns(self):
 
@@ -76,13 +78,14 @@ class TestTrainer(unittest.TestCase):
                 switch_epoch=1,
                 loss_mode="twophase_linear_loss",
                 show_n_samples=0,
-                store="/tmp"
+                store="/tmp",
+                overwrite=True,
             )
 
-            trainer = Trainer(model, traindataloader, validdataloader, config=config)
+            trainer = Trainer(model, traindataloader, validdataloader, **config)
             trainer.fit()
         except Exception as e:
-            self.fail("Failed tests: "+str(e))
+            self.fail(logging.exception(e))
 
     def test_Trainer_AttentionRNN_TwoPatterns(self):
 
@@ -105,22 +108,28 @@ class TestTrainer(unittest.TestCase):
                 model = model.cuda()
 
             config = dict(
-                epochs=2,
+                epochs=1,
                 learning_rate=1e-3,
                 earliness_factor=.75,
                 visdomenv="unittest",
-                switch_epoch=1,
+                switch_epoch=3, # epochs > switch_epoch <- trainer should never enter earliness phase
                 loss_mode="loss_cross_entropy",
                 show_n_samples=0,
-                store="/tmp"
+                store="/tmp",
+                overwrite=True
             )
 
-            trainer = Trainer(model, traindataloader, validdataloader, config=config)
+            trainer = Trainer(model, traindataloader, validdataloader, **config)
             trainer.fit()
+
+            # trainer should never enter earliness phase because config: epochs < switch_epoch
+            self.assertEqual(trainer.get_phase(), CLASSIFICATION_PHASE_NAME)
         except Exception as e:
-            self.fail("Failed tests: "+str(e))
+            self.fail(logging.exception(e))
 
     def test_Trainer_Conv1D_TwoPatterns(self):
+        os.remove("/tmp/model_{}.pth".format(CLASSIFICATION_PHASE_NAME))
+        os.remove("/tmp/model_{}.pth".format(EARLINESS_PHASE_NAME))
 
         try:
             traindataset = UCRDataset("TwoPatterns", partition="train", ratio=.75, randomstate=0,
@@ -152,11 +161,17 @@ class TestTrainer(unittest.TestCase):
                 store="/tmp"
             )
 
-            trainer = Trainer(model, traindataloader, validdataloader, config=config)
+            trainer = Trainer(model, traindataloader, validdataloader, **config)
             trainer.fit()
+
         except Exception as e:
             self.fail(logging.exception(e))
 
+        self.assertEqual(trainer.get_phase(), EARLINESS_PHASE_NAME)
+
+        # should have written two model files
+        self.assertTrue(os.path.exists("/tmp/model_{}.pth".format(CLASSIFICATION_PHASE_NAME)))
+        self.assertTrue(os.path.exists("/tmp/model_{}.pth".format(EARLINESS_PHASE_NAME)))
 
     def test_build_n_shapelet_dict(self):
         n_shapelets_per_size = build_n_shapelet_dict(num_layers=3, hidden_dims=100)

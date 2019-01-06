@@ -151,7 +151,9 @@ class TestTrain(unittest.TestCase):
             workers=2,
             shapelet_width_in_percent=False,
             dropout=0.5,
-            shapelet_width_increment=10)
+            shapelet_width_increment=10,
+            overwrite=True,
+            test_every_n_epochs=1)
 
         train.main(args)
 
@@ -176,7 +178,9 @@ class TestTrain(unittest.TestCase):
             store='/tmp',
             test_on='valid',
             train_on='train',
-            workers=2)
+            workers=2,
+            overwrite=True,
+            test_every_n_epochs=1)
 
         train.main(args)
 
@@ -201,7 +205,9 @@ class TestTrain(unittest.TestCase):
             store='/tmp',
             test_on='valid',
             train_on='train',
-            workers=2)
+            workers=2,
+            overwrite=True,
+            test_every_n_epochs=1)
 
         train.main(args)
 

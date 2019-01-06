@@ -6,8 +6,6 @@ from utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
 import argparse
 from argparse import Namespace
-import numpy as np
-import os
 from utils.trainer import Trainer
 import pandas as pd
 
@@ -47,12 +45,16 @@ def parse_args():
         help='increments in shapelet width in either percent of total sequencelength '
              'by using --shapelet-width-in-percent flag. or in number of features.')
     parser.add_argument('--shapelet-width-in-percent', action='store_true', help="interpret shapelet_width as percentage of full sequence")
+    parser.add_argument('--overwrite', action='store_true',
+                        help="Overwrite automatic snapshots if they exist")
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
         '--hyperparametercsv', type=str, default=None, help='hyperparams csv file')
     parser.add_argument(
         '--store', type=str, default="/tmp", help='store run logger results')
+    parser.add_argument(
+        '--test_every_n_epochs', type=int, default=1, help='skip some test epochs for faster overall training')
     parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
@@ -132,10 +134,12 @@ def main(args):
         switch_epoch=args.switch_epoch,
         loss_mode=args.loss_mode,
         show_n_samples=args.show_n_samples,
-        store=args.store
+        store=args.store,
+        overwrite=args.overwrite,
+        test_every_n_epochs=args.test_every_n_epochs
     )
 
-    trainer = Trainer(model,traindataloader,testdataloader,config=config)
+    trainer = Trainer(model,traindataloader,testdataloader,**config)
     trainer.fit()
 
 def getDataloader(dataset, partition, **kwargs):

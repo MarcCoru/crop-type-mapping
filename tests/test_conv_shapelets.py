@@ -7,6 +7,7 @@ import numpy as np
 import unittest
 from models.conv_shapelets import ConvShapeletModel, add_time_feature_to_input
 import torch
+import logging
 
 
 class TestTrain(unittest.TestCase):
@@ -66,6 +67,25 @@ class TestTrain(unittest.TestCase):
         self.assertEqual(list(x_expanded.shape),[batchsize,ts_dim+1,sequencelength])
         self.assertEqual(x_expanded.sum().cpu().detach().numpy(), 22.5)
 
+    def test_defaults_constructor_arguments(self):
+        try:
+            ConvShapeletModel()
+        except Exception as e:
+            self.fail(logging.error(e))
+
+    def test_save_load(self):
+
+        model = ConvShapeletModel()
+        try:
+            model.save("/tmp/model.pth",testarg=1,secondtestarg=dict(a=1,b="c"))
+            snapshot = model.load("/tmp/model.pth")
+        except Exception as e:
+            self.fail(logging.error(e))
+
+        # test if custom kwargs are saved and loaded as intended...
+        self.assertEqual(snapshot["testarg"],1)
+        self.assertEqual(snapshot["secondtestarg"]["a"],1)
+        self.assertEqual(snapshot["secondtestarg"]["b"], "c")
 
 if __name__ == '__main__':
     unittest.main()

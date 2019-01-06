@@ -40,7 +40,7 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
         if torch.cuda.is_available():
             self.model = self.model.cuda()
 
-        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, config)
+        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, **config)
 
     def _train(self):
         # epoch is used to distinguish training phases. epoch=None will default to (first) cross entropy phase
@@ -99,7 +99,7 @@ class RayTrainerConv1D(ray.tune.Trainable):
         if torch.cuda.is_available():
             self.model = self.model.cuda()
 
-        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, config)
+        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, **config)
 
     def _train(self):
         # epoch is used to distinguish training phases. epoch=None will default to (first) cross entropy phase
