@@ -7,11 +7,9 @@ FROM pytorch/pytorch:latest
 # dependency of tslearn
 RUN pip install --no-cache-dir Cython
 
+RUN pip install --upgrade pip
 # other dependencies
-RUN pip install tslearn numpy scikit-learn
+RUN pip install tslearn numpy scikit-learn pandas visdom ray matplotlib seaborn
 
 # copy source code
 COPY . /workspace/
-
-# run python train.py when container starts
-CMD [ "python", "-u", "./train.py" ]
