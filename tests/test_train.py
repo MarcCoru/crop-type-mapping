@@ -95,7 +95,9 @@ class TestTrain(unittest.TestCase):
             hidden_dims=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             ts_dim=1,
             nclasses=2,
-            dropout=0.5)
+            dropout=0.5,
+            learning_rate = 0.1
+        )
 
         args = readHyperparameterCSV(args)
 
@@ -116,7 +118,8 @@ class TestTrain(unittest.TestCase):
             num_rnn_layers=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             hidden_dims=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             ts_dim=1,
-            nclasses=2)
+            nclasses=2,
+            learning_rate=0.1)
 
         args = readHyperparameterCSV(args)
 
@@ -155,7 +158,9 @@ class TestTrain(unittest.TestCase):
             overwrite=True,
             test_every_n_epochs=1,
             train_valid_split_ratio=0.75,
-            train_valid_split_seed=0)
+            train_valid_split_seed=0,
+            entropy_factor=0.1,
+            resume_optimizer=False)
 
         train.train(args)
 
@@ -184,7 +189,10 @@ class TestTrain(unittest.TestCase):
             overwrite=True,
             test_every_n_epochs=1,
             train_valid_split_ratio=0.75,
-            train_valid_split_seed=0)
+            train_valid_split_seed=0,
+            entropy_factor=0.1,
+            resume_optimizer = False
+        )
 
         train.train(args)
 
@@ -213,7 +221,10 @@ class TestTrain(unittest.TestCase):
             overwrite=True,
             test_every_n_epochs=1,
             train_valid_split_ratio=0.75,
-            train_valid_split_seed=0)
+            train_valid_split_seed=0,
+            entropy_factor=0.1,
+            resume_optimizer = False
+        )
 
         train.train(args)
 

@@ -135,10 +135,8 @@ def readHyperparameterCSV(args):
                 datatype_function = type(args_dict[key])
                 value = datatype_function(value)
 
-                # cast value to same datatype as in argparse
-                if not key=="learning_rate" and args.learning_rate is None:
-                    args_dict[key] = value
-                    print("overwriting {key} with {value}".format(key=key,value=value))
+                args_dict[key] = value
+                print("overwriting {key} with {value}".format(key=key,value=value))
 
     return Namespace(**args_dict)
 

@@ -29,7 +29,7 @@ class TestTrain(unittest.TestCase):
         logits_sum_reference = np.array(0.7290305, dtype=np.float32)
         self.assertAlmostEqual(logits.sum().cpu().detach().numpy(),logits_sum_reference, places=4)
 
-        pts_sum_reference = np.array(1.1808, dtype=np.float32)
+        pts_sum_reference = np.array(2.0000002, dtype=np.float32)
         self.assertAlmostEqual(pts.sum().cpu().detach().numpy(),pts_sum_reference, places=4)
 
     def test_time_as_feature_equals_true(self):
@@ -51,7 +51,7 @@ class TestTrain(unittest.TestCase):
         logits_sum_reference = np.array(-0.4643724, dtype=np.float32)
         self.assertAlmostEqual(logits.sum().cpu().detach().numpy(), logits_sum_reference, places=4)
 
-        pts_sum_reference = np.array(1.1782072, dtype=np.float32)
+        pts_sum_reference = np.array(2., dtype=np.float32)
         self.assertAlmostEqual(pts.sum().cpu().detach().numpy(), pts_sum_reference, places=4)
 
     def test_add_time_feature_to_input(self):
