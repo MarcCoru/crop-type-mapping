@@ -121,29 +121,12 @@ class Trainer():
             self.logger.log(stats, self.epoch)
             printer.print(stats, self.epoch, prefix="\ntrain: ")
 
-            if self.epoch % self.test_every_n_epochs == 0:
+            if self.epoch % self.test_every_n_epochs == 0 or self.phase1_will_end() or self.phase2_will_end():
                 self.logger.set_mode("test")
                 stats = self.test_epoch(self.epoch)
                 self.logger.log(stats, self.epoch)
                 printer.print(stats, self.epoch, prefix="\nvalid: ")
-
-            self.visdom.confusion_matrix(stats["confusion_matrix"])
-
-            legend = ["class {}".format(c) for c in range(self.nclasses)]
-
-            targets = stats["targets"]
-
-            # either user-specified value or all available values
-            n_samples = self.show_n_samples if self.show_n_samples < targets.shape[0] else targets.shape[0]
-
-            for i in range(n_samples):
-                classid = targets[i, 0]
-
-                if len(stats["probas"].shape)==3:
-                    self.visdom.plot(stats["probas"][:, i, :], name="sample {} P(y) (class={})".format(i, classid), fillarea=True,
-                                 showlegend=True, legend=legend)
-                self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
-                self.visdom.bar(stats["weights"][i, :], name="sample {} P(t) (class={})".format(i, classid))
+                self.visdom_log_test_run(stats)
 
             self.visdom.plot_epochs(self.logger.get_data())
 
@@ -154,19 +137,42 @@ class Trainer():
         self.check_events()
         self.epoch += 1
 
+    def visdom_log_test_run(self, stats):
+        self.visdom.confusion_matrix(stats["confusion_matrix"])
+        legend = ["class {}".format(c) for c in range(self.nclasses)]
+        targets = stats["targets"]
+        # either user-specified value or all available values
+        n_samples = self.show_n_samples if self.show_n_samples < targets.shape[0] else targets.shape[0]
+
+        for i in range(n_samples):
+            classid = targets[i, 0]
+
+            if len(stats["probas"].shape) == 3:
+                self.visdom.plot(stats["probas"][:, i, :], name="sample {} P(y) (class={})".format(i, classid),
+                                 fillarea=True,
+                                 showlegend=True, legend=legend)
+            self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
+            self.visdom.bar(stats["weights"][i, :], name="sample {} P(t) (class={})".format(i, classid))
+
     def get_phase(self):
         if self.epoch < self.switch_epoch:
             return CLASSIFICATION_PHASE_NAME
         else:
             return EARLINESS_PHASE_NAME
 
+    def phase2_will_end(self):
+        return self.epoch == self.epochs
+
+    def phase1_will_end(self):
+        return self.epoch == self.switch_epoch
+
     def check_events(self):
         if self.epoch == 0:
             self.starting_phase_classification_event()
-        elif self.epoch == self.switch_epoch:
+        elif self.phase1_will_end():
             self.ending_phase_classification_event()
             self.starting_phase_earliness_event()
-        elif self.epoch == self.epochs:
+        elif self.phase2_will_end():
             self.ending_phase_earliness_event()
 
     def get_classification_model_name(self):
