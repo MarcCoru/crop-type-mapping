@@ -16,13 +16,14 @@ class Trainer():
                  switch_epoch=2,
                  learning_rate=0.1,
                  earliness_factor=0.7,
-                 entropy_factor=0.3,
+                 entropy_factor=0.,
                  store="/tmp",
                  test_every_n_epochs=1,
                  visdomenv=None,
                  show_n_samples=1,
                  loss_mode="twophase_linear_loss", # early_reward, twophase_early_reward, twophase_linear_loss, or twophase_early_simple
                  overwrite=True,
+                 resume_optimizer=False,
                  **kwargs):
 
         self.epochs = epochs
@@ -40,22 +41,29 @@ class Trainer():
         self.lossmode = loss_mode
         self.model = model
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        self.resume_optimizer = resume_optimizer
 
         if visdomenv is not None:
             self.visdom = VisdomLogger(env=visdomenv)
+
+        # only save checkpoint if not previously resumed from it
+        self.resumed_run = False
 
         self.epoch = 0
 
         if os.path.exists(self.get_classification_model_name()) and not overwrite:
             print("Resuming from snapshot {}.".format(self.get_classification_model_name()))
             self.resume(self.get_classification_model_name())
+            self.resumed_run = True
 
     def resume(self, filename):
         snapshot = self.model.load(filename)
         if torch.cuda.is_available():
             self.model = self.model.cuda()
         self.epoch = snapshot["epoch"]
-        self.optimizer.load_state_dict(snapshot["optimizer_state_dict"])
+        if self.resume_optimizer:
+            print("resuming optimizer state")
+            self.optimizer.load_state_dict(snapshot["optimizer_state_dict"])
         self.logger.resume(snapshot["logged_data"])
 
     def snapshot(self, filename):
@@ -110,6 +118,7 @@ class Trainer():
 
             self.logger.set_mode("train")
             stats = self.train_epoch(self.epoch)
+            self.logger.log(stats, self.epoch)
             printer.print(stats, self.epoch, prefix="\ntrain: ")
 
             if self.epoch % self.test_every_n_epochs == 0:
@@ -177,9 +186,10 @@ class Trainer():
 
     def ending_phase_classification_event(self):
         print("ending training phase classification")
-        self.snapshot(self.get_classification_model_name())
-        print("Saving log to {}".format(self.get_classification_log_name()))
-        self.logger.get_data().to_csv(self.get_classification_log_name())
+        if not self.resumed_run:
+            self.snapshot(self.get_classification_model_name())
+            print("Saving log to {}".format(self.get_classification_log_name()))
+            self.logger.get_data().to_csv(self.get_classification_log_name())
 
     def starting_phase_earliness_event(self):
         print("starting training phase earliness")
@@ -215,6 +225,7 @@ class Trainer():
 
             stats = metric.add(stats)
             stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
+            stats["earliness"] = metric.update_earliness((weights.argmax(1).float()/(weights.shape[1]-1)).cpu().detach().numpy())
 
         return stats
 
@@ -243,6 +254,8 @@ class Trainer():
                 stats = metric.add(stats)
                 stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
                                                           prediction.detach().cpu().numpy())
+                stats["earliness"] = metric.update_earliness(
+                    (weights.argmax(1).float() / (weights.shape[1] - 1)).cpu().detach().numpy())
 
         stats["confusion_matrix"] = metric.hist
         stats["targets"] = targets.cpu().numpy()

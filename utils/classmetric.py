@@ -10,6 +10,8 @@ class ClassMetric(object):
 
         self.store = dict()
 
+        self.earliness_record = list()
+
     def _update(self, o, t):
         t = t.flatten()
         o = o.flatten()
@@ -33,6 +35,10 @@ class ClassMetric(object):
         self._update(output, target)
         return self.accuracy()
 
+    def update_earliness(self,earliness):
+        self.earliness_record.append(earliness)
+        return np.hstack(self.earliness_record).mean()
+
     def accuracy(self):
         """
         https: // en.wikipedia.org / wiki / Confusion_matrix
@@ -54,3 +60,4 @@ class ClassMetric(object):
         overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
 
         return overall_accuracy
+

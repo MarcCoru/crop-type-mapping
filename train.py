@@ -54,10 +54,14 @@ def parse_args():
     parser.add_argument(
         '-a','--earliness_factor', type=float, default=1, help='earliness factor')
     parser.add_argument(
+        '--entropy-factor', type=float, default=0, help='entropy factor')
+    parser.add_argument(
         '--shapelet_width_increment', type=int, default=10,
         help='increments in shapelet width in either percent of total sequencelength '
              'by using --shapelet-width-in-percent flag. or in number of features.')
     parser.add_argument('--shapelet-width-in-percent', action='store_true', help="interpret shapelet_width as percentage of full sequence")
+    parser.add_argument('--resume-optimizer', action='store_true',
+                        help="resume optimizer state as well (may lead to smaller learning rates")
     parser.add_argument('--overwrite', action='store_true',
                         help="Overwrite automatic snapshots if they exist")
     parser.add_argument(
@@ -132,9 +136,9 @@ def readHyperparameterCSV(args):
                 value = datatype_function(value)
 
                 # cast value to same datatype as in argparse
-                args_dict[key] = value
-
-                print("overwriting {key} with {value}".format(key=key,value=value))
+                if not key=="learning_rate" and args.learning_rate is None:
+                    args_dict[key] = value
+                    print("overwriting {key} with {value}".format(key=key,value=value))
 
     return Namespace(**args_dict)
 
@@ -177,7 +181,9 @@ def train(args):
         show_n_samples=args.show_n_samples,
         store=os.path.join(args.store,args.dataset),
         overwrite=args.overwrite,
-        test_every_n_epochs=args.test_every_n_epochs
+        test_every_n_epochs=args.test_every_n_epochs,
+        entropy_factor = args.entropy_factor,
+        resume_optimizer = args.resume_optimizer
     )
 
     trainer = Trainer(model,traindataloader,testdataloader,**config)

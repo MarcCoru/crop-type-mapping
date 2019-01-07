@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from sklearn.base import BaseEstimator
 import numpy
 import os
+from models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
 
 from torch.autograd import Variable
 
@@ -120,6 +121,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         self.shapelet_blocks = self._get_shapelet_blocks()
         self.logreg_layer = nn.Linear(self.n_shapelets, self.n_classes)
         self.decision_layer = nn.Linear(self.n_shapelets, 1)
+        torch.nn.init.normal_(self.decision_layer.bias, mean=-1e1, std=1e-1)
 
     def _get_shapelet_blocks(self):
         return nn.ModuleList([
@@ -148,20 +150,16 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def loss_cross_entropy(self, inputs, targets):
         logits, pts = self._logits(inputs.transpose(1,2))
-        logprobabilities = F.log_softmax(logits, dim=-1)
-
-        batchsize, n_times, n_features = logprobabilities.shape
-
-        loss = F.nll_loss(logprobabilities.view(batchsize*n_times,n_features), targets.view(batchsize*n_times))
-
-        stats = dict(
-            loss=loss,
-        )
-
-        return loss, logprobabilities, pts, stats
+        return loss_cross_entropy(logits, pts, targets)
 
     def early_loss_linear(self, inputs, targets, alpha=None, entropy_factor=0):
-        return self.loss_cross_entropy(inputs, targets)
+        predicted_logits, pts = self._logits(inputs.transpose(1,2))
+        return early_loss_linear(predicted_logits, pts, targets, alpha, entropy_factor)
+
+    def early_loss_cross_entropy(self, inputs, targets, alpha=None, entropy_factor=0):
+        predicted_logits, pts = self._logits(inputs.transpose(1,2))
+        return early_loss_cross_entropy(predicted_logits, pts, targets, alpha, entropy_factor)
+
 
     def _init_params(self):
         if self.init_shapelets is not None:
@@ -181,22 +179,26 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def attentionbudget(self, deltas):
 
-        budget = torch.ones(deltas.shape)
-        if torch.cuda.is_available():
-            budget = budget.cuda()
+        batchsize, sequencelength = deltas.shape
 
         pts = list()
-        for t in range(1,deltas.shape[1]):
-            pt = deltas[:,t] * budget[:,t-1]
-            budget[:,t] = budget[:,t-1] - pt
+
+        initial_budget = torch.ones(batchsize)
+        if torch.cuda.is_available():
+            initial_budget = initial_budget.cuda()
+
+        budget = [initial_budget]
+        for t in range(1,sequencelength):
+            pt = deltas[:,t] * budget[-1]
+            budget.append(budget[-1] - pt)
             pts.append(pt)
 
         # last time
-        pt = budget[:,-1]
-        budget[:, -1] = budget[:, -1] - pt
+        pt = budget[-1]
+        budget.append(budget[-1] - pt)
         pts.append(pt)
 
-        return torch.stack(pts,dim=-1), budget
+        return torch.stack(pts,dim=-1), torch.stack(budget,dim=1)
 
     def _batchnorm(self, x):
         x = x.transpose(2, 1)
@@ -212,8 +214,8 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         shapelet_features = self.dropout_module(shapelet_features)
 
         logits = self.logreg_layer(shapelet_features)
-        deltas = self.decision_layer(shapelet_features)
-        deltas = F.softmax(deltas.squeeze(-1),dim=1)
+        deltas = self.decision_layer(torch.sigmoid(shapelet_features))
+        deltas = torch.sigmoid(deltas.squeeze(-1))
         pts, budget = self.attentionbudget(deltas)
         return logits, pts
 
@@ -222,7 +224,16 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         return nn.Softmax(dim=-1)(logits / temperature), deltas
 
     def predict(self, logprobabilities, Pts):
-        return logprobabilities[:,-1,:].argmax(-1)
+        b, t, c = logprobabilities.shape
+        t_class = Pts.argmax(1)  # [c]
+        eye = torch.eye(t).type(torch.ByteTensor)
+
+        if torch.cuda.is_available():
+            eye = eye.cuda()
+
+        prediction_all_times = logprobabilities.argmax(2)
+        prediction_at_t = torch.masked_select(prediction_all_times, eye[t_class])
+        return prediction_at_t
 
     def get_shapelets(self):
         shapelets = []
