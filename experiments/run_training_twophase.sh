@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 hyperparametercsv="/data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv"
-store="/data/remote/early_rnn/conv1d"
+store="/data/remote/early_rnn/conv1d_fixed"
 epochs=60
 switch_epoch=30
 lossmode="twophase_linear_loss"
-batchsize=256
+batchsize=128
 
-for entropyfactor in 0.001 0.01 0.1; do
+for entropyfactor in 0.01 0.1 0.001; do
     for earlinessfactor in 0.5 0.6 0.7 0.8 0.9 1.0; do
         echo $(date) earliness $earlinessfactor, entropy $entropyfactor
         experiment=a${earlinessfactor}e$entropyfactor
@@ -22,7 +22,8 @@ for entropyfactor in 0.001 0.01 0.1; do
             --switch_epoch $switch_epoch \
             --batchsize $batchsize \
             --overwrite \
-            --workers 4 \
+            --dropout 0.5 \
+            --workers 2 \
             --entropy-factor $entropyfactor \
             --earliness_factor $earlinessfactor \
             --store $store/$experiment
