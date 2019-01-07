@@ -1,0 +1,1 @@
+{"batchsize": 32, "dataset": "Trace", "drop_probability": 0.5, "earliness_factor": 1, "epochs": 30, "fold": 1, "hidden_dims": 50, "learning_rate": 0.1, "num_layers": 7, "shapelet_width_increment": 10, "switch_epoch": 9999, "workers": 2}
