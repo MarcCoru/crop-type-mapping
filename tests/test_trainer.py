@@ -115,6 +115,7 @@ class TestTrainer(unittest.TestCase):
                 switch_epoch=3, # epochs > switch_epoch <- trainer should never enter earliness phase
                 loss_mode="loss_cross_entropy",
                 show_n_samples=0,
+                test_every_n_epochs=2,
                 store="/tmp",
                 overwrite=True
             )

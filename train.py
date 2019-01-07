@@ -230,4 +230,9 @@ if __name__=="__main__":
 
     args = parse_args()
     for args.dataset in args.datasets:
+
+        if os.path.exists(os.path.join(args.store,args.dataset)):
+            print("path exists. skipping "+args.dataset)
+            continue
+
         train(args)
