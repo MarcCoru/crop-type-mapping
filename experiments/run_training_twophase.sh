@@ -26,6 +26,5 @@ for entropyfactor in 0.001 0.01 0.1; do
             --entropy-factor $entropyfactor \
             --earliness_factor $earlinessfactor \
             --store $store/$experiment
-
     done
 done

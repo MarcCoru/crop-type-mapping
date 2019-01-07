@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument(
         '-w', '--workers', type=int, default=4, help='number of CPU workers to load the next batch')
     parser.add_argument(
-        '-l', '--learning_rate', type=float, default=1e-2, help='learning rate')
+        '-l', '--learning_rate', type=float, default=None, help='learning rate')
     parser.add_argument(
         '--train_on', type=str, default="train", help="dataset partition to train. Choose from 'train', 'valid', "
                                                       "'trainvalid', 'eval' (default 'train')")
@@ -36,11 +36,11 @@ def parse_args():
     parser.add_argument(
         '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
     parser.add_argument(
-        '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
+        '-n', '--num_layers', type=int, default=None, help='number of stacked layers. will be interpreted as stacked '
                                                         'RNN layers for recurrent models and as number of convolutions'
                                                         'for convolutional models...')
     parser.add_argument(
-        '-r', '--hidden_dims', type=int, default=32, help='number of hidden dimensions per layer stacked hidden dimensions')
+        '-r', '--hidden_dims', type=int, default=None, help='number of hidden dimensions per layer stacked hidden dimensions')
     parser.add_argument(
         '--train-valid-split-seed', type=int, default=0,
         help='random seed for splitting of train and validation datasets. '
@@ -87,6 +87,13 @@ def parse_args():
 
     if args.switch_epoch is None:
         args.switch_epoch = args.epochs
+
+    if args.hidden_dims is None and args.hyperparametercsv is None:
+        raise ValueError("Please provide either explicit --hidden_dims parameter or a --hyperparametercsv file")
+    if args.num_layers is None and args.hyperparametercsv is None:
+        raise ValueError("Please provide either explicit --num_layers parameter or a --hyperparametercsv file")
+    if args.learning_rate is None and args.hyperparametercsv is None:
+        raise ValueError("Please provide either explicit --learning_rate parameter or a --hyperparametercsv file")
 
     args = parse_dataset_names(args)
 
