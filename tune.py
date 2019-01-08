@@ -1,13 +1,10 @@
 import ray
 import ray.tune as tune
 import argparse
-#from utils.parse_rayresults import parse_experiment
 from utils.raytrainer import RayTrainerDualOutputRNN, RayTrainerConv1D
 import datetime
 import os
 import sys
-import json
-import pandas as pd
 from utils.rayresultsparser import RayResultsParser
 
 
@@ -28,8 +25,8 @@ def parse_args():
         '-g', '--gpu', type=float, default=.2,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
     parser.add_argument(
-        '-r', '--local_dir', type=str, default="~/ray_results",
-        help='ray local dir. defaults to ~/ray_results')
+        '-r', '--local_dir', type=str, default=os.path.join(os.environ["HOME"],"ray_results"),
+        help='ray local dir. defaults to $HOME/ray_results')
     parser.add_argument(
         '--smoke-test', action='store_true', help='Finish quickly for testing')
     parser.add_argument(
@@ -198,7 +195,8 @@ def tune_mori_datasets(args):
         os.makedirs(resultsdir)
 
     if args.skip_processed:
-        processed_datasets = [f for f in os.listdir(resultsdir) if os.path.isdir(f)]
+        processed_datasets = [f for f in os.listdir(resultsdir) if os.path.isdir(os.path.join(resultsdir,f))]
+        print("--skip-processed option enabled. Found {}/{} datasets present. skipping these...".format(len(datasets),len(processed_datasets)))
         # remove all datasets that are present in the folder already
         datasets = list(set(datasets).symmetric_difference(processed_datasets))
 
