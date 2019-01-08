@@ -49,7 +49,7 @@ def plot(df_a, col_a, df_b, col_b, xlabel="", ylabel="", title="", fig=None, ax=
 
     return fig, ax
 
-def plot_accuracy():
+def plot_accuracy(entropy_factor=0.001):
     outpath = "plots"
 
     compare = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
@@ -57,15 +57,23 @@ def plot_accuracy():
     # print(compare.columns)
 
     for alpha in [0.9, 0.8, 0.7, 0.6]:
-        ours = pd.read_csv("data/twophase_linear_loss/a{alpha}e0.001.csv".format(alpha=alpha), index_col=0)
-        fig, ax = plot(ours * 100, "phase2_accuracy", compare * 100, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
-                   ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy $\alpha={}$".format(alpha))
+        for loss in ["twophase_cross_entropy", "twophase_linear_loss"]:
+            csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha,
+                                                                                       entropy_factor=entropy_factor)
 
-        fname = os.path.join(outpath, "accuracy_{}.png".format(alpha))
-        print("writing "+fname)
-        fig.savefig(fname)
+            if not os.path.exists(csvfile):
+                print("{} not found. skipping...".format(csvfile))
+                continue
 
-def plot_earliness():
+            ours = pd.read_csv(csvfile, index_col=0)
+            fig, ax = plot(ours * 100, "phase2_accuracy", compare * 100, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+                       ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy $\alpha={}$".format(alpha))
+
+            fname = os.path.join(outpath, "accuracy_{}_{}.png".format(loss,alpha))
+            print("writing "+fname)
+            fig.savefig(fname)
+
+def plot_earliness(entropy_factor=0.001):
     outpath = "plots"
 
     compare = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset")
@@ -73,13 +81,56 @@ def plot_earliness():
     # print(compare.columns)
 
     for alpha in [0.9, 0.8, 0.7, 0.6]:
-        ours = pd.read_csv("data/twophase_linear_loss/a{alpha}e0.001.csv".format(alpha=alpha), index_col=0)
-        fig, ax = plot(ours * 100, "phase2_earliness", compare, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
-                   ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"earliness $\alpha={}$".format(alpha))
+        for loss in ["twophase_cross_entropy", "twophase_linear_loss"]:
+            csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha,
+                                                                         entropy_factor=entropy_factor)
 
-        fname = os.path.join(outpath, "earliness_{}.png".format(alpha))
-        print("writing "+fname)
-        fig.savefig(fname)
+            if not os.path.exists(csvfile):
+                print("{} not found. skipping...".format(csvfile))
+                continue
+
+            ours = pd.read_csv(csvfile, index_col=0)
+            fig, ax = plot(ours * 100, "phase2_earliness", compare, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+                       ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"earliness $\alpha={}$".format(alpha))
+
+            fname = os.path.join(outpath, "earliness_{}_{}.png".format(loss, alpha))
+            print("writing "+fname)
+            fig.savefig(fname)
+
+def plot_earlinessaccuracy(entropy_factor=0.001):
+    outpath = "plots"
+
+    compare_earliness = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset")
+    compare_accuracy = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
+
+    def calc_loss(accuracy,earliness,alpha):
+        return alpha * accuracy + (1 - alpha) * earliness
+
+    # print(compare.columns)
+
+    for alpha in [0.9, 0.8, 0.7, 0.6]:
+        for loss in ["twophase_cross_entropy", "twophase_linear_loss"]:
+
+            compare = calc_loss(compare_accuracy["a={}".format(alpha)] * 100, 100-compare_earliness["a={}".format(alpha)], alpha)
+
+            csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha,
+                                                                         entropy_factor=entropy_factor)
+
+            if not os.path.exists(csvfile):
+                print("{} not found. skipping...".format(csvfile))
+                continue
+
+            ours = pd.read_csv(csvfile, index_col=0)
+            ours["loss"] = calc_loss(ours["phase2_accuracy"],ours["phase2_earliness"],alpha)
+
+
+            fig, ax = plot(ours * 100, "loss", pd.DataFrame(compare), "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+                       ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy and earliness $\alpha={}$".format(alpha))
+
+            fname = os.path.join(outpath, "accuracyearliness_{}_{}.png".format(loss, alpha))
+            print("writing "+fname)
+            fig.savefig(fname)
+
 
 def phase1_vs_phase2_accuracy():
     outpath = "plots"
@@ -93,7 +144,13 @@ def phase1_vs_phase2_accuracy():
     for alpha in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
         fig, ax = plt.subplots(figsize=(16, 8))
 
-        run = pd.read_csv("data/twophase_linear_loss/a{alpha}e0.001.csv".format(alpha=alpha), index_col=0) * 100
+        csvfile = "data/twophase_linear_loss/a{alpha}e0.001.csv".format(alpha=alpha)
+
+        if not os.path.exists(csvfile):
+            print("{} not found. skipping...".format(csvfile))
+            continue
+
+        run = pd.read_csv(csvfile, index_col=0) * 100
 
         runs.append(run)
 
@@ -139,7 +196,13 @@ def accuracy_vs_earliness():
     for alpha in [1.0, 0.9, 0.8, 0.7, 0.6, 0.5]:
         fig, ax = plt.subplots(figsize=(16, 8))
 
-        run = pd.read_csv("data/twophase_linear_loss/a{alpha}e0.001.csv".format(alpha=alpha), index_col=0) * 100
+        csvfile = "data/twophase_linear_loss/a{alpha}e0.001.csv".format(alpha=alpha)
+
+        if not os.path.exists(csvfile):
+            print("{} not found. skipping...".format(csvfile))
+            continue
+
+        run = pd.read_csv(csvfile, index_col=0) * 100
 
         # insert at beginning
         runs.insert(0,run)
@@ -176,6 +239,7 @@ def accuracy_vs_earliness():
 def variance_phase1():
     outpath = "plots"
 
+
     compare = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
 
     merged = list()
@@ -209,10 +273,11 @@ def variance_phase1():
 
 if __name__=="__main__":
 
-    #plot_accuracy()
-    #plot_earliness()
+    #plot_accuracy(entropy_factor=0.01)
+    #plot_earliness(entropy_factor=0.01)
+    plot_earlinessaccuracy(entropy_factor=0.01)
     #phase1_vs_phase2_accuracy()
-    accuracy_vs_earliness()
+    #accuracy_vs_earliness()
     #variance_phase1()
 
 

@@ -42,13 +42,18 @@ def parse_run(root, outcsv=None):
     else:
         return None
 
-if __name__=="__main__":
-    root = "/data/remote/early_rnn/conv1d"
-    outpath = "../viz/data/twophase_linear_loss"
+def parse(root="/data/remote/early_rnn/conv1d_fixed/twophase_linear_loss",
+          outpath="../viz/data/twophase_linear_loss"):
 
-    os.makedirs(outpath,exist_ok=True)
+    os.makedirs(outpath, exist_ok=True)
 
     for run in os.listdir(root):
-        if os.path.isdir(os.path.join(root,run)):
-            parse_run(os.path.join(root,run), outcsv=os.path.join(outpath,run+".csv"))
+        if os.path.isdir(os.path.join(root, run)):
+            parse_run(os.path.join(root, run), outcsv=os.path.join(outpath, run + ".csv"))
+
+if __name__=="__main__":
+    parse(root="/data/remote/early_rnn/conv1d_fixed/twophase_linear_loss",
+          outpath="../viz/data/twophase_linear_loss")
+    parse(root="/data/remote/early_rnn/conv1d_fixed/twophase_cross_entropy",
+              outpath="../viz/data/twophase_cross_entropy")
 

@@ -27,8 +27,8 @@ MedicalImages 0.73 0.74 0.75 0.74
 MoteStrain 0.78 0.78 0.79 0.79
 OliveOil 0.60 0.63 0.63 0.70
 OSULeaf 0.50 0.50 0.50 0.52
-SonyAIBORobotSurface 0.81 0.81 0.81 0.81
-SonyAIBORobotSurfaceII 0.79 0.79 0.79 0.78
+SonyAIBORobotSurface1 0.81 0.81 0.81 0.81
+SonyAIBORobotSurface2 0.79 0.79 0.79 0.78
 StarLightCurves 0.94 0.95 0.95 0.96
 SwedishLeaf 0.77 0.77 0.85 0.86
 Symbols 0.66 0.66 0.66 0.77
@@ -37,8 +37,8 @@ Trace 0.67 0.67 0.81 0.81
 TwoLeadECG 0.81 0.83 0.83 0.83
 TwoPatterns 0.67 0.76 0.87 0.86
 UWaveGestureLibraryX 0.71 0.73 0.75 0.77
-UwaveGestureLibraryY 0.59 0.61 0.66 0.69
-UwaveGestureLibraryZ 0.64 0.70 0.72 0.72
+UWaveGestureLibraryY 0.59 0.61 0.66 0.69
+UWaveGestureLibraryZ 0.64 0.70 0.72 0.72
 Wafer 0.97 0.97 0.98 0.98
 WordSynonyms 0.44 0.44 0.48 0.60
 Yoga 0.74 0.78 0.78 0.81
