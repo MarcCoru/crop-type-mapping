@@ -111,7 +111,7 @@ def plot_earlinessaccuracy(entropy_factor=0.001):
     for alpha in [0.9, 0.8, 0.7, 0.6]:
         for loss in ["twophase_cross_entropy", "twophase_linear_loss"]:
 
-            compare = calc_loss(compare_accuracy["a={}".format(alpha)] * 100, 100-compare_earliness["a={}".format(alpha)], alpha)
+            compare = calc_loss(compare_accuracy["a={}".format(alpha)], 1-compare_earliness["a={}".format(alpha)]*0.01, alpha)
 
             csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha,
                                                                          entropy_factor=entropy_factor)
@@ -121,10 +121,10 @@ def plot_earlinessaccuracy(entropy_factor=0.001):
                 continue
 
             ours = pd.read_csv(csvfile, index_col=0)
-            ours["loss"] = calc_loss(ours["phase2_accuracy"],ours["phase2_earliness"],alpha)
+            ours["weighted_score"] = calc_loss(ours["phase2_accuracy"],1-ours["phase2_earliness"]*0.01,alpha)
 
 
-            fig, ax = plot(ours * 100, "loss", pd.DataFrame(compare), "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+            fig, ax = plot(ours * 100, "weighted_score", pd.DataFrame(compare)*100, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
                        ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy and earliness $\alpha={}$".format(alpha))
 
             fname = os.path.join(outpath, "accuracyearliness_{}_{}.png".format(loss, alpha))
