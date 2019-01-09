@@ -64,6 +64,8 @@ def parse_args():
                         help="resume optimizer state as well (may lead to smaller learning rates")
     parser.add_argument('--overwrite', action='store_true',
                         help="Overwrite automatic snapshots if they exist")
+    parser.add_argument('--skip', action='store_true',
+                        help="skip dataset completely if already exists...")
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
@@ -231,7 +233,7 @@ if __name__=="__main__":
     args = parse_args()
     for args.dataset in args.datasets:
 
-        if os.path.exists(os.path.join(args.store,args.dataset)):
+        if os.path.exists(os.path.join(args.store,args.dataset)) and args.skip:
             print("path exists. skipping "+args.dataset)
             continue
 

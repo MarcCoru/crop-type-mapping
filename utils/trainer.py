@@ -2,6 +2,7 @@ import torch
 from utils.classmetric import ClassMetric
 from utils.logger import Printer, VisdomLogger, Logger
 import os
+from models.loss_functions import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear
 
 CLASSIFICATION_PHASE_NAME="classification"
 EARLINESS_PHASE_NAME="earliness"
@@ -73,38 +74,38 @@ class Trainer():
         epoch=self.epoch,
         logged_data=self.logger.get_data())
 
-    def loss_criterion(self, inputs, targets, epoch, earliness_factor, entropy_factor):
+    def loss_criterion(self, logprobabilties, pts, targets, earliness_factor, entropy_factor):
         """a wrapper around several possible loss functions for experiments"""
-        if epoch is None:
-            return self.model.loss_cross_entropy(inputs, targets)
 
         ## try to optimize for earliness only when classification is correct
         if self.lossmode=="early_reward":
-            return self.model.early_loss(inputs,targets,earliness_factor)
+            # TODO implement me
+            raise NotImplementedError("TODO Implement early reward loss!")
 
         elif self.lossmode=="loss_cross_entropy":
-            return self.model.loss_cross_entropy(inputs,targets)
+            return loss_cross_entropy(logprobabilties,targets)
 
         # first cross entropy then early reward loss
         elif self.lossmode == "twophase_early_reward":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                return self.model.loss_cross_entropy(inputs, targets)
+                return loss_cross_entropy(logprobabilties, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
-                return self.model.early_loss_simple(inputs, targets, alpha=earliness_factor)
+                #TODO implement me
+                raise NotImplementedError("Implement early reward loss!")
 
         # first cross-entropy loss then linear classification loss and simple t/T regularization
         elif self.lossmode=="twophase_linear_loss":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                return self.model.loss_cross_entropy(inputs, targets)
+                return loss_cross_entropy(logprobabilties, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
-                return self.model.early_loss_linear(inputs, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
+                return early_loss_linear(logprobabilties, pts, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
 
         # first cross entropy on all dates, then cross entropy plus simple t/T regularization
         elif self.lossmode == "twophase_cross_entropy":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                return self.model.loss_cross_entropy(inputs, targets)
+                return loss_cross_entropy(logprobabilties, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
-                return self.model.early_loss_cross_entropy(inputs, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
+                return early_loss_cross_entropy(logprobabilties, pts, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
 
         else:
             raise ValueError("wrong loss_mode please choose either 'early_reward',  "
@@ -152,7 +153,9 @@ class Trainer():
                                  fillarea=True,
                                  showlegend=True, legend=legend)
             self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
-            self.visdom.bar(stats["weights"][i, :], name="sample {} P(t) (class={})".format(i, classid))
+            self.visdom.bar(stats["pts"][i, :], name="sample {} P(t) (class={})".format(i, classid))
+            self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
+            self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
 
     def get_phase(self):
         if self.epoch < self.switch_epoch:
@@ -222,16 +225,19 @@ class Trainer():
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor, self.entropy_factor)
+            logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
 
-            prediction = self.model.predict(logprobabilities, weights)
-
+            loss, stats = self.loss_criterion(logprobabilities, pts, targets, self.earliness_factor, self.entropy_factor)
             loss.backward()
             self.optimizer.step()
 
+            prediction, t_stop = self.model.predict(logprobabilities, deltas)
+
             stats = metric.add(stats)
+
             stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-            stats["earliness"] = metric.update_earliness((weights.argmax(1).float()/(weights.shape[1]-1)).cpu().detach().numpy())
+            earliness = t_stop.float()/(inputs.shape[1]-1)
+            stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
         return stats
 
@@ -253,22 +259,26 @@ class Trainer():
                     inputs = inputs.cuda()
                     targets = targets.cuda()
 
-                loss, logprobabilities, weights, stats = self.loss_criterion(inputs, targets, epoch, self.earliness_factor, self.entropy_factor)
-
-                prediction = self.model.predict(logprobabilities, weights)
+                logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
+                loss, stats = self.loss_criterion(logprobabilities, pts, targets, self.earliness_factor,
+                                                  self.entropy_factor)
+                prediction, t_stop = self.model.predict(logprobabilities, deltas)
 
                 stats = metric.add(stats)
+
                 stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
                                                           prediction.detach().cpu().numpy())
-                stats["earliness"] = metric.update_earliness(
-                    (weights.argmax(1).float() / (weights.shape[1] - 1)).cpu().detach().numpy())
+                earliness = t_stop.float() / (inputs.shape[1] - 1)
+                stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
-        stats["confusion_matrix"] = metric.hist
-        stats["targets"] = targets.cpu().numpy()
-        stats["inputs"] = inputs.cpu().numpy()
-        stats["weights"] = weights.cpu().numpy()
+            stats["confusion_matrix"] = metric.hist
+            stats["targets"] = targets.cpu().numpy()
+            stats["inputs"] = inputs.cpu().numpy()
+            stats["deltas"] = deltas.detach().cpu().numpy()
+            stats["pts"] = pts.detach().cpu().numpy()
+            stats["budget"] = budget.detach().cpu().numpy()
 
-        probas = logprobabilities.exp().transpose(0, 1)
-        stats["probas"] = probas.cpu().numpy()
+            probas = logprobabilities.exp().transpose(0, 1)
+            stats["probas"] = probas.detach().cpu().numpy()
 
         return stats

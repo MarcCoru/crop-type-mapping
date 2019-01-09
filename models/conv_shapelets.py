@@ -150,7 +150,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def loss_cross_entropy(self, inputs, targets):
         logits, pts = self._logits(inputs.transpose(1,2))
-        return loss_cross_entropy(logits, pts, targets)
+        return loss_cross_entropy(logits, targets)
 
     def early_loss_linear(self, inputs, targets, alpha=None, entropy_factor=0):
         predicted_logits, pts = self._logits(inputs.transpose(1,2))
@@ -217,13 +217,52 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         deltas = self.decision_layer(torch.sigmoid(shapelet_features))
         deltas = torch.sigmoid(deltas.squeeze(-1))
         pts, budget = self.attentionbudget(deltas)
-        return logits, pts
+        return logits, deltas, pts, budget
 
-    def forward(self, x, temperature=1):
-        logits, deltas = self._logits(x)
-        return nn.Softmax(dim=-1)(logits / temperature), deltas
+    def forward(self, x):
+        logits, deltas, pts, budget = self._logits(x)
+        logprobabilities = F.log_softmax(logits, dim=2)
+        return logprobabilities, deltas, pts, budget
 
-    def predict(self, logprobabilities, Pts):
+    @torch.no_grad()
+    def stop(self, delta):
+        # Probability of stopping P(stop)
+        # sample false if delta close to 0 and
+        # sample true  if delta close to 1
+
+        dist = torch.stack([1 - delta, delta], dim=1)
+        return torch.distributions.Categorical(dist).sample().byte()
+
+    @torch.no_grad()
+    def predict(self, logprobabilities, deltas):
+        batchsize, sequencelength, nclasses = logprobabilities.shape
+
+        stop = list()
+        for t in range(sequencelength):
+            # stop if sampled true and not stopped previously
+            stop_now = self.stop(deltas[:,t])
+            stop.append(stop_now)
+
+        stopped = torch.stack(stop, dim=1).byte()
+        sumstop = stopped.cumsum(1)
+
+        first_stops = (sumstop == 1) & stopped
+
+        first_stops[:, -1] = first_stops.sum(1) != 1
+
+        # time of stopping
+        t_stop = first_stops.argmax(1)
+
+        # all predictions
+        predictions = logprobabilities.argmax(-1)
+
+        # predictions at time of stopping
+        predictions_at_t_stop = torch.masked_select(predictions, first_stops)
+
+        return predictions_at_t_stop, t_stop
+
+    """ old version prediction based on P(t) <- assumes knowledge about the future...
+    def predict_old(self, logprobabilities, Pts):
         b, t, c = logprobabilities.shape
         t_class = Pts.argmax(1)  # [c]
         eye = torch.eye(t).type(torch.ByteTensor)
@@ -234,6 +273,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         prediction_all_times = logprobabilities.argmax(2)
         prediction_at_t = torch.masked_select(prediction_all_times, eye[t_class])
         return prediction_at_t
+    """
 
     def get_shapelets(self):
         shapelets = []
@@ -328,3 +368,9 @@ def build_n_shapelet_dict(num_layers, hidden_dims, width_increments=10):
         shapelet_width = (layer + 1) * width_increments  # in 10 feature increments of sequencelength percantage: 10 20 30 etc.
         n_shapelets_per_size[shapelet_width] = hidden_dims
     return n_shapelets_per_size
+
+# Batched index_select
+def batched_index_select(tensor, dim, inds):
+    dummy = inds.unsqueeze(2).expand(inds.size(0), inds.size(1), t.size(2))
+    out = tensor.gather(dim, dummy) # b x e x f
+    return out

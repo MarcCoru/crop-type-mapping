@@ -34,13 +34,11 @@ def build_yhaty(logprobabilities, targets):
     return y_haty.view(batchsize, seqquencelength).exp()
 
 
-def early_loss_linear(predicted_logits, pts, targets, alpha=None, entropy_factor=0, pts_bias = 5):
+def early_loss_linear(logprobabilities, pts, targets, alpha=None, entropy_factor=0, pts_bias = 5):
     """
     Uses linear 1-P(actual class) loss. and the simple time regularization t/T
     L = (1-y\hat{y}) - t/T
     """
-    logprobabilities = F.log_softmax(predicted_logits, dim=2)
-
     batchsize, seqquencelength, nclasses = logprobabilities.shape
     t_index = build_t_index(batchsize=batchsize,sequencelength=seqquencelength)
 
@@ -61,10 +59,9 @@ def early_loss_linear(predicted_logits, pts, targets, alpha=None, entropy_factor
         loss_entropy=loss_entropy
     )
 
-    return loss, logprobabilities, pts, stats
+    return loss, stats
 
-def early_loss_cross_entropy(predicted_logits, pts, targets, alpha=None, entropy_factor=0, pts_bias = 5):
-    logprobabilities = F.log_softmax(predicted_logits, dim=2)
+def early_loss_cross_entropy(logprobabilities, pts, targets, alpha=None, entropy_factor=0, pts_bias = 5):
 
     batchsize, seqquencelength, nclasses = logprobabilities.shape
     t_index = build_t_index(batchsize=batchsize,sequencelength=seqquencelength)
@@ -86,11 +83,9 @@ def early_loss_cross_entropy(predicted_logits, pts, targets, alpha=None, entropy
         loss_earliness=loss_earliness,
     )
 
-    return loss, logprobabilities, pts, stats
+    return loss, stats
 
-def loss_cross_entropy(predicted_logits, Pts, targets):
-
-    logprobabilities = F.log_softmax(predicted_logits, dim=2)
+def loss_cross_entropy(logprobabilities, targets):
 
     b,t,c = logprobabilities.shape
     loss = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t))
@@ -99,4 +94,4 @@ def loss_cross_entropy(predicted_logits, Pts, targets):
         loss=loss,
     )
 
-    return loss, logprobabilities, Pts ,stats
+    return loss, stats
