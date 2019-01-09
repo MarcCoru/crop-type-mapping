@@ -68,7 +68,12 @@ class UCRDataset(torch.utils.data.Dataset):
         # some binary datasets e.g. EGC200 or Lightning 2 have classes: -1, 1 -> clipping to 1:2
         if self.y.min() < 0:
             print("Found class ids < 0 in dataset. clipping to zero!")
-            self.y = np.clip(self.y, 0, None) + 1
+            self.y = np.clip(self.y, 0, None)
+
+        # some datasets (e.g. Coffee) have classes with zero index while all other start with 1...
+        if self.y.min() > 0:
+            print("Found class id starting from 1. reducing all class ids by one to start from zero")
+            self.y -= 1
 
         self.classes = np.unique(np.append(y_trainvalid, y_test))
         self.nclasses = len(self.classes)
@@ -89,7 +94,7 @@ class UCRDataset(torch.utils.data.Dataset):
         X += np.random.rand(*X.shape) * self.augment_data_noise
 
         X = torch.from_numpy(X).type(torch.FloatTensor)
-        y = torch.from_numpy(np.array([self.y[idx] - 1])).type(torch.LongTensor)
+        y = torch.from_numpy(np.array([self.y[idx]])).type(torch.LongTensor)
 
         # add 1d hight and width dimensions and copy y for each time
         return X, y.expand(X.shape[0])
