@@ -75,7 +75,7 @@ class UCRDataset(torch.utils.data.Dataset):
             print("Found class id starting from 1. reducing all class ids by one to start from zero")
             self.y -= 1
 
-        self.classes = np.unique(np.append(y_trainvalid, y_test))
+        self.classes = np.unique(self.y)
         self.nclasses = len(self.classes)
         self.sequencelength = X_trainvalid.shape[1]
 
