@@ -65,10 +65,14 @@ class UCRDataset(torch.utils.data.Dataset):
         else:
             raise ValueError("Invalid partition! please provide either 'train','valid', 'trainvalid', or 'test'")
 
+        # some binary datasets e.g. EGC200 or Lightning 2 have classes: -1, 1 -> clipping to 1:2
+        if self.y.min() < 0:
+            print("Found class ids < 0 in dataset. clipping to zero!")
+            self.y = np.clip(self.y, 0, None) + 1
+
         self.classes = np.unique(np.append(y_trainvalid, y_test))
         self.nclasses = len(self.classes)
         self.sequencelength = X_trainvalid.shape[1]
-
 
         if not silent:
             msg = "Loaded dataset {}-{} T={}, classes={}: {}/{} samples"
