@@ -240,15 +240,21 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         stop = list()
         for t in range(sequencelength):
             # stop if sampled true and not stopped previously
-            stop_now = self.stop(deltas[:,t])
-            stop.append(stop_now)
+            if t<sequencelength-1:
+                stop_now = self.stop(deltas[:,t])
+                stop.append(stop_now)
+            else:
+                # make sure to stop last
+                last_stop = torch.ones(stop_now.shape).byte()
+                if torch.cuda.is_available():
+                    last_stop = last_stop.cuda()
+                stop.append(last_stop)
 
+        # stack over the time dimension (multiple stops possible)
         stopped = torch.stack(stop, dim=1).byte()
-        sumstop = stopped.cumsum(1)
 
-        first_stops = (sumstop == 1) & stopped
-
-        first_stops[:, -1] = first_stops.sum(1) != 1
+        # is only true if stopped for the first time
+        first_stops = (stopped.cumsum(1) == 1) & stopped
 
         # time of stopping
         t_stop = first_stops.argmax(1)
