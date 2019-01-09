@@ -27,7 +27,8 @@ for entropyfactor in 0.01 0.1 0.001; do
                 --workers 2 \
                 --entropy-factor $entropyfactor \
                 --earliness_factor $earlinessfactor \
-                --store $store/$lossmode/$experiment
+                --store $store/$lossmode/$experiment \
+                --skip
         done
     done
 done
