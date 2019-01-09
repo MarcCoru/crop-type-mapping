@@ -368,9 +368,3 @@ def build_n_shapelet_dict(num_layers, hidden_dims, width_increments=10):
         shapelet_width = (layer + 1) * width_increments  # in 10 feature increments of sequencelength percantage: 10 20 30 etc.
         n_shapelets_per_size[shapelet_width] = hidden_dims
     return n_shapelets_per_size
-
-# Batched index_select
-def batched_index_select(tensor, dim, inds):
-    dummy = inds.unsqueeze(2).expand(inds.size(0), inds.size(1), t.size(2))
-    out = tensor.gather(dim, dummy) # b x e x f
-    return out
