@@ -4,34 +4,55 @@ loss = "twophase_linear_loss"
 alpha=0.6
 entropy_factor=0.01
 
-relclass_t = "t=0.001"
-edsc_t = "t=2.5"
+relclass_col = "t=0.001"
+edsc_col = "t=2.5"
 ects_col = "sup=0.05"
 
-mori = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
-mori=mori["a={}".format(alpha)]
-mori.name = "morietal2017"
-
-relclass = pd.read_csv("data/morietal2017/relclass-accuracy-gaussian-quadratic-set.csv", sep=' ').set_index("Dataset")
-relclass=relclass[relclass_t]
-relclass.name = "relclass"
-
-edsc = pd.read_csv("data/morietal2017/edsc-accuracy.csv", sep=' ').set_index("Dataset")
-edsc=edsc[edsc_t]
-edsc.name = "edsc"
-
-etsc = pd.read_csv("data/morietal2017/ects-accuracy-strict-method.csv", sep=' ').set_index("Dataset")
-etsc=etsc[ects_col]
-etsc.name = "etsc"
+def load(file, column, name):
+    accuracy = pd.read_csv(file.format("accuracy"), sep=' ').set_index("Dataset")[column] # accuracy is scaled 0-1
+    accuracy.name = name + "_accuracy"
+    earliness = pd.read_csv(file.format("earliness"), sep=' ').set_index("Dataset")[column] * 0.01 # earliness is scaled 1-100
+    earliness.name = name + "_earliness"
+    return pd.concat([accuracy,earliness],axis=1)
 
 
-csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha, entropy_factor=entropy_factor)
+def load_approaches(alpha=0.6,relclass_col="t=0.001",edsc_col="t=2.5",ects_col="sup=0.05"):
+    mori = load("data/morietal2017/mori-{}-sr2-cf2.csv","a={}".format(alpha), "mori")
+    relclass = load("data/morietal2017/relclass-{}-gaussian-quadratic-set.csv",relclass_col, "relclass")
+    edsc = load("data/morietal2017/edsc-{}.csv",edsc_col, "edsc")
+    etsc = load("data/morietal2017/ects-{}-strict-method.csv",ects_col, "etsc")
 
-ours = pd.read_csv(csvfile, index_col=0)["phase2_accuracy"]*100
-ours.name = "ours"
+    csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha, entropy_factor=entropy_factor)
+    accuracy = pd.read_csv(csvfile, index_col=0)["phase2_accuracy"]
+    accuracy.name = "ours_accuracy"
+    earliness = pd.read_csv(csvfile, index_col=0)["phase2_earliness"]
+    earliness.name = "ours_earliness"
 
-concated = pd.concat([etsc,edsc,relclass,mori, ours], axis=1, join='inner')
+    return pd.concat([mori,relclass,edsc,etsc, accuracy, earliness], axis=1, join="inner")
 
-concated<concated["ours"]
+def parse_domination_score(dataframe, compare="mori"):
 
-pass
+    score_earliness = dataframe["ours_earliness"] <= dataframe[compare+"_earliness"]
+    score_accuracy = dataframe["ours_accuracy"] >= dataframe[compare+"_accuracy"]
+
+    score = pd.concat([score_earliness,score_accuracy],axis=1).sum(1)
+
+    won = (score==2).sum()
+    draw = (score==1).sum()
+    lost = (score==0).sum()
+
+    return "{won}/{draw}/{lost}".format(won=won, draw=draw, lost=lost)
+
+
+approaches = ["mori","edsc","relclass","etsc"]
+
+for alpha in [0.6, 0.7, 0.8]: # , 0.7, 0.8, 0.8
+
+    dataframe = load_approaches(alpha, relclass_col, edsc_col, ects_col)
+
+    line = list()
+
+    for compare in approaches:
+        line.append(parse_domination_score(dataframe=dataframe, compare=compare))
+
+    print( r"$\alpha={}$ & ".format(alpha) + " & ".join(line) + r' \\')

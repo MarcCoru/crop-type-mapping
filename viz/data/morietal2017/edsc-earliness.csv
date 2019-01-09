@@ -27,8 +27,8 @@ MedicalImages 31.95 45.64 58.01
 MoteStrain 38.08 41.42 45.51
 OliveOil 38.82 37.49 47.11
 OSULeaf 54.38 65.33 76.77
-SonyAIBORobotSurface 47.03 37.91 37.65
-SonyAIBORobotSurfaceII 35.51 35.17 39.69
+SonyAIBORobotSurface1 47.03 37.91 37.65
+SonyAIBORobotSurface2 35.51 35.17 39.69
 StarLightCurves nan nan nan
 SwedishLeaf 62.34 68.92 74.53
 Symbols 60.25 78.17 76.94
@@ -37,8 +37,8 @@ Trace 38.63 44.97 46.89
 TwoLeadECG 46.85 48.49 50.96
 TwoPatterns 64.04 64.32 64.44
 UWaveGestureLibraryX 64.30 79.60 87.19
-UwaveGestureLibraryY 70.14 81.32 89.37
-UwaveGestureLibraryZ 61.18 76.83 83.68
+UWaveGestureLibraryY 70.14 81.32 89.37
+UWaveGestureLibraryZ 61.18 76.83 83.68
 Wafer 27.99 27.47 28.20
 WordSynonyms 65.66 77.86 87.37
 Yoga 38.57 52.15 67.18
