@@ -42,6 +42,7 @@ class Trainer():
         self.lossmode = loss_mode
         self.model = model
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
         self.resume_optimizer = resume_optimizer
 
         if visdomenv is not None:
@@ -83,12 +84,12 @@ class Trainer():
             raise NotImplementedError("TODO Implement early reward loss!")
 
         elif self.lossmode=="loss_cross_entropy":
-            return loss_cross_entropy(logprobabilties,targets)
+            return loss_cross_entropy(logprobabilties, pts,targets)
 
         # first cross entropy then early reward loss
         elif self.lossmode == "twophase_early_reward":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                return loss_cross_entropy(logprobabilties, targets)
+                return loss_cross_entropy(logprobabilties, pts, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
                 #TODO implement me
                 raise NotImplementedError("Implement early reward loss!")
@@ -96,14 +97,14 @@ class Trainer():
         # first cross-entropy loss then linear classification loss and simple t/T regularization
         elif self.lossmode=="twophase_linear_loss":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                return loss_cross_entropy(logprobabilties, targets)
+                return loss_cross_entropy(logprobabilties, pts, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
                 return early_loss_linear(logprobabilties, pts, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
 
         # first cross entropy on all dates, then cross entropy plus simple t/T regularization
         elif self.lossmode == "twophase_cross_entropy":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                return loss_cross_entropy(logprobabilties, targets)
+                return loss_cross_entropy(logprobabilties, pts, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
                 return early_loss_cross_entropy(logprobabilties, pts, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
 
@@ -167,7 +168,7 @@ class Trainer():
         return self.epoch == self.epochs
 
     def phase1_will_end(self):
-        return self.epoch == self.switch_epoch
+        return self.epoch+1 == self.switch_epoch
 
     def check_events(self):
         if self.epoch == 0:

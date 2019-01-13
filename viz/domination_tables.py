@@ -46,7 +46,7 @@ def parse_domination_score(dataframe, compare="mori"):
 
 approaches = ["mori","edsc","relclass","etsc"]
 
-for alpha in [0.6, 0.7, 0.8]: # , 0.7, 0.8, 0.8
+for alpha in [0.6, 0.7, 0.8, 0.9]: # , 0.7, 0.8, 0.8
 
     dataframe = load_approaches(alpha, relclass_col, edsc_col, ects_col)
 

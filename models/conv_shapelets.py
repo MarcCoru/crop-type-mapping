@@ -125,10 +125,15 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
 
     def _get_shapelet_blocks(self):
         return nn.ModuleList([
-            nn.Conv1d(in_channels=self.ts_dim,
-                      out_channels=self.n_shapelets_per_size[shapelet_size],
-                      kernel_size=shapelet_size,
-                      padding=shapelet_size//2)
+            ShapeletConvolution(ts_dim=self.ts_dim,
+                                shapelet_size=shapelet_size,
+                                n_shapelets_per_size=self.n_shapelets_per_size[shapelet_size],
+                                )
+            #nn.ConstantPad1d((shapelet_size,0),0),
+            #nn.Conv1d(in_channels=self.ts_dim,
+            #          out_channels=self.n_shapelets_per_size[shapelet_size],
+            #          kernel_size=shapelet_size)
+                      #padding=shapelet_size) # <- padding of the full shapelet size to make sure that we not use samples from the "future" at pooling time t//2
             for shapelet_size in self.shapelet_sizes
         ])
 
@@ -138,11 +143,15 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         return pooled_x.view(pooled_x.size(0), -1)
 
     def _features(self, x):
+        sequencelength = x.shape[2]
+
         features_maxpooled = []
         for shp_sz, block in zip(self.shapelet_sizes, self.shapelet_blocks):
             f = block(x)
             f_maxpooled = list()
-            for t in range(1, f.shape[2]):
+            # sequencelength is not equal f.shape[2] -> f is based on padded input
+            # -> padding influences length -> we take :sequencelength to avoid using inputs from the future at time t
+            for t in range(1, sequencelength+1): # sequencelen
                 f_maxpooled.append(self._temporal_pooling(f[:,:,:t]))
             f_maxpooled = torch.stack(f_maxpooled, dim=1)
             features_maxpooled.append(f_maxpooled)
@@ -159,7 +168,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
     def early_loss_cross_entropy(self, inputs, targets, alpha=None, entropy_factor=0):
         predicted_logits, pts = self._logits(inputs.transpose(1,2))
         return early_loss_cross_entropy(predicted_logits, pts, targets, alpha, entropy_factor)
-
 
     def _init_params(self):
         if self.init_shapelets is not None:
@@ -374,3 +382,19 @@ def build_n_shapelet_dict(num_layers, hidden_dims, width_increments=10):
         shapelet_width = (layer + 1) * width_increments  # in 10 feature increments of sequencelength percantage: 10 20 30 etc.
         n_shapelets_per_size[shapelet_width] = hidden_dims
     return n_shapelets_per_size
+
+class ShapeletConvolution(nn.Module):
+    """
+    performs left side padding on the input and a convolution
+    """
+    def __init__(self, shapelet_size, ts_dim, n_shapelets_per_size):
+        super(ShapeletConvolution, self).__init__()
+
+        self.pad = nn.ConstantPad1d((shapelet_size//2, shapelet_size//2), 0)
+        self.conv = nn.Conv1d(in_channels=ts_dim,
+                  out_channels=n_shapelets_per_size,
+                  kernel_size=shapelet_size)
+
+    def forward(self, x):
+        padded = self.pad(x)
+        return self.conv(padded)
