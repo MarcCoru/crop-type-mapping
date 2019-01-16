@@ -17,8 +17,7 @@ class RayResultsParser():
             lines = f.readlines()
 
         if len(lines) > 0:
-            result = json.loads(lines[-1])
-            return result["accuracy"], result["loss"], result["training_iteration"], result["timestamp"], result["config"]
+            return json.loads(lines[-1])
         else:
             return None
 
@@ -33,14 +32,9 @@ class RayResultsParser():
             if run is None:
                 continue
             else:
-                accuracy, loss, training_iteration, timestamp, config = run
+                result = run
 
-            result = dict(
-                    accuracy=accuracy,
-                    loss=loss,
-                    training_iteration=training_iteration,
-                    timestamp=timestamp
-                )
+            config = result.pop("config")
 
             # merge result dict and config dict
             for key, value in config.items():
@@ -80,6 +74,13 @@ class RayResultsParser():
 
         return top
 
+    def get_sota_experiment(self, path, outpath=None):
+        data = self._load_all_runs(path)
+        data = pd.DataFrame(data).set_index(["dataset", "earliness_factor"])
+        data[["accuracy", "earliness"]].to_csv(outpath)
+
+
+
     def get_best_hyperparameters(self, path, outpath=None, group_by=["hidden_dims", "learning_rate", "num_rnn_layers"]):
 
         experiments = os.listdir(path)
@@ -108,10 +109,20 @@ class RayResultsParser():
 
         return summary
 
-if __name__=="__main__":
+def parse_hyperparameters():
     parser = RayResultsParser()
     summary = parser.get_best_hyperparameters("/data/remote/hyperparams_conv1d_v2_secondrun/conv1d",
-                                    outpath="/data/remote/hyperparams_conv1d_v2_secondrun/hyperparams.csv",
-                                    group_by=["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"])
+                                              outpath="/data/remote/hyperparams_conv1d_v2_secondrun/hyperparams.csv",
+                                              group_by=["hidden_dims", "learning_rate", "num_layers",
+                                                        "shapelet_width_increment"])
 
-    print(summary.set_index("dataset")[["mean_accuracy","std_accuracy","runs"]])
+    print(summary.set_index("dataset")[["mean_accuracy", "std_accuracy", "runs"]])
+
+if __name__=="__main__":
+
+    parser = RayResultsParser()
+
+    os.makedirs("../viz/data/sota_comparison", exist_ok=True)
+    print("writing to ../viz/data/sota_comparison/runs.csv")
+    parser.get_sota_experiment("/data/remote/sota_comparison/sota_comparison",
+                               outpath="../viz/data/sota_comparison/runs.csv")

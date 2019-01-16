@@ -49,6 +49,35 @@ def plot(df_a, col_a, df_b, col_b, xlabel="", ylabel="", title="", fig=None, ax=
 
     return fig, ax
 
+def plot_accuracy_sota_experiment():
+    objective = "accuracy"
+
+    outpath = "plots"
+    csvfile = "data/sota_comparison/runs.csv"
+    df = pd.read_csv(csvfile)
+
+
+    for objective in ["accuracy", "earliness"]:
+        compare_raw = pd.read_csv("data/morietal2017/mori-{objective}-sr2-cf2.csv".format(objective=objective),
+                              sep=' ').set_index("Dataset")
+
+        for alpha in [0.6, 0.7, 0.8, 0.9]:
+
+            ours = df.loc[df["earliness_factor"]==alpha].set_index("dataset")
+            if objective == "accuracy":
+                ours["accuracy"] = ours["accuracy"] * 100
+                compare = compare_raw * 100
+            elif objective == "earliness":
+                ours["earliness"] = ours["earliness"] * 100
+
+            fig, ax = plot(ours, objective, compare, "a={}".format(alpha), xlabel=objective+" Ours (Phase 2)",
+                           ylabel=r"Mori et al. (2017) SR2-CF2$", title=objective + r" $\alpha={}$".format(alpha))
+
+            fname = os.path.join(outpath, "sota_{}_{}.png".format(objective,alpha))
+            print("writing " + fname)
+            fig.savefig(fname)
+
+
 def plot_accuracy(entropy_factor=0.001):
     outpath = "plots"
 
@@ -271,13 +300,92 @@ def variance_phase1():
     print("writing " + fname)
     fig.savefig(fname)
 
+def qualitative_figure():
+    outpath="plots"
+
+    csvfile = "data/sota_comparison/runs.csv"
+    df = pd.read_csv(csvfile)
+
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+
+    for dataset in df["dataset"].unique():
+        sample = df.loc[df["dataset"] == dataset].sort_values(by="earliness_factor")
+
+
+        ax.plot(sample["accuracy"], sample["earliness"], linestyle='--', marker='o')
+        ax.set_xlabel("accuracy")
+        ax.set_ylabel("earliness")
+    fname = os.path.join(outpath, "earlinessaccuracy.png")
+    print("writing " + fname)
+    fig.savefig(fname)
+    return
+
+def load_approaches(alpha=0.6,relclass_col="t=0.001",edsc_col="t=2.5",ects_col="sup=0.05"):
+    def load(file, column, name):
+        accuracy = pd.read_csv(file.format("accuracy"), sep=' ').set_index("Dataset")[column]  # accuracy is scaled 0-1
+        accuracy.name = name + "_accuracy"
+        earliness = pd.read_csv(file.format("earliness"), sep=' ').set_index("Dataset")[
+                        column] * 0.01  # earliness is scaled 1-100
+        earliness.name = name + "_earliness"
+        return pd.concat([accuracy, earliness], axis=1)
+
+    mori = load("data/morietal2017/mori-{}-sr2-cf2.csv","a={}".format(alpha), "mori")
+    relclass = load("data/morietal2017/relclass-{}-gaussian-quadratic-set.csv",relclass_col, "relclass")
+    edsc = load("data/morietal2017/edsc-{}.csv",edsc_col, "edsc")
+    ects = load("data/morietal2017/ects-{}-strict-method.csv",ects_col, "ects")
+
+    return pd.concat([mori,relclass,edsc,ects], axis=1, join="inner")
+
+def qualitative_figure_single_dataset():
+    outpath="plots"
+    dataset = "TwoPatterns"
+
+    csvfile = "data/sota_comparison/runs.csv"
+    df = pd.read_csv(csvfile)
+
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+    accuracy = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
+    earliness = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset")
+    accuracy = accuracy.loc[dataset]
+    accuracy.name = "accuracy"
+    earliness = earliness.loc[dataset]
+    earliness.name = "earliness"
+
+    mori = pd.concat([accuracy, earliness * 0.01], axis=1)
+
+    earliness_factors = list()
+    for index, row in mori.iterrows():
+        earliness_factors.append(float(index.split("=")[-1]))
+    mori["earliness_factor"] = earliness_factors
+    mori = mori.set_index("earliness_factor")
+
+    ours = df.loc[df["dataset"] == dataset].sort_values(by="earliness_factor").set_index("earliness_factor")
+
+    for dataframe in [mori, ours]:
+        ax.plot(dataframe["accuracy"], dataframe["earliness"], linestyle='--', marker='o')
+
+    ax.set_xlim(0,1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("accuracy")
+    ax.set_ylabel("earliness")
+
+
+    fname = os.path.join(outpath, "earlinessaccuracy.png")
+    print("writing " + fname)
+    fig.savefig(fname)
+    return
+
 if __name__=="__main__":
 
     #plot_accuracy(entropy_factor=0.01)
     #plot_earliness(entropy_factor=0.01)
-    plot_earlinessaccuracy(entropy_factor=0.01)
+    #plot_earlinessaccuracy(entropy_factor=0.01)
     #phase1_vs_phase2_accuracy()
     #accuracy_vs_earliness()
     #variance_phase1()
 
+    plot_accuracy_sota_experiment()
+    qualitative_figure_single_dataset()
 
