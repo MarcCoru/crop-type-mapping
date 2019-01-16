@@ -45,9 +45,8 @@ def parse_args():
 def run_experiment(args):
     """designed to to tune on the same datasets as used by Mori et al. 2017"""
 
-    experiment_name = args.dataset
-
-    hparams = pd.read_csv(args.hyperparametercsv).set_index("dataset").loc[args.dataset]
+    #experiment_name = args.dataset
+    datasets = get_datasets_from_hyperparametercsv(args.hyperparametercsv)
 
     config = dict(
             batchsize=args.batchsize,
@@ -56,19 +55,16 @@ def run_experiment(args):
             switch_epoch=30,
             earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
             entropy_factor=0.01,
-            ptsepsilon=0,
-            learning_rate=float(hparams.learning_rate),
-            num_layers=int(hparams.num_layers),
-            hidden_dims=int(hparams.hidden_dims),
-            dataset=args.dataset,
+            ptsepsilon=5,
+            hyperparametercsv=args.hyperparametercsv,
+            dataset=tune.grid_search(datasets),
             drop_probability=0.5,
-            shapelet_width_increment=int(hparams.shapelet_width_increment),
             lossmode="twophase_linear_loss",
         )
 
     tune.run_experiments(
         {
-            experiment_name: {
+            "sota_comparison": {
                 "trial_resources": {
                     "cpu": args.cpu,
                     "gpu": args.gpu,
@@ -111,22 +107,26 @@ def run_experiment_on_datasets(args):
     if not ray.is_initialized():
         ray.init(include_webui=False, configure_logging=True, logging_level=logging.INFO)
 
-    for dataset in datasets:
-        args.dataset = dataset
-        try:
+    try:
+        run_experiment(args)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except Exception as e:
+        print("error" + str(e))
 
-            run_experiment(args)
-
-        except KeyboardInterrupt:
-            sys.exit(0)
-        except Exception as e:
-            print("error" + str(e))
-            continue
 
 class RayTrainer(ray.tune.Trainable):
     def _setup(self, config):
         self.dataset = config["dataset"]
         self.earliness_factor = config["earliness_factor"]
+
+        hparams = pd.read_csv(config["hyperparametercsv"]).set_index("dataset").loc[self.dataset]
+
+
+        config["learning_rate"] = float(hparams.learning_rate)
+        config["num_layers"] = int(hparams.num_layers)
+        config["hidden_dims"] = int(hparams.hidden_dims)
+        config["shapelet_width_increment"] = int(hparams.shapelet_width_increment)
 
         traindataset = UCRDataset(config["dataset"],
                                   partition="trainvalid",
