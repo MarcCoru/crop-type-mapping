@@ -76,6 +76,7 @@ class RayResultsParser():
 
     def get_sota_experiment(self, path, outpath=None):
         data = self._load_all_runs(path)
+        print("{} runs returned!".format(len(data)))
         data = pd.DataFrame(data).set_index(["dataset", "earliness_factor"])
         data[["accuracy", "earliness"]].to_csv(outpath)
 
