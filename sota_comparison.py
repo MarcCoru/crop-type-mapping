@@ -46,9 +46,8 @@ def run_experiment(args):
     """designed to to tune on the same datasets as used by Mori et al. 2017"""
 
     experiment_name = args.dataset
-    hyperparametercsv = "/data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv"
 
-    hparams = pd.read_csv(hyperparametercsv).set_index("dataset").loc[args.dataset]
+    hparams = pd.read_csv(args.hyperparametercsv).set_index("dataset").loc[args.dataset]
 
     config = dict(
             batchsize=args.batchsize,

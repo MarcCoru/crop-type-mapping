@@ -110,7 +110,7 @@ class RayResultsParser():
 
 if __name__=="__main__":
     parser = RayResultsParser()
-    summary = parser.get_best_hyperparameters("/data/remote/hyperparams_conv1d_v2/conv1d",
+    summary = parser.get_best_hyperparameters("/data/remote/hyperparams_conv1d_v2_secondrun/conv1d",
                                     outpath="/data/remote/hyperparams_conv1d_v2_secondrun/hyperparams.csv",
                                     group_by=["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"])
 
