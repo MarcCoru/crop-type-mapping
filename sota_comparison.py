@@ -26,6 +26,8 @@ def parse_args():
         'hyperparametercsv', type=str, default="/data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv",
         help='csv containing hyper parameters')
     parser.add_argument(
+        '-x', '--experiment', type=str, default="sota_comparison", help='Batch Size')
+    parser.add_argument(
         '-b', '--batchsize', type=int, default=96, help='Batch Size')
     parser.add_argument(
         '-c', '--cpu', type=int, default=2, help='number of CPUs allocated per trial run (default 2)')
@@ -48,23 +50,38 @@ def run_experiment(args):
     #experiment_name = args.dataset
     datasets = get_datasets_from_hyperparametercsv(args.hyperparametercsv)
 
-    config = dict(
-            batchsize=args.batchsize,
-            workers=2,
-            epochs=60, # will be overwritten by training_iteration criterion
-            switch_epoch=30,
-            earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
-            entropy_factor=0.01,
-            ptsepsilon=5,
-            hyperparametercsv=args.hyperparametercsv,
-            dataset=tune.grid_search(datasets),
-            drop_probability=0.5,
-            lossmode="twophase_linear_loss",
-        )
+    if args.experiment == "sota_comparison":
+        config = dict(
+                batchsize=args.batchsize,
+                workers=2,
+                epochs=60, # will be overwritten by training_iteration criterion
+                switch_epoch=30,
+                earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
+                entropy_factor=0.01,
+                ptsepsilon=5,
+                hyperparametercsv=args.hyperparametercsv,
+                dataset=tune.grid_search(datasets),
+                drop_probability=0.5,
+                lossmode="twophase_linear_loss",
+            )
+    if args.experiment == "entropy_pts":
+        config = dict(
+                batchsize=args.batchsize,
+                workers=2,
+                epochs=60, # will be overwritten by training_iteration criterion
+                switch_epoch=30,
+                earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
+                entropy_factor=tune.grid_search([0, 0.01, 0.1]),
+                ptsepsilon=tune.grid_search([0, 5, 10]),
+                hyperparametercsv=args.hyperparametercsv,
+                dataset=tune.grid_search(datasets),
+                drop_probability=0.5,
+                lossmode="twophase_linear_loss",
+            )
 
     tune.run_experiments(
         {
-            "sota_comparison": {
+            args.experiment: {
                 "trial_resources": {
                     "cpu": args.cpu,
                     "gpu": args.gpu,
@@ -121,7 +138,6 @@ class RayTrainer(ray.tune.Trainable):
         self.earliness_factor = config["earliness_factor"]
 
         hparams = pd.read_csv(config["hyperparametercsv"]).set_index("dataset").loc[self.dataset]
-
 
         config["learning_rate"] = float(hparams.learning_rate)
         config["num_layers"] = int(hparams.num_layers)
