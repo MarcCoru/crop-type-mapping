@@ -390,7 +390,8 @@ class ShapeletConvolution(nn.Module):
     def __init__(self, shapelet_size, ts_dim, n_shapelets_per_size):
         super(ShapeletConvolution, self).__init__()
 
-        self.pad = nn.ConstantPad1d((shapelet_size//2, shapelet_size//2), 0)
+        # pure left padding to align classification time t with right edge of convolutional kernel
+        self.pad = nn.ConstantPad1d((shapelet_size, 0), 0)
         self.conv = nn.Conv1d(in_channels=ts_dim,
                   out_channels=n_shapelets_per_size,
                   kernel_size=shapelet_size)
