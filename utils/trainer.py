@@ -17,6 +17,7 @@ class Trainer():
                  switch_epoch=2,
                  learning_rate=0.1,
                  earliness_factor=0.7,
+                 ptsepsilon=5,
                  entropy_factor=0.,
                  store="/tmp",
                  test_every_n_epochs=1,
@@ -29,6 +30,7 @@ class Trainer():
 
         self.epochs = epochs
         self.earliness_factor = earliness_factor
+        self.ptsepsilon = ptsepsilon
         self.switch_epoch = switch_epoch
         self.batch_size = validdataloader.batch_size
         self.traindataloader = traindataloader
@@ -75,7 +77,7 @@ class Trainer():
         epoch=self.epoch,
         logged_data=self.logger.get_data())
 
-    def loss_criterion(self, logprobabilties, pts, targets, earliness_factor, entropy_factor):
+    def loss_criterion(self, logprobabilties, pts, targets, earliness_factor, entropy_factor, ptsepsilon):
         """a wrapper around several possible loss functions for experiments"""
 
         ## try to optimize for earliness only when classification is correct
@@ -99,14 +101,16 @@ class Trainer():
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
                 return loss_cross_entropy(logprobabilties, pts, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
-                return early_loss_linear(logprobabilties, pts, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
+                return early_loss_linear(logprobabilties, pts, targets, alpha=earliness_factor,
+                                         entropy_factor=entropy_factor, ptsepsilon=ptsepsilon)
 
         # first cross entropy on all dates, then cross entropy plus simple t/T regularization
         elif self.lossmode == "twophase_cross_entropy":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
                 return loss_cross_entropy(logprobabilties, pts, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
-                return early_loss_cross_entropy(logprobabilties, pts, targets, alpha=earliness_factor, entropy_factor=entropy_factor)
+                return early_loss_cross_entropy(logprobabilties, pts, targets, alpha=earliness_factor,
+                                                entropy_factor=entropy_factor, ptsepsilon=ptsepsilon)
 
         else:
             raise ValueError("wrong loss_mode please choose either 'early_reward',  "
@@ -228,7 +232,8 @@ class Trainer():
 
             logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
 
-            loss, stats = self.loss_criterion(logprobabilities, pts, targets, self.earliness_factor, self.entropy_factor)
+            loss, stats = self.loss_criterion(logprobabilities, pts, targets,
+                                              self.earliness_factor, self.entropy_factor, self.ptsepsilon)
             loss.backward()
             self.optimizer.step()
 
@@ -262,7 +267,7 @@ class Trainer():
 
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
                 loss, stats = self.loss_criterion(logprobabilities, pts, targets, self.earliness_factor,
-                                                  self.entropy_factor)
+                                                  self.entropy_factor, ptsepsilon=self.ptsepsilon)
                 prediction, t_stop = self.model.predict(logprobabilities, deltas)
 
                 stats = metric.add(stats)

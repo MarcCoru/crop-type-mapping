@@ -34,7 +34,7 @@ class UCRDataset(torch.utils.data.Dataset):
     A torch wrapper around tslearn UCR datasets
     """
 
-    def __init__(self, name, partition="train", ratio=.75, randomstate=0, silent=False, augment_data_noise=0):
+    def __init__(self, name, partition="train", ratio=.75, randomstate=0, silent=True, augment_data_noise=0):
         r = np.random.RandomState(seed=randomstate)
 
         self.name = name
@@ -67,12 +67,12 @@ class UCRDataset(torch.utils.data.Dataset):
 
         # some binary datasets e.g. EGC200 or Lightning 2 have classes: -1, 1 -> clipping to 1:2
         if self.y.min() < 0:
-            print("Found class ids < 0 in dataset. clipping to zero!")
+            if not silent: print("Found class ids < 0 in dataset. clipping to zero!")
             self.y = np.clip(self.y, 0, None)
 
         # some datasets (e.g. Coffee) have classes with zero index while all other start with 1...
         if self.y.min() > 0:
-            print("Found class id starting from 1. reducing all class ids by one to start from zero")
+            if not silent: print("Found class id starting from 1. reducing all class ids by one to start from zero")
             self.y -= 1
 
         self.classes = np.unique(self.y)

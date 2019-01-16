@@ -20,7 +20,7 @@ def load_approaches(alpha=0.6,relclass_col="t=0.001",edsc_col="t=2.5",ects_col="
     mori = load("data/morietal2017/mori-{}-sr2-cf2.csv","a={}".format(alpha), "mori")
     relclass = load("data/morietal2017/relclass-{}-gaussian-quadratic-set.csv",relclass_col, "relclass")
     edsc = load("data/morietal2017/edsc-{}.csv",edsc_col, "edsc")
-    etsc = load("data/morietal2017/ects-{}-strict-method.csv",ects_col, "etsc")
+    ects = load("data/morietal2017/ects-{}-strict-method.csv",ects_col, "ects")
 
     csvfile = "data/{loss}/a{alpha}e{entropy_factor}.csv".format(loss=loss, alpha=alpha, entropy_factor=entropy_factor)
     accuracy = pd.read_csv(csvfile, index_col=0)["phase2_accuracy"]
@@ -28,7 +28,7 @@ def load_approaches(alpha=0.6,relclass_col="t=0.001",edsc_col="t=2.5",ects_col="
     earliness = pd.read_csv(csvfile, index_col=0)["phase2_earliness"]
     earliness.name = "ours_earliness"
 
-    return pd.concat([mori,relclass,edsc,etsc, accuracy, earliness], axis=1, join="inner")
+    return pd.concat([mori,relclass,edsc,ects, accuracy, earliness], axis=1, join="inner")
 
 def parse_domination_score(dataframe, compare="mori"):
 
@@ -44,7 +44,7 @@ def parse_domination_score(dataframe, compare="mori"):
     return "{won}/{draw}/{lost}".format(won=won, draw=draw, lost=lost)
 
 
-approaches = ["mori","edsc","relclass","etsc"]
+approaches = ["mori","edsc","relclass","ects"]
 
 for alpha in [0.6, 0.7, 0.8, 0.9]: # , 0.7, 0.8, 0.8
 
