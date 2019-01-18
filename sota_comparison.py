@@ -184,16 +184,9 @@ class RayTrainer(ray.tune.Trainable):
         # train epochs and then infer once. to avoid overhead on these small datasets
         for epoch in range(self.epochs):
             self.trainer.epoch = epoch
-            stats = self.trainer.train_epoch(epoch=None)
-            if self.trainer.phase1_will_end() or self.trainer.phase1_will_end():
-                stats = self.trainer.test_epoch(epoch=None)
-                #self.trainer.logger.log(stats, epoch=epoch)
-                print("dataset: {}, epoch {}, earliness_factor {}, test accuracy: {}".format(self.dataset, epoch,
-                                                                                           self.earliness_factor,
-                                                                                           stats["accuracy"]))
-                #self.trainer.logger.save()
+            self.trainer.train_epoch(epoch=None)
 
-        return stats
+        return self.trainer.test_epoch(epoch=None)
 
     def _save(self, path):
         path = path + ".pth"
@@ -203,7 +196,6 @@ class RayTrainer(ray.tune.Trainable):
     def _restore(self, path):
         state_dict = torch.load(path, map_location="cpu")
         self.model.load_state_dict(state_dict)
-
 
 if __name__=="__main__":
 
