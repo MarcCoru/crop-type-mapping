@@ -64,9 +64,12 @@ def plot_accuracyearliness_sota_experiment():
         E = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv",
                                         sep=' ').set_index("Dataset")*0.01
 
-        data["ours"] = (alpha * data["accuracy"] + (1 - alpha) * data["earliness"]) * 100
-        data["mori"] = (alpha * A["a={}".format(alpha)] + (1 - alpha) \
-                                       * E["a={}".format(alpha)]) * 100
+        data["ours"] = calc_loss(data["accuracy"],1-data["earliness"],alpha)  * 100
+        data["mori"] = calc_loss(A["a={}".format(alpha)],1-E["a={}".format(alpha)],alpha) * 100
+
+        #data["ours"] = (alpha * data["accuracy"] + (1 - alpha) * data["earliness"]) * 100
+        #data["mori"] = (alpha * A["a={}".format(alpha)] + (1 - alpha) \
+        #                               * E["a={}".format(alpha)]) * 100
 
         fig, ax = plot(data, "ours", data, "mori", xlabel="accuracy and earliness Ours (Phase 2)",
                        ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy and earliness $\alpha={}$".format(alpha))
@@ -170,14 +173,15 @@ def plot_earliness(entropy_factor=0.001):
             print("writing "+fname)
             fig.savefig(fname)
 
+
+def calc_loss(accuracy,earliness,alpha):
+    return alpha * accuracy + (1 - alpha) * (earliness)
+
 def plot_earlinessaccuracy(entropy_factor=0.001):
     
 
     compare_earliness = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset")
     compare_accuracy = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
-
-    def calc_loss(accuracy,earliness,alpha):
-        return alpha * accuracy + (1 - alpha) * earliness
 
     # print(compare.columns)
 
@@ -349,17 +353,46 @@ def qualitative_figure():
     csvfile = "data/sota_comparison/runs.csv"
     df = pd.read_csv(csvfile)
 
-    fig, ax = plt.subplots(figsize=(16, 8))
+    fig, ax = plt.subplots(figsize=(30, 16))
 
+    mori_accuracy = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
+    mori_earliness = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset")
 
-    for dataset in df["dataset"].unique():
+    all_datasets = df["dataset"].unique()
+    selected_datasets = ["TwoPatterns", "Yoga", "Adiac", "UWaveGestureLibraryY", "FaceAll"]
+
+    mori = pd.DataFrame()
+    for dataset in selected_datasets:
+
+        mori["accuracy"] = mori_accuracy.loc[dataset]
+        mori["earliness"] = mori_earliness.loc[dataset] * 0.01
+        ax.plot(mori["accuracy"], mori["earliness"], linestyle='--', marker='+')
+
+        #df3 = df3[~df3.index.duplicated(keep='first')]
         sample = df.loc[df["dataset"] == dataset].sort_values(by="earliness_factor")
-
-
         ax.plot(sample["accuracy"], sample["earliness"], linestyle='--', marker='o')
         ax.set_xlabel("accuracy")
         ax.set_ylabel("earliness")
-    fname = os.path.join(PLOTS_PATH, "earlinessaccuracy.png")
+        #
+
+        X = sample["accuracy"].iloc[0]
+        Y = sample["earliness"].iloc[0]
+        ax.annotate("our " + dataset, xy=(X, Y), xytext=(X, Y))
+
+        X = mori["accuracy"].iloc[0]
+        Y = mori["earliness"].iloc[0]
+        ax.annotate(dataset, xy=(X, Y), xytext=(X, Y))
+
+        fname = DATA_PATH + "/alphas_our_{}.csv".format(dataset)
+        print("writing " + fname)
+        sample.to_csv(fname)
+
+
+        fname = DATA_PATH + "/alphas_mori_{}.csv".format(dataset)
+        print("writing " + fname)
+        mori.to_csv(fname)
+
+    fname = os.path.join(PLOTS_PATH, "earlinessaccuracy_alldatasets.png")
     print("writing " + fname)
     fig.savefig(fname)
     return
@@ -421,14 +454,14 @@ def qualitative_figure_single_dataset():
 
 if __name__=="__main__":
 
-    #plot_accuracy(entropy_factor=0.01)
-    #plot_earliness(entropy_factor=0.01)
-    #plot_earlinessaccuracy(entropy_factor=0.01)
+    plot_accuracy(entropy_factor=0.01)
+    plot_earliness(entropy_factor=0.01)
+    plot_earlinessaccuracy(entropy_factor=0.01)
     #phase1_vs_phase2_accuracy()
     #accuracy_vs_earliness()
     #variance_phase1()
 
-    #plot_accuracyearliness_sota_experiment()
+    plot_accuracyearliness_sota_experiment()
     plot_accuracy_sota_experiment()
-    qualitative_figure_single_dataset()
+    qualitative_figure()
 

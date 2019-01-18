@@ -9,6 +9,7 @@ from argparse import Namespace
 from utils.trainer import Trainer
 import pandas as pd
 import os
+import numpy as np
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -35,6 +36,8 @@ def parse_args():
         help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
     parser.add_argument(
         '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
+    parser.add_argument(
+        '--epsilon', type=float, default=.2, help='bias factor to add on P(t) as a regularization parameter')
     parser.add_argument(
         '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
                                                         'RNN layers for recurrent models and as number of convolutions'
@@ -170,7 +173,7 @@ def train(args):
     args.seqlength = traindataloader.dataset.sequencelength
     model = getModel(args)
 
-    visdomenv = "{}_{}_{}".format(args.experiment, args.dataset,args.loss_mode.replace("_","-"))
+    visdomenv = "{}_{}_{}".format(args.experiment, args.dataset, args.loss_mode.replace("_","-"))
 
     config = dict(
         epochs=args.epochs,
@@ -180,8 +183,9 @@ def train(args):
         switch_epoch=args.switch_epoch,
         loss_mode=args.loss_mode,
         show_n_samples=args.show_n_samples,
-        store=os.path.join(args.store,args.dataset),
+        store=os.path.join(args.store,args.experiment,args.dataset),
         overwrite=args.overwrite,
+        ptsepsilon=args.epsilon,
         test_every_n_epochs=args.test_every_n_epochs,
         entropy_factor = args.entropy_factor,
         resume_optimizer = args.resume_optimizer
@@ -196,6 +200,12 @@ def getDataloader(dataset, partition, train_valid_split_ratio=0.75,train_valid_s
         torchdataset = SyntheticDataset(num_samples=2000, T=100)
     else:
         torchdataset = UCRDataset(dataset, partition=partition, ratio=train_valid_split_ratio, randomstate=train_valid_split_seed)
+
+    # ensure the batchsing sequence is the same at different runs
+    # useful for qualitative experiments to see identical samples in visdom...
+    seed = sum([ord(ch) for ch in partition])
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
 
     return torch.utils.data.DataLoader(torchdataset, **kwargs)
 
