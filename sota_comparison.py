@@ -54,11 +54,11 @@ def run_experiment(args):
         config = dict(
                 batchsize=args.batchsize,
                 workers=2,
-                epochs=60, # will be overwritten by training_iteration criterion
-                switch_epoch=30,
+                epochs=30, # will be overwritten by training_iteration criterion
+                switch_epoch=15,
                 earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
                 entropy_factor=0.01,
-                ptsepsilon=5,
+                ptsepsilon=tune.grid_search([5,10,20]),
                 hyperparametercsv=args.hyperparametercsv,
                 dataset=tune.grid_search(datasets),
                 drop_probability=0.5,
