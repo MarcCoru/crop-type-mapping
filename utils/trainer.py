@@ -242,7 +242,7 @@ class Trainer():
             stats = metric.add(stats)
 
             stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-            earliness = t_stop.float()/(inputs.shape[1]-1)
+            earliness = (t_stop.float()/(inputs.shape[1]-1)).mean()
             stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
         return stats
@@ -274,7 +274,7 @@ class Trainer():
 
                 stats["accuracy"] = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
                                                           prediction.detach().cpu().numpy())
-                earliness = t_stop.float() / (inputs.shape[1] - 1)
+                earliness = (t_stop.float()/(inputs.shape[1]-1)).mean()
                 stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
             stats["confusion_matrix"] = metric.hist
