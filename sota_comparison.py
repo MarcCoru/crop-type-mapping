@@ -54,15 +54,15 @@ def run_experiment(args):
         config = dict(
                 batchsize=args.batchsize,
                 workers=2,
-                epochs=30, # will be overwritten by training_iteration criterion
-                switch_epoch=15,
+                epochs=60, # will be overwritten by training_iteration criterion
+                switch_epoch=30,
                 earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
-                entropy_factor=0.01,
-                ptsepsilon=tune.grid_search([5,10,20]),
+                entropy_factor=tune.grid_search([0.01, 0.1, 0]),
+                ptsepsilon=tune.grid_search([0, 10, 100]),
                 hyperparametercsv=args.hyperparametercsv,
                 dataset=tune.grid_search(datasets),
                 drop_probability=0.5,
-                lossmode="twophase_linear_loss",
+                lossmode=tune.grid_search(["twophase_linear_loss","twophase_cross_entropy"]),
             )
     if args.experiment == "entropy_pts":
         config = dict(
@@ -91,7 +91,7 @@ def run_experiment(args):
                     'time_total_s':600 if not args.smoke_test else 1,
                 },
                 "run": RayTrainer,
-                "num_samples": 1,
+                "num_samples": 3,
                 "checkpoint_at_end": False,
                 "config": config,
                 "local_dir":args.local_dir
