@@ -47,6 +47,8 @@ class UCRDataset(torch.utils.data.Dataset):
 
         X_trainvalid, y_trainvalid, X_test, y_test = self.dataset.load_dataset(name)
 
+        self.nclasses = len(np.unique(np.append(y_test, y_trainvalid,axis=0)))
+
         train_mask = r.rand(len(X_trainvalid)) < ratio
         valid_mask = np.logical_not(train_mask)
 
@@ -75,8 +77,7 @@ class UCRDataset(torch.utils.data.Dataset):
             if not silent: print("Found class id starting from 1. reducing all class ids by one to start from zero")
             self.y -= 1
 
-        self.classes = np.unique(self.y)
-        self.nclasses = len(self.classes)
+        #self.classes = np.unique(self.y)
         self.sequencelength = X_trainvalid.shape[1]
 
         if not silent:
