@@ -79,6 +79,21 @@ def run_experiment(args):
                 lossmode="twophase_linear_loss",
             )
 
+    if args.experiment == "phase1only":
+        config = dict(
+                batchsize=args.batchsize,
+                workers=2,
+                epochs=30, # will be overwritten by training_iteration criterion
+                switch_epoch=999,
+                earliness_factor=tune.grid_search([0.6, 0.7, 0.8, 0.9]),
+                entropy_factor=0,
+                ptsepsilon=0,
+                hyperparametercsv=args.hyperparametercsv,
+                dataset=tune.grid_search(datasets),
+                drop_probability=tune.grid_search([0.2, 0.5, 0.75]),
+                lossmode="twophase_linear_loss",
+            )
+
     tune.run_experiments(
         {
             args.experiment: {
