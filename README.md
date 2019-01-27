@@ -12,6 +12,19 @@ sudo apt-get install rsync screen
 
 ```
 
+### P100 set up
+
+wget https://repo.continuum.io/archive/Anaconda3-2018.12-Linux-x86_64.sh
+bash Anaconda3-2018.12-Linux-x86_64.sh -b
+echo ". $HOME/anaconda3/etc/profile.d/conda.sh" >> ~/.bashrc
+conda create -n early_rnn python=3.6 pip
+conda activate early_rnn
+pip install --no-cache-dir Cython
+pip install numpy psutil
+pip install --upgrade pip
+pip install torch scikit-learn pandas visdom ray matplotlib seaborn
+pip install git+https://github.com/marccoru/tslearn.git
+
 #### Unittests
 
 ```bash

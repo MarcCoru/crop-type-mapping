@@ -76,6 +76,8 @@ class RayResultsParser():
 
     def get_sota_experiment(self, path, outpath=None, columns=["accuracy", "earliness"]):
         data = self._load_all_runs(path)
+        data.sort_values(by="accuracy", ascending=False).drop_duplicates(
+            subset=['earliness_factor', 'entropy_factor', 'ptsepsilon'], keep='first')
         print("{} runs returned!".format(len(data)))
         data = pd.DataFrame(data).set_index(["dataset"])
         data[columns].to_csv(outpath)
@@ -119,13 +121,13 @@ def parse_hyperparameters():
 
     print(summary.set_index("dataset")[["mean_accuracy", "std_accuracy", "runs"]])
 
-def parse_sota_experiment():
+def parse_sota_experiment(path, outcsv):
     parser = RayResultsParser()
 
-    os.makedirs("../viz/data/sota_comparison", exist_ok=True)
-    print("writing to ../viz/data/sota_comparison/runs.csv")
-    parser.get_sota_experiment("/data/remote/sota_comparison/sota_comparison",
-                               outpath="../viz/data/sota_comparison/runs.csv")
+    os.makedirs(os.path.dirname(outcsv), exist_ok=True)
+    print("writing to "+outcsv)
+    parser.get_sota_experiment(path,
+                               outpath=outcsv,columns=["earliness_factor","entropy_factor","ptsepsilon","accuracy","earliness","lossmode"])
 
 def parse_entropy_experiment():
 
@@ -139,7 +141,8 @@ def parse_entropy_experiment():
 
 
 if __name__=="__main__":
-
+    import sys
+    # python ut"/data/remote/early_rnn/sota_comparison"
     #parse_hyperparameters()
-    #parse_sota_experiment()
-    parse_entropy_experiment()
+    parse_sota_experiment(sys.argv[1], "../viz/data/sota_comparison/runs.csv")
+    #parse_entropy_experiment()

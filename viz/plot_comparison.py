@@ -4,16 +4,27 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_style("white")
 
+import numpy as np
+
 PLOTS_PATH = "plots"
 DATA_PATH = "csv"
 
 
-def plot(df_a, col_a, df_b, col_b, xlabel="", ylabel="", title="", fig=None, ax=None, textalpha=1, errcol=None, diagonal=True):
+def plot(df_a, col_a, df_b, col_b, xlabel="", ylabel="", title="",
+         fig=None, ax=None, textalpha=1, errcol=None, diagonal=True, hue=None, cbar_label=""):
 
     if df_a.equals(df_b):
         concated = df_a
     else:
         concated = pd.concat([df_a, df_b], axis=1, join='inner')
+
+    if hue is not None:
+        hue.name = "color"
+        hue.index.names = ['dataset']
+        concated["color"] = hue
+
+        # features in consistent sequence to datasets
+        hue = concated["color"]
 
     X = concated[col_a]
     Y = concated[col_b]
@@ -29,18 +40,22 @@ def plot(df_a, col_a, df_b, col_b, xlabel="", ylabel="", title="", fig=None, ax=
     sns.despine(fig, offset=5)
 
     if err is None:
-        ax.scatter(X, Y)
+        sc = ax.scatter(X, Y, c=hue)
+
+        if hue is not None:
+            cbar = plt.colorbar(sc)
+            cbar.set_label(cbar_label, rotation=270)
     else:
         ax.errorbar(X, Y, xerr=err, fmt='o', alpha=0.5)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.set_xlim(0, 110)
-    ax.set_ylim(0, 110)
+    ax.set_xlim(0, 1.1)
+    ax.set_ylim(0, 1.1)
     ax.set_title(title)
 
     if diagonal:
         # diagonal line
-        ax.plot([0, 100], [0, 100])
+        ax.plot([0, 1], [0, 1])
     ax.grid()
 
     xy = pd.concat([X, Y], axis=1)
@@ -48,82 +63,135 @@ def plot(df_a, col_a, df_b, col_b, xlabel="", ylabel="", title="", fig=None, ax=
 
     for row in xy.iterrows():
         txt, (xval, yval) = row
-        ax.annotate(txt, (xval + 0.5, yval + 0.5), fontsize=12, alpha=textalpha)
+        ax.annotate(txt, (xval + 0.01, yval + 0.01), fontsize=12, alpha=textalpha)
 
     return fig, ax
 
-def plot_accuracyearliness_sota_experiment():
+
+def load_mori(alpha):
+    A = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
+    E = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset") * 0.01
+    return A["a={}".format(alpha)], E["a={}".format(alpha)]
+
+
+def load_relclass(alpha):
+    file = "data/morietal2017/relclass-{}-gaussian-quadratic-set.csv"
+
+    if alpha == 0.6:
+        column = "t=0.001"
+    elif alpha == 0.7:
+        column = "t=0.1"
+    elif alpha == 0.8:
+        column = "t=0.5"
+    elif alpha == 0.9:
+        column = "t=0.9"
+    else:
+        raise ValueError()
+
+    accuracy = pd.read_csv(file.format("accuracy"), sep=' ').set_index("Dataset")[column]  # accuracy is scaled 0-1
+    earliness = pd.read_csv(file.format("earliness"), sep=' ').set_index("Dataset")[
+                    column] * 0.01  # earliness is scaled 1-100
+    return accuracy, earliness
+
+
+def plot_accuracyearliness_sota_experiment(ptsepsilon=10, entropy_factor=0.01, compare="mori"):
     csvfile = "data/sota_comparison/runs.csv"
     df = pd.read_csv(csvfile)
+
+    meta = pd.read_csv("data/UCR/DataSummary.csv").set_index("Name")
 
     for alpha in [0.6, 0.7, 0.8, 0.9]:
         data = df.loc[df["earliness_factor"] == alpha].set_index("dataset")
+        data = data.loc[data["ptsepsilon"] == ptsepsilon]
+        data = data.loc[data["entropy_factor"] == entropy_factor]
 
-        A = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv",
-                                       sep=' ').set_index("Dataset")
-        E = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv",
-                                        sep=' ').set_index("Dataset")*0.01
+        if len(data) == 0:
+            print("No runs found for a{} b{} e{}... skipping".format(alpha, entropy_factor, ptsepsilon))
+            continue
 
-        data["ours"] = calc_loss(data["accuracy"],1-data["earliness"],alpha)  * 100
-        data["mori"] = calc_loss(A["a={}".format(alpha)],1-E["a={}".format(alpha)],alpha) * 100
+        cost = calc_loss(data["accuracy"],1-data["earliness"],alpha)
 
-        #data["ours"] = (alpha * data["accuracy"] + (1 - alpha) * data["earliness"]) * 100
-        #data["mori"] = (alpha * A["a={}".format(alpha)] + (1 - alpha) \
-        #                               * E["a={}".format(alpha)]) * 100
+        # average multiple runs
+        data["ours"] = cost.groupby(cost.index).mean()
+        #load_approaches
+
+
+
+        #df = load_approaches(alpha=0.6,relclass_col="t=0.001",edsc_col="t=2.5",ects_col="sup=0.05")
+        if compare=="relclass":
+            accuracy, earliness = load_relclass(alpha)
+        elif compare=="mori":
+            accuracy, earliness = load_mori(alpha)
+
+        data["mori"] = calc_loss(accuracy,1-earliness,alpha)
 
         fig, ax = plot(data, "ours", data, "mori", xlabel="accuracy and earliness Ours (Phase 2)",
-                       ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy and earliness $\alpha={}$".format(alpha))
+                       ylabel=compare + r"SR2-CF2$", hue=np.log10(meta["Train"]),
+                       cbar_label="log # training samples",
+                       title=r"accuracy and earliness $\alpha={}$".format(alpha))
 
-        fname = os.path.join(PLOTS_PATH, "sota_{}_{}.png".format("accuracyearliness", alpha))
+        fname = os.path.join(PLOTS_PATH,compare, "sota_{}_a{}_b{}_e{}.png".format("accuracyearliness", alpha, entropy_factor, ptsepsilon))
+        os.makedirs(os.path.dirname(fname),exist_ok=True)
         print("writing " + fname)
         fig.savefig(fname)
+        plt.clf()
 
-        fname = DATA_PATH + "/accuracyearliness_alpha{}.csv".format(alpha)
+        fname = os.path.join(DATA_PATH, compare,"accuracyearliness_alpha{}.csv".format(alpha))
+        os.makedirs(os.path.dirname(fname), exist_ok=True)
         print("writing " + fname)
         data[["ours", "mori"]].to_csv(fname)
 
-
-
-
-def plot_accuracy_sota_experiment():
+def plot_accuracy_sota_experiment(ptsepsilon=10, entropy_factor=0.01, compare="mori"):
     csvfile = "data/sota_comparison/runs.csv"
-    df = pd.read_csv(csvfile)
+    data = pd.read_csv(csvfile).set_index("dataset")
+    data = data.loc[data["ptsepsilon"] == ptsepsilon]
+    data = data.loc[data["entropy_factor"] == entropy_factor]
 
-    data = pd.DataFrame()
+    meta = pd.read_csv("data/UCR/DataSummary.csv").set_index("Name")
+
+
     for alpha in [0.6, 0.7, 0.8, 0.9]:
+        df = data.loc[data["earliness_factor"] == alpha]
 
-        data = pd.DataFrame()
+        summary = pd.DataFrame()
         for objective in ["accuracy", "earliness"]:
 
-            ours = df.loc[df["earliness_factor"]==alpha].set_index("dataset")
+            ours = df.loc[df["earliness_factor"]==alpha]
+            if len(ours) == 0:
+                print("No runs found for a{} b{} e{}... skipping".format(alpha, entropy_factor, ptsepsilon))
+                continue
+
+            if compare == "relclass":
+                accuracy, earliness = load_relclass(alpha)
+            elif compare == "mori":
+                accuracy, earliness = load_mori(alpha)
+
+            other = pd.DataFrame()
             if objective == "accuracy":
-                compare_raw = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv",
-                                          sep=' ').set_index("Dataset")
+                ours["accuracy"] = ours["accuracy"]
+                other["a={}".format(alpha)] = accuracy
+                summary["ours"] = ours["accuracy"]
+                summary["mori"] = accuracy
 
-                ours["accuracy"] = ours["accuracy"] * 100
-                compare = compare_raw * 100
             elif objective == "earliness":
-                compare = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv",
-                                          sep=' ').set_index("Dataset")
+                other["a={}".format(alpha)] = earliness
+                ours["earliness"] = ours["earliness"]
+                summary["mori"] = other
 
-                ours["earliness"] = ours["earliness"] * 100
+            fig, ax = plot(ours, objective, other, "a={}".format(alpha), xlabel=objective+" Ours (Phase 2)",
+                           ylabel=compare + r" SR2-CF2$", title=objective + r" $\alpha={}$".format(alpha),
+                           hue=np.log10(meta["Train"]), cbar_label="log # training samples")
 
-            fig, ax = plot(ours, objective, compare, "a={}".format(alpha), xlabel=objective+" Ours (Phase 2)",
-                           ylabel=r"Mori et al. (2017) SR2-CF2$", title=objective + r" $\alpha={}$".format(alpha))
-
-            fname = os.path.join(PLOTS_PATH, "sota_{}_{}.png".format(objective,alpha))
+            fname = os.path.join(PLOTS_PATH, compare, "sota_{}_a{}_b{}_e{}.png".format(objective,alpha, entropy_factor, ptsepsilon))
+            os.makedirs(os.path.dirname(fname), exist_ok=True)
             print("writing " + fname)
             fig.savefig(fname)
+            plt.clf()
 
-
-            data["ours"] = ours[objective]
-            data["mori"] = compare["a={}".format(alpha)]
-            fname = DATA_PATH + "/{}_alpha{}.csv".format(objective,alpha)
+            fname = os.path.join(DATA_PATH,compare,"{}_alpha{}.csv".format(objective,alpha))
+            os.makedirs(os.path.dirname(fname), exist_ok=True)
             print("writing " + fname)
-            data[["ours", "mori"]].to_csv(fname)
-
-
-
+            summary[["ours", "mori"]].to_csv(fname)
 
 def plot_accuracy(entropy_factor=0.001):
     
@@ -142,12 +210,13 @@ def plot_accuracy(entropy_factor=0.001):
                 continue
 
             ours = pd.read_csv(csvfile, index_col=0)
-            fig, ax = plot(ours * 100, "phase2_accuracy", compare * 100, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+            fig, ax = plot(ours, "phase2_accuracy", compare, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
                        ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy $\alpha={}$".format(alpha))
 
             fname = os.path.join(PLOTS_PATH, "accuracy_{}_{}.png".format(loss,alpha))
             print("writing "+fname)
             fig.savefig(fname)
+            plt.clf()
 
 def plot_earliness(entropy_factor=0.001):
     
@@ -166,12 +235,13 @@ def plot_earliness(entropy_factor=0.001):
                 continue
 
             ours = pd.read_csv(csvfile, index_col=0)
-            fig, ax = plot(ours * 100, "phase2_earliness", compare, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+            fig, ax = plot(ours, "phase2_earliness", compare, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
                        ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"earliness $\alpha={}$".format(alpha))
 
             fname = os.path.join(PLOTS_PATH, "earliness_{}_{}.png".format(loss, alpha))
             print("writing "+fname)
             fig.savefig(fname)
+            plt.clf()
 
 
 def calc_loss(accuracy,earliness,alpha):
@@ -201,12 +271,13 @@ def plot_earlinessaccuracy(entropy_factor=0.001):
             ours["weighted_score"] = calc_loss(ours["phase2_accuracy"],1-ours["phase2_earliness"]*0.01,alpha)
 
 
-            fig, ax = plot(ours * 100, "weighted_score", pd.DataFrame(compare)*100, "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
+            fig, ax = plot(ours, "weighted_score", pd.DataFrame(compare), "a={}".format(alpha), xlabel="Accuracy Ours (Phase 2)",
                        ylabel=r"Mori et al. (2017) SR2-CF2$", title=r"accuracy and earliness $\alpha={}$".format(alpha))
 
             fname = os.path.join(PLOTS_PATH, "accuracyearliness_{}_{}.png".format(loss, alpha))
             print("writing "+fname)
             fig.savefig(fname)
+            plt.clf()
 
 
 def phase1_vs_phase2_accuracy():
@@ -258,6 +329,7 @@ def phase1_vs_phase2_accuracy():
         print("writing " + fname)
 
         fig.savefig(fname)
+        plt.clf()
 
 def accuracy_vs_earliness():
     
@@ -311,6 +383,7 @@ def accuracy_vs_earliness():
         print("writing " + fname)
 
         fig.savefig(fname)
+        plt.clf()
 
 
 def variance_phase1():
@@ -347,22 +420,27 @@ def variance_phase1():
     fname = os.path.join(PLOTS_PATH, "phase1accuracy.png")
     print("writing " + fname)
     fig.savefig(fname)
+    plt.clf()
 
 def qualitative_figure():
 
     csvfile = "data/sota_comparison/runs.csv"
     df = pd.read_csv(csvfile)
+    df = df.loc[df.entropy_factor == 0]
+    df = df.loc[df.ptsepsilon == 0]
 
-    fig, ax = plt.subplots(figsize=(30, 16))
 
     mori_accuracy = pd.read_csv("data/morietal2017/mori-accuracy-sr2-cf2.csv", sep=' ').set_index("Dataset")
     mori_earliness = pd.read_csv("data/morietal2017/mori-earliness-sr2-cf2.csv", sep=' ').set_index("Dataset")
 
     all_datasets = df["dataset"].unique()
-    selected_datasets = ["TwoPatterns", "Yoga", "Adiac", "UWaveGestureLibraryY", "FaceAll"]
+    #selected_datasets = ["TwoPatterns", "Yoga", "Adiac", "UWaveGestureLibraryY", "FaceAll"]
+    selected_datasets = all_datasets
 
     mori = pd.DataFrame()
     for dataset in selected_datasets:
+
+        fig, ax = plt.subplots(figsize=(30, 16))
 
         mori["accuracy"] = mori_accuracy.loc[dataset]
         mori["earliness"] = mori_earliness.loc[dataset] * 0.01
@@ -370,6 +448,7 @@ def qualitative_figure():
 
         #df3 = df3[~df3.index.duplicated(keep='first')]
         sample = df.loc[df["dataset"] == dataset].sort_values(by="earliness_factor")
+        sample = sample.groupby("earliness_factor").mean()
         ax.plot(sample["accuracy"], sample["earliness"], linestyle='--', marker='o')
         ax.set_xlabel("accuracy")
         ax.set_ylabel("earliness")
@@ -387,15 +466,15 @@ def qualitative_figure():
         print("writing " + fname)
         sample.to_csv(fname)
 
-
         fname = DATA_PATH + "/alphas_mori_{}.csv".format(dataset)
         print("writing " + fname)
         mori.to_csv(fname)
 
-    fname = os.path.join(PLOTS_PATH, "earlinessaccuracy_alldatasets.png")
-    print("writing " + fname)
-    fig.savefig(fname)
-    return
+        fname = os.path.join(PLOTS_PATH, "earlinessaccuracy", "{}.png".format(dataset))
+        os.makedirs(os.path.dirname(fname),exist_ok=True)
+        print("writing " + fname)
+        fig.savefig(fname)
+        plt.clf()
 
 def load_approaches(alpha=0.6,relclass_col="t=0.001",edsc_col="t=2.5",ects_col="sup=0.05"):
     def load(file, column, name):
@@ -450,18 +529,27 @@ def qualitative_figure_single_dataset():
     fname = os.path.join(PLOTS_PATH, "earlinessaccuracy.png")
     print("writing " + fname)
     fig.savefig(fname)
-    return
+    plt.clf()
 
 if __name__=="__main__":
 
-    plot_accuracy(entropy_factor=0.01)
-    plot_earliness(entropy_factor=0.01)
-    plot_earlinessaccuracy(entropy_factor=0.01)
+    #plot_accuracy(entropy_factor=0.01)
+    #plot_earliness(entropy_factor=0.01)
+    #plot_earlinessaccuracy(entropy_factor=0.01)
     #phase1_vs_phase2_accuracy()
     #accuracy_vs_earliness()
     #variance_phase1()
 
-    plot_accuracyearliness_sota_experiment()
-    plot_accuracy_sota_experiment()
+    if False:
+        for compare in ["mori","relclass"]:
+
+            for ptsepsilon in [0,5,10,50]:
+                for entropy_factor in [0,0.01, 0.1]:
+                    plot_accuracyearliness_sota_experiment(ptsepsilon=ptsepsilon, entropy_factor=entropy_factor, compare=compare)
+                    plot_accuracy_sota_experiment(ptsepsilon=ptsepsilon, entropy_factor=entropy_factor, compare=compare)
+
+        plot_accuracyearliness_sota_experiment(ptsepsilon=5, entropy_factor=0.01)
+        plot_accuracy_sota_experiment(ptsepsilon=5, entropy_factor=0.01)
+
     qualitative_figure()
 

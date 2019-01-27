@@ -12,14 +12,14 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
                                   partition="train",
                                   ratio=.8,
                                   randomstate=config["fold"],
-                                  silent=True,
+                                  silent=False,
                                   augment_data_noise=0)
 
         validdataset = UCRDataset(config["dataset"],
                                   partition="valid",
                                   ratio=.8,
                                   randomstate=config["fold"],
-                                  silent=True)
+                                  silent=False)
 
         nclasses = traindataset.nclasses
 
