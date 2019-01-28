@@ -157,18 +157,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
             features_maxpooled.append(f_maxpooled)
         return torch.cat(features_maxpooled, dim=-1)
 
-    def loss_cross_entropy(self, inputs, targets):
-        logits, pts = self._logits(inputs.transpose(1,2))
-        return loss_cross_entropy(logits, targets)
-
-    def early_loss_linear(self, inputs, targets, alpha=None, entropy_factor=0):
-        predicted_logits, pts = self._logits(inputs.transpose(1,2))
-        return early_loss_linear(predicted_logits, pts, targets, alpha, entropy_factor)
-
-    def early_loss_cross_entropy(self, inputs, targets, alpha=None, entropy_factor=0):
-        predicted_logits, pts = self._logits(inputs.transpose(1,2))
-        return early_loss_cross_entropy(predicted_logits, pts, targets, alpha, entropy_factor)
-
     def _init_params(self):
         if self.init_shapelets is not None:
             self.set_shapelets(self.init_shapelets)

@@ -56,38 +56,6 @@ class DualOutputRNN(torch.nn.Module):
         # stack the lists to new tensor (b,d,t,h,w)
         return logits_class, Pts
 
-    def early_loss_linear(self, inputs, targets, alpha=None, entropy_factor=0):
-        """
-        Uses linear 1-P(actual class) loss. and the simple time regularization t/T
-        L = (1-y\hat{y}) - t/T
-        """
-        predicted_logits, Pts = self.forward(inputs)
-        return early_loss_linear(predicted_logits, Pts, targets, alpha, entropy_factor)
-
-    def early_loss_cross_entropy(self, inputs, targets, alpha=None, entropy_factor=0):
-        """
-        Uses linear 1-P(actual class) loss. and the simple time regularization t/T
-        L = (1-y\hat{y}) - t/T
-        """
-        predicted_logits, pts = self.forward(inputs)
-        return early_loss_cross_entropy(predicted_logits, pts, targets, alpha, entropy_factor)
-
-    def loss_cross_entropy(self, inputs, targets):
-
-        predicted_logits, pts = self.forward(inputs)
-        return loss_cross_entropy(predicted_logits, pts, targets)
-
-        logprobabilities = F.log_softmax(predicted_logits, dim=2)
-
-        b,t,c = logprobabilities.shape
-        loss = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t))
-
-        stats = dict(
-            loss=loss,
-        )
-
-        return loss, logprobabilities, Pts ,stats
-
 
     def predict(self, logprobabilities, Pts):
         """

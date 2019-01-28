@@ -177,10 +177,10 @@ class Trainer():
     def check_events(self):
         if self.epoch == 0:
             self.starting_phase_classification_event()
-        elif self.phase1_will_end():
+        if self.phase1_will_end():
             self.ending_phase_classification_event()
             self.starting_phase_earliness_event()
-        elif self.phase2_will_end():
+        if self.phase2_will_end():
             self.ending_phase_earliness_event()
 
     def get_classification_model_name(self):

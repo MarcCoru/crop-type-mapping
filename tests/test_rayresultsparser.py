@@ -14,25 +14,27 @@ class TestRayResultsParser(unittest.TestCase):
 
     def test_load_run_rnn(self):
         parser = RayResultsParser()
-        run = "data/tune_results/rnn/Mallat/RayTrainer_9_fold=9,hidden_dims=128,learning_rate=0.01,num_rnn_layers=1_2018-12-11_20-55-57ohafkid2"
-        accuracy, loss, training_iteration, timestamp, config = parser._load_run(run)
+        runpath = "data/tune_results/rnn/Mallat/RayTrainer_9_fold=9,hidden_dims=128,learning_rate=0.01,num_rnn_layers=1_2018-12-11_20-55-57ohafkid2"
+        run = parser._load_run(runpath)
+        self.assertIsInstance(run, dict)
 
-        self.assertIsInstance(accuracy, float)
-        self.assertIsInstance(loss, float)
-        self.assertIsInstance(training_iteration, int)
-        self.assertIsInstance(timestamp, int)
-        self.assertIsInstance(config, dict)
+        self.assertIsInstance(run["accuracy"], float)
+        self.assertIsInstance(run["loss"], float)
+        self.assertIsInstance(run["training_iteration"], int)
+        self.assertIsInstance(run["timestamp"], int)
+        self.assertIsInstance(run["config"], dict)
 
     def test_load_run_conv1d(self):
         parser = RayResultsParser()
-        run = "data/tune_results/conv1d/CricketY/RayTrainerConv1D_0_fold=0,hidden_dims=25,learning_rate=0.1,num_layers=7,shapelet_width_increment=10_2019-01-04_15-47-51v8e6nzyv"
-        accuracy, loss, training_iteration, timestamp, config = parser._load_run(run)
+        runpath = "data/tune_results/conv1d/CricketY/RayTrainerConv1D_0_fold=0,hidden_dims=25,learning_rate=0.1,num_layers=7,shapelet_width_increment=10_2019-01-04_15-47-51v8e6nzyv"
+        run = parser._load_run(runpath)
+        self.assertIsInstance(run, dict)
 
-        self.assertIsInstance(accuracy, float)
-        self.assertIsInstance(loss, float)
-        self.assertIsInstance(training_iteration, int)
-        self.assertIsInstance(timestamp, int)
-        self.assertIsInstance(config, dict)
+        self.assertIsInstance(run["accuracy"], float)
+        self.assertIsInstance(run["loss"], float)
+        self.assertIsInstance(run["training_iteration"], int)
+        self.assertIsInstance(run["timestamp"], int)
+        self.assertIsInstance(run["config"], dict)
 
 
     def test_load_all_runs_rnn(self):

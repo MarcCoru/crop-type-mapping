@@ -104,14 +104,12 @@ class TestTune(unittest.TestCase):
         dataset = UCRDataset("Wafer")
         self.assertEqual(dataset.y.min(), 0)
         self.assertEqual(dataset.y.max(), 1)
-        self.assertListEqual(dataset.classes,[0,1])
         self.assertEqual(dataset.nclasses, 2)
 
     def test_dataset_start_zero(self):
          dataset = UCRDataset("Lightning7")
          self.assertEqual(dataset.y.min(), 0)
          self.assertEqual(dataset.y.max(), 6)
-         self.assertListEqual(dataset.classes, [0, 1, 2, 3, 4, 5, 6])
          self.assertEqual(dataset.nclasses, 7)
 
 if __name__ == '__main__':
