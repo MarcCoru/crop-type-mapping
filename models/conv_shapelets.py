@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from sklearn.base import BaseEstimator
 import numpy
 import os
+from models.attentionbudget import attentionbudget
+from models.predict import predict
 from models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
 
 from torch.autograd import Variable
@@ -12,61 +14,7 @@ from torch.autograd import Variable
 __author__ = 'Romain Tavenard romain.tavenard[at]univ-rennes2.fr'
 
 class ConvShapeletModel(nn.Module, BaseEstimator):
-    """Convolutional variant of the Learning Time-Series Shapelets model.
-    Convolutional variant means that the local distance computations are
-    replaced, here, by dot products.
 
-
-    Learning Time-Series Shapelets was originally presented in [1]_.
-
-    Parameters
-    ----------
-    n_shapelets_per_size: dict (optional, default: None)
-        Dictionary giving, for each shapelet size (key),
-        the number of such shapelets to be trained (value)
-        None should be used only if `load_from_disk` is set
-    num_layers: int (optional, default: 1)
-        number of convolutional layers that each convolve the input once.
-        num_layers will be ignored if n_shapelets_per_size is specified
-    num_hidden: int (optional, default: 50)
-        number of hidden dinemnsions (number of convolutional kernels) per layers.
-        all layers have the same number of hidden dims.
-        If differnet hidden dims per layer are necessary use n_shapelets_per_size
-        num_hidden will be ignored if n_shapelets_per_size is specified
-    ts_dim: int (optional, default: None)
-        Dimensionality (number of modalities) of the time series considered
-        None should be used only if `load_from_disk` is set
-    n_classes: int (optional, default: None)
-        Number of classes in the classification problem
-        None should be used only if `load_from_disk` is set
-    load_from_disk: str or None (optional, default: None)
-        If not None, the model is built from the path given
-    use_time_as_feature: bool (optional, default: True)
-        insert the time index as additional feature to the input data.
-
-    Note
-    ----
-        This implementation requires a dataset of equal-sized time series.
-
-    Examples
-    --------
-    >>> from tslearn.generators import random_walk_blobs
-    >>> X, y = random_walk_blobs(n_ts_per_blob=20, sz=64, d=1, n_blobs=2)
-    >>> clf = ConvShapeletModel(n_shapelets_per_size={10: 5, 5:3}, ts_dim=1, n_classes=2, epochs=1, verbose=False)
-    >>> shapelets = clf.fit(X, y).get_shapelets()
-    >>> len(shapelets)
-    2
-    >>> shapelets[1].shape  # Sorted by increasing shapelet sizes
-    (5, 10, 1)
-    >>> clf.predict(X).shape
-    (40,)
-    >>> clf.transform(X).shape
-    (40, 8)
-
-    References
-    ----------
-    .. [1] J. Grabocka et al. Learning Time-Series Shapelets. SIGKDD 2014.
-    """
     def __init__(self,
                  num_layers=1,
                  hidden_dims=50,
@@ -173,29 +121,6 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
     def n_shapelets(self):
         return sum(self.n_shapelets_per_size.values())
 
-    def attentionbudget(self, deltas):
-
-        batchsize, sequencelength = deltas.shape
-
-        pts = list()
-
-        initial_budget = torch.ones(batchsize)
-        if torch.cuda.is_available():
-            initial_budget = initial_budget.cuda()
-
-        budget = [initial_budget]
-        for t in range(1,sequencelength):
-            pt = deltas[:,t] * budget[-1]
-            budget.append(budget[-1] - pt)
-            pts.append(pt)
-
-        # last time
-        pt = budget[-1]
-        budget.append(budget[-1] - pt)
-        pts.append(pt)
-
-        return torch.stack(pts,dim=-1), torch.stack(budget,dim=1)
-
     def _batchnorm(self, x):
         x = x.transpose(2, 1)
         x = self.batchnorm_module(x)
@@ -212,7 +137,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         logits = self.logreg_layer(shapelet_features)
         deltas = self.decision_layer(torch.sigmoid(shapelet_features))
         deltas = torch.sigmoid(deltas.squeeze(-1))
-        pts, budget = self.attentionbudget(deltas)
+        pts, budget = attentionbudget(deltas)
         return logits, deltas, pts, budget
 
     def forward(self, x):
@@ -221,61 +146,8 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         return logprobabilities, deltas, pts, budget
 
     @torch.no_grad()
-    def stop(self, delta):
-        # Probability of stopping P(stop)
-        # sample false if delta close to 0 and
-        # sample true  if delta close to 1
-
-        dist = torch.stack([1 - delta, delta], dim=1)
-        return torch.distributions.Categorical(dist).sample().byte()
-
-    @torch.no_grad()
     def predict(self, logprobabilities, deltas):
-        batchsize, sequencelength, nclasses = logprobabilities.shape
-
-        stop = list()
-        for t in range(sequencelength):
-            # stop if sampled true and not stopped previously
-            if t<sequencelength-1:
-                stop_now = self.stop(deltas[:,t])
-                stop.append(stop_now)
-            else:
-                # make sure to stop last
-                last_stop = torch.ones(stop_now.shape).byte()
-                if torch.cuda.is_available():
-                    last_stop = last_stop.cuda()
-                stop.append(last_stop)
-
-        # stack over the time dimension (multiple stops possible)
-        stopped = torch.stack(stop, dim=1).byte()
-
-        # is only true if stopped for the first time
-        first_stops = (stopped.cumsum(1) == 1) & stopped
-
-        # time of stopping
-        t_stop = first_stops.argmax(1)
-
-        # all predictions
-        predictions = logprobabilities.argmax(-1)
-
-        # predictions at time of stopping
-        predictions_at_t_stop = torch.masked_select(predictions, first_stops)
-
-        return predictions_at_t_stop, t_stop
-
-    """ old version prediction based on P(t) <- assumes knowledge about the future...
-    def predict_old(self, logprobabilities, Pts):
-        b, t, c = logprobabilities.shape
-        t_class = Pts.argmax(1)  # [c]
-        eye = torch.eye(t).type(torch.ByteTensor)
-
-        if torch.cuda.is_available():
-            eye = eye.cuda()
-
-        prediction_all_times = logprobabilities.argmax(2)
-        prediction_at_t = torch.masked_select(prediction_all_times, eye[t_class])
-        return prediction_at_t
-    """
+        return predict(logprobabilities, deltas)
 
     def get_shapelets(self):
         shapelets = []
@@ -285,23 +157,7 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         return shapelets
 
     def set_shapelets(self, l_shapelets):
-        """Set shapelet values.
 
-        Parameters
-        ----------
-        l_shapelets: list of Tensors
-            list of Tensors representing the shapelets for each shapelet size,
-            sorted by increasing shapelet size
-
-        Examples
-        --------
-        >>> from tslearn.generators import random_walk_blobs
-        >>> X, y = random_walk_blobs(n_ts_per_blob=20, sz=64, d=1, n_blobs=2)
-        >>> shp_sz10  = torch.zeros([5, 10], dtype=torch.float32)
-        >>> shp_sz5  = torch.zeros([3, 5], dtype=torch.float32)
-        >>> clf = ConvShapeletModel(n_shapelets_per_size={10: 5, 5:3}, ts_dim=1, n_classes=2, epochs=1, verbose=False, init_shapelets=[shp_sz5, shp_sz10])
-        >>> _ = clf.fit(X, y)
-        """
         for shp, block in zip(l_shapelets, self.shapelet_blocks):
             block.weight.data = shp.view(block.weight.shape)
 

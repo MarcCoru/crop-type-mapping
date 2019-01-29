@@ -15,7 +15,6 @@ class Namespace:
 class TestTune(unittest.TestCase):
 
     def test_Tune_Trace_RNN(self):
-        return # TODO fix RNN
 
         try:
             if not ray.is_initialized():
@@ -36,7 +35,6 @@ class TestTune(unittest.TestCase):
             self.fail(self.fail(logging.exception(e)))
 
     def test_Tune_Trace_Conv1d(self):
-        return # TODO fix RNN
 
         try:
             if not ray.is_initialized():
@@ -88,7 +86,7 @@ class TestTune(unittest.TestCase):
             self.fail(self.fail(logging.exception(e)))
 
     def test_tune_mori_datasets_rnn(self):
-        return # TODO fix RNN
+
         if os.path.exists("/tmp/test_rnn"):
             shutil.rmtree("/tmp/test_rnn")
 

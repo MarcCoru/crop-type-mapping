@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import torch.utils.data
 import os
 from models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
+from models.attentionbudget import attentionbudget
+from models.predict import predict
 
 def entropy(p):
     return -(p*torch.log(p)).sum(1)
@@ -23,54 +25,33 @@ class DualOutputRNN(torch.nn.Module):
 
         torch.nn.init.normal_(self.linear_dec.bias, mean=-1e1, std=1e-1)
 
+    def _logits(self, x):
 
-    def forward(self,x):
-
-        outputs, last_state_list = self.lstm.forward(x)
+        outputs, last_state_list = self.lstm.forward(x.transpose(1,2))
 
         b,t,d = outputs.shape
         o_ = outputs.view(b, -1, d).permute(0,2,1)
         outputs = self.bn(o_).permute(0, 2, 1).view(b,t,d)
 
-        logits_class = self.linear_class.forward(outputs)
-        logits_dec = self.linear_dec.forward(outputs)
+        logits = self.linear_class.forward(outputs)
+        deltas = self.linear_dec.forward(outputs)
 
-        proba_dec = torch.sigmoid(logits_dec).squeeze(2)
+        deltas = torch.sigmoid(deltas).squeeze(2)
 
-        Pts = list()
-        proba_not_decided_yet = list([1.])
-        T = proba_dec.shape[1]
-        for t in range(T):
+        pts, budget = attentionbudget(deltas)
 
-            # Probabilities
-            if t < T - 1:
-                Pt = proba_dec[:,t] * proba_not_decided_yet[-1]
-                #proba_not_decided_yet.append(proba_not_decided_yet[-1] * (1.0 - proba_dec))
-                proba_not_decided_yet.append(proba_not_decided_yet[-1] - Pt)
-            else:
-                Pt = proba_not_decided_yet[-1]
-                proba_not_decided_yet.append(0.)
-            Pts.append(Pt)
-        Pts = torch.stack(Pts, dim = 1)
+        return logits, deltas, pts, budget
 
+    def forward(self,x):
+        logits, deltas, pts, budget = self._logits(x)
+
+        logprobabilities = F.log_softmax(logits, dim=2)
         # stack the lists to new tensor (b,d,t,h,w)
-        return logits_class, Pts
+        return logprobabilities, deltas, pts, budget
 
-
-    def predict(self, logprobabilities, Pts):
-        """
-        Get predicted class labels where Pts is highest
-        """
-        b, t, c = logprobabilities.shape
-        t_class = Pts.argmax(1)  # [c]
-        eye = torch.eye(t).type(torch.ByteTensor)
-
-        if torch.cuda.is_available():
-            eye = eye.cuda()
-
-        prediction_all_times = logprobabilities.argmax(2)
-        prediction_at_t = torch.masked_select(prediction_all_times, eye[t_class])
-        return prediction_at_t
+    @torch.no_grad()
+    def predict(self, logprobabilities, deltas):
+        return predict(logprobabilities, deltas)
 
     def save(self, path="model.pth", **kwargs):
         print("\nsaving model to "+path)

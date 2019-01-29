@@ -168,7 +168,6 @@ class TestTrain(unittest.TestCase):
         self.assertTrue(os.path.exists("/tmp/unittest/model_1.pth"))
 
     def test_train_DualOutputRNN(self):
-        return # TODO fix DualOutputRNN
 
         args = Namespace(
             batchsize=128,

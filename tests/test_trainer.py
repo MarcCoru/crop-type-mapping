@@ -24,7 +24,6 @@ def cleanup():
 class TestTrainer(unittest.TestCase):
 
     def test_Trainer_Synthetic(self):
-        return # TODO fix DualOutputRNN
 
         try:
             traindataset = SyntheticDataset(num_samples=2000, T=100)
