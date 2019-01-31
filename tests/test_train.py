@@ -89,7 +89,7 @@ class TestTrain(unittest.TestCase):
 
     def test_readHyperparameterCSV_conv1d(self):
         args = Namespace(
-            hyperparametercsv="data/hyperparams_conv1d.csv",
+            hyperparametercsv="tests/data/hyperparams_conv1d.csv",
             dataset="Trace",
             num_layers=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             hidden_dims=999,  # <- should be overwritten by the csv file, but datatype should be preserved
@@ -113,7 +113,7 @@ class TestTrain(unittest.TestCase):
 
     def test_readHyperparameterCSV_rnn(self):
         args = Namespace(
-            hyperparametercsv="data/hyperparams_rnn.csv",
+            hyperparametercsv="tests/data/hyperparams_rnn.csv",
             dataset="Trace",
             num_rnn_layers=999,  # <- should be overwritten by the csv file, but datatype should be preserved
             hidden_dims=999,  # <- should be overwritten by the csv file, but datatype should be preserved
@@ -142,7 +142,7 @@ class TestTrain(unittest.TestCase):
             switch_epoch=1,
             experiment='test',
             hidden_dims=50,
-            hyperparametercsv="data/hyperparams_conv1d.csv",
+            hyperparametercsv="tests/data/hyperparams_conv1d.csv",
             learning_rate=0.01,
             loss_mode='twophase_linear_loss',
             model='Conv1D',
@@ -177,7 +177,7 @@ class TestTrain(unittest.TestCase):
             switch_epoch=1,
             experiment='test',
             hidden_dims=50,
-            hyperparametercsv="data/hyperparams_rnn.csv",
+            hyperparametercsv="tests/data/hyperparams_rnn.csv",
             learning_rate=0.01,
             loss_mode='twophase_linear_loss',
             model='DualOutputRNN',
@@ -212,7 +212,7 @@ class TestTrain(unittest.TestCase):
             switch_epoch=1,
             experiment='test',
             hidden_dims=50,
-            hyperparametercsv="data/hyperparams_rnn.csv",
+            hyperparametercsv="tests/data/hyperparams_rnn.csv",
             learning_rate=0.01,
             loss_mode='twophase_linear_loss',
             model='AttentionRNN',
@@ -243,7 +243,7 @@ class TestTrain(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_dataset_names(
                 Namespace(
-                    hyperparametercsv="data/hyperparams_conv1d.csv",
+                    hyperparametercsv="tests/data/hyperparams_conv1d.csv",
                     datasets=["Trace","Someotherdataset","TwoPatterns"]
                 )
             )
@@ -267,23 +267,23 @@ class TestTrain(unittest.TestCase):
 
         args = parse_dataset_names(
             Namespace(
-                hyperparametercsv="data/hyperparams_conv1d.csv",
+                hyperparametercsv="tests/data/hyperparams_conv1d.csv",
                 datasets=None
             )
         )
-        self.assertEqual(len(args.datasets), 38, "expected 38 datasets in 'data/hyperparams_conv1d.csv'")
+        self.assertEqual(len(args.datasets), 38, "expected 38 datasets in 'tests/data/hyperparams_conv1d.csv'")
 
         args = parse_dataset_names(
             Namespace(
-                hyperparametercsv="data/hyperparams_conv1d.csv",
+                hyperparametercsv="tests/data/hyperparams_conv1d.csv",
                 datasets=["TwoPatterns","InlineSkate"]
             )
         )
         self.assertEqual(args.datasets, ["TwoPatterns","InlineSkate"], "expected 2 datasets that are also "
-                                                                       "present in 'data/hyperparams_conv1d.csv'")
+                                                                       "present in 'tests/data/hyperparams_conv1d.csv'")
 
     def test_get_datasets_from_hyperparametercsv(self):
-        datasets = get_datasets_from_hyperparametercsv("data/hyperparams_conv1d.csv")
+        datasets = get_datasets_from_hyperparametercsv("tests/data/hyperparams_conv1d.csv")
 
         ref_datasets = ['NonInvasiveFatalECGThorax2',  'SonyAIBORobotSurface2',  'MoteStrain',  'CricketZ',  'FacesUCR',  'NonInvasiveFatalECGThorax1',  'SwedishLeaf',  'Symbols',  'FaceAll',  'GunPoint',  'OSULeaf',  'StarLightCurves',  'DiatomSizeReduction',  'FiftyWords',  'CBF',  'WordSynonyms',  'ECGFiveDays',  'TwoLeadECG',  'CricketX',  'FaceFour',  'Mallat',  'OliveOil',  'UWaveGestureLibraryX',  'SonyAIBORobotSurface1',  'Haptics',  'Trace',  'Yoga',  'SyntheticControl',  'Fish',  'Adiac',  'ChlorineConcentration',  'CricketY',  'CinCECGTorso',  'Beef',  'InlineSkate',  'MedicalImages',  'ItalyPowerDemand',  'TwoPatterns']
 

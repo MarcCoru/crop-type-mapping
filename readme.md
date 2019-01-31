@@ -1,5 +1,26 @@
-End-to-end Learning for Early Classification of Time Series
+End-to-end Learning for Early Classification of Time Series (ELECTS)
 ===
+
+### Paper
+
+https://arxiv.org/abs/1901.10681
+
+<img src="docs/img/conv1d.png"/>
+
+### Dependencies
+
+### Visdom
+
+The current version requires a Visdom server
+```
+visdom # open browser localhost 8097
+```
+
+### tests
+
+```
+python -m unittest discover tests
+```
 
 ### DGX set up
 
@@ -24,13 +45,6 @@ pip install numpy psutil
 pip install --upgrade pip
 pip install torch scikit-learn pandas visdom ray matplotlib seaborn
 pip install git+https://github.com/marccoru/tslearn.git
-```
-
-#### Unittests
-
-```bash
-cd tests
-python -m unittest discover
 ```
 
 #### Docker details
