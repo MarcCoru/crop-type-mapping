@@ -12,13 +12,36 @@ train.py
 ##### Train and Evaluate
 
 ```angular2
-python eval.py
+python eval.py -m DualOutputRNN -e 60 -b 128 -w 4 -i 20 -d TwoPatterns --dropout 0.2 --run evalearliness --store /tmp --hparams /data/remote/hyperparams_mori_fixed/hyperparams.csv --switch_epoch 0 --load_weights /data/remote/early_rnn/cross_entropy_e30/models/TwoPatterns/run/model_29.pth -i 1 --loss_mode twophase_linear_loss --earliness_factor .8 --entropy_factor 10
+```
+
+```angular2
+python evalUCR.py -m DualOutputRNN --switch_epoch 30 -e 60 -b 64 -w 4 -i 20 --dropout .2 --root /data/remote/early_rnn --experiment 2phase --loss_mode twophase_linear_loss --earliness_factor 0.9 --weight_folder /data/remote/early_rnn/cross_entropy_e30/models --hparams /data/remote/hyperparams_mori_fixed/hyperparams.csv
+```
+
+```angular2
+python utils/rayresultsparser.py "/data/remote/early_rnn/sota_comparison"
+```
+
+```angular2
+python train.py -d TwoPatterns -m Conv1D --hyperparametercsv /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv --loss_mode twophase_cross_entropy -x test --train_on trainvalid --test_on test -e 10 -s 5 -b 32 --dropout 0.5 -w 4 -i 1 --entropy-factor 0.01 -a .7 --test_every_n_epochs 1 --store /tmp/run
+python train.py -d Symbols -m DualOutputRNN --loss_mode twophase_linear_loss -x test --train_on trainvalid --test_on test -r 20 -n 5 -l 0.1 -e 20 -s 10 -b 128 --dropout 0.5 -w 4 -i 1 -a .9 --store /tmp/rnn
+python train.py -d TwoPatterns -m Conv1D --hyperparametercsv /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv --loss_mode twophase_linear_loss -x test --train_on train --test_on valid -r 20 -n 1 -l 0.01 -e 15 -s 5 -b 64 --shapelet_width_increment 30 --dropout 0.5 -w 4 -i 1 --ptsepsilon 0 --entropy-factor 0 -a 0.6 --overwrite --test_every_n_epochs 1 --store /tmp/run
+python train.py -d TwoPatterns -m Conv1D --hyperparametercsv /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv --loss_mode twophase_cross_entropy -x test --train_on trainvalid --test_on test -e 10 -s 5 -b 32 --dropout 0.5 -w 4 -i 1 --entropy-factor 0.01 -a .7 --test_every_n_epochs 1 --store /tmp/run
 ```
 
 ##### tune hyperparameters
 
 ```angular2
-tune.py
+tune.py test_conv1d -d experiments/morietal2017/UCR_dataset_names.txt -b 128 -c 2 -g 0
+```
+
+```angular2
+python evalUCRwithRay.py /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv -x entropy_pts -b 16 -c 2 -g .25 --skip-processed -r /tmp
+```
+
+```angular2
+python runresultsparser.py
 ```
 
 ### Dependencies
