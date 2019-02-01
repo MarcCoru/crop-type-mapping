@@ -5,10 +5,13 @@ End-to-end Learning for Early Classification of Time Series (ELECTS)
 
 https://arxiv.org/abs/1901.10681
 
-<img src="docs/img/conv1d.png"/>
+<img width=200px src="docs/conv1d.png"/>
 
-### Paper 
-https://github.com/MarcCoru/ICML19
+### Doc repositories
+
+for paper see https://github.com/MarcCoru/ICML19
+
+for presentation see github.com/MarcCoru/early_classification.git
 
 ### Download data
 
