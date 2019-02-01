@@ -6,7 +6,7 @@ sns.set_style("white")
 
 import numpy as np
 
-PLOTS_PATH = "plots"
+PLOTS_PATH = "png"
 DATA_PATH = "csv"
 
 
