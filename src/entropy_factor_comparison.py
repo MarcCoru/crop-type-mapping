@@ -1,16 +1,14 @@
 import ray
 import ray.tune as tune
 import argparse
-from utils.raytrainer import RayTrainerDualOutputRNN, RayTrainerConv1D
-import datetime
 import os
 import sys
 from utils.rayresultsparser import RayResultsParser
-from utils.UCR_Dataset import UCRDataset
+from src.utils.UCR_Dataset import UCRDataset
 from models.conv_shapelets import ConvShapeletModel
 import torch
 from utils.trainer import Trainer
-from train import get_datasets_from_hyperparametercsv, readHyperparameterCSV
+from train import get_datasets_from_hyperparametercsv
 import pandas as pd
 import logging
 

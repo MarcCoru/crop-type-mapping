@@ -2,7 +2,7 @@ import sys
 sys.path.append("..")
 
 import unittest
-from utils.UCR_Dataset import UCRDataset
+from src.utils.UCR_Dataset import UCRDataset
 
 class TestTune(unittest.TestCase):
 

@@ -1,7 +1,7 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
 from models.AttentionRNN import AttentionRNN
-from utils.UCR_Dataset import UCRDataset
+from src.utils.UCR_Dataset import UCRDataset
 from utils.Synthetic_Dataset import SyntheticDataset
 import argparse
 import numpy as np

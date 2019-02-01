@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import os
-from models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
-from models.attentionbudget import attentionbudget
-from models.predict import predict
+from src.models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
+from src.models.attentionbudget import attentionbudget
+from src.models.predict import predict
 
 def entropy(p):
     return -(p*torch.log(p)).sum(1)

@@ -1,11 +1,11 @@
 import ray
 import ray.tune as tune
 import argparse
-from utils.raytrainer import RayTrainerDualOutputRNN, RayTrainerConv1D
+from src.utils.raytrainer import RayTrainerDualOutputRNN, RayTrainerConv1D
 import datetime
 import os
 import sys
-from utils.rayresultsparser import RayResultsParser
+from src.utils.rayresultsparser import RayResultsParser
 
 
 def parse_args():

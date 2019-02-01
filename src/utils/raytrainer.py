@@ -1,8 +1,8 @@
-from models.DualOutputRNN import DualOutputRNN
-from models.conv_shapelets import ConvShapeletModel
-from utils.UCR_Dataset import UCRDataset
+from src.models.DualOutputRNN import DualOutputRNN
+from src.models.conv_shapelets import ConvShapeletModel
+from src.utils.UCR_Dataset import UCRDataset
 import torch
-from utils.trainer import Trainer
+from src.utils.trainer import Trainer
 import ray.tune
 
 class RayTrainerDualOutputRNN(ray.tune.Trainable):

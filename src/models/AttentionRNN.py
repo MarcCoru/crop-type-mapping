@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
-from models.convlstm.convlstm import ConvLSTM
-from models import AttentionModule
+from src.models import AttentionModule
+
 
 class AttentionRNN(torch.nn.Module):
     def __init__(self, input_dim=3, hidden_dims=3, input_size=(1,1), kernel_size=(1,1), nclasses=5, num_rnn_layers=1, dropout=.8):

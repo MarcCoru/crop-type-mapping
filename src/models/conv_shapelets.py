@@ -1,13 +1,11 @@
 import torch.nn as nn
-import torch.optim as optim
 import torch
 import torch.nn.functional as F
 from sklearn.base import BaseEstimator
 import numpy
 import os
-from models.attentionbudget import attentionbudget
-from models.predict import predict
-from models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
+from src.models.attentionbudget import attentionbudget
+from src.models.predict import predict
 
 from torch.autograd import Variable
 

@@ -1,8 +1,5 @@
 import torch
 import torch.utils.data
-import numpy
-import tslearn
-import numpy as np
 import pandas as pd
 import os
 

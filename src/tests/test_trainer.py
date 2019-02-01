@@ -1,13 +1,13 @@
 import sys
 sys.path.append("..")
 
-from utils.trainer import Trainer, CLASSIFICATION_PHASE_NAME, EARLINESS_PHASE_NAME
-from utils.Synthetic_Dataset import SyntheticDataset
-from utils.UCR_Dataset import UCRDataset
-from models.DualOutputRNN import DualOutputRNN
-from models.AttentionRNN import AttentionRNN
-from models.conv_shapelets import ConvShapeletModel
-from models.conv_shapelets import build_n_shapelet_dict
+from src.utils.trainer import Trainer, CLASSIFICATION_PHASE_NAME, EARLINESS_PHASE_NAME
+from src.utils.Synthetic_Dataset import SyntheticDataset
+from src.utils.UCR_Dataset import UCRDataset
+from src.models.DualOutputRNN import DualOutputRNN
+from src.models.AttentionRNN import AttentionRNN
+from src.models.conv_shapelets import ConvShapeletModel
+from src.models.conv_shapelets import build_n_shapelet_dict
 import torch
 import logging
 import os

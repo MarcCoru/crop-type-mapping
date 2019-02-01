@@ -6,7 +6,7 @@ import datetime
 import os
 import sys
 from utils.rayresultsparser import RayResultsParser
-from utils.UCR_Dataset import UCRDataset
+from src.utils.UCR_Dataset import UCRDataset
 from models.conv_shapelets import ConvShapeletModel
 import torch
 from utils.trainer import Trainer
