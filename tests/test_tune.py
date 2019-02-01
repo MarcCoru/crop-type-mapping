@@ -12,6 +12,7 @@ class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
+@unittest.skip("skip longtuning tests")
 class TestTune(unittest.TestCase):
 
     def test_Tune_Trace_RNN(self):
