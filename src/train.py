@@ -1,9 +1,8 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
-from models.AttentionRNN import AttentionRNN
-from models.conv_shapelets import ConvShapeletModel
-from src.utils.UCR_Dataset import UCRDataset
-from utils.Synthetic_Dataset import SyntheticDataset
+from models.ConvShapeletModel import ConvShapeletModel
+from datasets.UCR_Dataset import UCRDataset
+from datasets.Synthetic_Dataset import SyntheticDataset
 import argparse
 from argparse import Namespace
 from utils.trainer import Trainer
@@ -214,9 +213,6 @@ def getModel(args):
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=1, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
                               num_rnn_layers=args.num_layers, dropout=args.dropout)
-    elif args.model == "AttentionRNN":
-        model = AttentionRNN(input_dim=1, nclasses=args.nclasses, hidden_dims=args.hidden_dims, num_rnn_layers=args.num_layers,
-                             dropout=args.dropout)
     elif args.model == "Conv1D":
         model = ConvShapeletModel(num_layers=args.num_layers,
                                   hidden_dims=args.hidden_dims,
@@ -228,7 +224,7 @@ def getModel(args):
                                   drop_probability=args.dropout,
                                   shapelet_width_increment=args.shapelet_width_increment)
     else:
-        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN', 'AttentionRNN', or 'Conv1D'")
+        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN', or 'Conv1D'")
 
     if torch.cuda.is_available():
         model = model.cuda()

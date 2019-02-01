@@ -59,18 +59,6 @@ class TestTrain(unittest.TestCase):
 
         self.assertTrue(len(model.state_dict()) == 13)
 
-    def test_getModel_AttentionRNN(self):
-        args = Namespace(
-            model="AttentionRNN",
-            nclasses=2,
-            hidden_dims=25,
-            num_layers=2,
-            dropout=0.3)
-
-        model = getModel(args)
-
-        self.assertTrue(len(model.state_dict()) == 23)
-
     def test_getModel_Conv1D(self):
         args = Namespace(
             model="Conv1D",

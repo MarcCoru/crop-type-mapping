@@ -1,7 +1,5 @@
 import torch
 import torch.utils.data
-import numpy
-import tslearn
 import numpy as np
 
 from tslearn.datasets import UCR_UEA_datasets

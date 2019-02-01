@@ -1,17 +1,13 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from sklearn.base import BaseEstimator
 import numpy
 import os
-from src.models.attentionbudget import attentionbudget
-from src.models.predict import predict
+from models.EarlyClassificationModel import EarlyClassificationModel
 
-from torch.autograd import Variable
+__author__ = 'Romain Tavenard romain.tavenard[at]univ-rennes2.fr and Marc Russwurm marc.russwurm[at]tum.de'
 
-__author__ = 'Romain Tavenard romain.tavenard[at]univ-rennes2.fr'
-
-class ConvShapeletModel(nn.Module, BaseEstimator):
+class ConvShapeletModel(EarlyClassificationModel):
 
     def __init__(self,
                  num_layers=1,
@@ -135,17 +131,13 @@ class ConvShapeletModel(nn.Module, BaseEstimator):
         logits = self.logreg_layer(shapelet_features)
         deltas = self.decision_layer(torch.sigmoid(shapelet_features))
         deltas = torch.sigmoid(deltas.squeeze(-1))
-        pts, budget = attentionbudget(deltas)
+        pts, budget = self.attentionbudget(deltas)
         return logits, deltas, pts, budget
 
     def forward(self, x):
         logits, deltas, pts, budget = self._logits(x)
         logprobabilities = F.log_softmax(logits, dim=2)
         return logprobabilities, deltas, pts, budget
-
-    @torch.no_grad()
-    def predict(self, logprobabilities, deltas):
-        return predict(logprobabilities, deltas)
 
     def get_shapelets(self):
         shapelets = []

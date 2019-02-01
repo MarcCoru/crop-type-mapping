@@ -1,13 +1,12 @@
 import sys
 sys.path.append("..")
 
-from src.utils.trainer import Trainer, CLASSIFICATION_PHASE_NAME, EARLINESS_PHASE_NAME
-from src.utils.Synthetic_Dataset import SyntheticDataset
-from src.utils.UCR_Dataset import UCRDataset
-from src.models.DualOutputRNN import DualOutputRNN
-from src.models.AttentionRNN import AttentionRNN
-from src.models.conv_shapelets import ConvShapeletModel
-from src.models.conv_shapelets import build_n_shapelet_dict
+from utils.trainer import Trainer, CLASSIFICATION_PHASE_NAME, EARLINESS_PHASE_NAME
+from datasets.Synthetic_Dataset import SyntheticDataset
+from datasets.UCR_Dataset import UCRDataset
+from models.DualOutputRNN import DualOutputRNN
+from models.ConvShapeletModel import ConvShapeletModel
+from models.ConvShapeletModel import build_n_shapelet_dict
 import torch
 import logging
 import os
@@ -59,7 +58,6 @@ class TestTrainer(unittest.TestCase):
             self.fail(logging.exception(e))
 
     def test_Trainer_TwoPatterns(self):
-        return # TODO fixAttentionRNN
 
         try:
             traindataset = UCRDataset("TwoPatterns", partition="train", ratio=.75, randomstate=0,
@@ -92,48 +90,6 @@ class TestTrainer(unittest.TestCase):
 
             trainer = Trainer(model, traindataloader, validdataloader, **config)
             trainer.fit()
-        except Exception as e:
-            self.fail(logging.exception(e))
-
-    def test_Trainer_AttentionRNN_TwoPatterns(self):
-        return # TODO fix AttentionRNN
-
-        try:
-            traindataset = UCRDataset("TwoPatterns", partition="train", ratio=.75, randomstate=0,
-                                      augment_data_noise=.1)
-            validdataset = UCRDataset("TwoPatterns", partition="valid", ratio=.75, randomstate=0)
-            nclasses = traindataset.nclasses
-            traindataloader = torch.utils.data.DataLoader(traindataset, batch_size=8, shuffle=True,
-                                                          num_workers=0, pin_memory=True)
-
-            validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=8, shuffle=False,
-                                                          num_workers=0, pin_memory=True)
-
-            model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dims=20,
-                                 num_rnn_layers=1,
-                                 dropout=.2)
-
-            if torch.cuda.is_available():
-                model = model.cuda()
-
-            config = dict(
-                epochs=1,
-                learning_rate=1e-3,
-                earliness_factor=.75,
-                visdomenv="unittest",
-                switch_epoch=3, # epochs > switch_epoch <- trainer should never enter earliness phase
-                loss_mode="loss_cross_entropy",
-                show_n_samples=0,
-                test_every_n_epochs=2,
-                store="/tmp",
-                overwrite=True
-            )
-
-            trainer = Trainer(model, traindataloader, validdataloader, **config)
-            trainer.fit()
-
-            # trainer should never enter earliness phase because config: epochs < switch_epoch
-            self.assertEqual(trainer.get_phase(), CLASSIFICATION_PHASE_NAME)
         except Exception as e:
             self.fail(logging.exception(e))
 

@@ -1,8 +1,7 @@
 import torch
 from models.DualOutputRNN import DualOutputRNN
-from models.AttentionRNN import AttentionRNN
-from src.utils.UCR_Dataset import UCRDataset
-from utils.Synthetic_Dataset import SyntheticDataset
+from datasets.UCR_Dataset import UCRDataset
+from datasets.Synthetic_Dataset import SyntheticDataset
 import argparse
 import numpy as np
 import os
@@ -100,9 +99,6 @@ def eval(
     if modelname == "DualOutputRNN":
         model = DualOutputRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims,
                               num_rnn_layers=num_rnn_layers, dropout=dropout)
-    elif modelname == "AttentionRNN":
-        model = AttentionRNN(input_dim=1, nclasses=nclasses, hidden_dim=hidden_dims, num_rnn_layers=num_rnn_layers,
-                             dropout=dropout)
     else:
         raise ValueError("Invalid Model, Please insert either 'DualOutputRNN' or 'AttentionRNN'")
 

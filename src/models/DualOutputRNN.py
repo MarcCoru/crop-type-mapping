@@ -3,14 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import os
-from src.models.loss_functions import early_loss_linear, early_loss_cross_entropy, loss_cross_entropy
-from src.models.attentionbudget import attentionbudget
-from src.models.predict import predict
-
+from models.EarlyClassificationModel import EarlyClassificationModel
 def entropy(p):
     return -(p*torch.log(p)).sum(1)
 
-class DualOutputRNN(torch.nn.Module):
+class DualOutputRNN(EarlyClassificationModel):
     def __init__(self, input_dim=1, hidden_dims=3, nclasses=5, num_rnn_layers=1, dropout=0.2):
 
         super(DualOutputRNN, self).__init__()
@@ -38,7 +35,7 @@ class DualOutputRNN(torch.nn.Module):
 
         deltas = torch.sigmoid(deltas).squeeze(2)
 
-        pts, budget = attentionbudget(deltas)
+        pts, budget = self.attentionbudget(deltas)
 
         return logits, deltas, pts, budget
 
@@ -48,10 +45,6 @@ class DualOutputRNN(torch.nn.Module):
         logprobabilities = F.log_softmax(logits, dim=2)
         # stack the lists to new tensor (b,d,t,h,w)
         return logprobabilities, deltas, pts, budget
-
-    @torch.no_grad()
-    def predict(self, logprobabilities, deltas):
-        return predict(logprobabilities, deltas)
 
     def save(self, path="model.pth", **kwargs):
         print("\nsaving model to "+path)

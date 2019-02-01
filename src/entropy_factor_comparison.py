@@ -4,8 +4,8 @@ import argparse
 import os
 import sys
 from utils.rayresultsparser import RayResultsParser
-from src.utils.UCR_Dataset import UCRDataset
-from models.conv_shapelets import ConvShapeletModel
+from datasets.UCR_Dataset import UCRDataset
+from models.ConvShapeletModel import ConvShapeletModel
 import torch
 from utils.trainer import Trainer
 from train import get_datasets_from_hyperparametercsv

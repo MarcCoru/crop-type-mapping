@@ -5,7 +5,7 @@ sys.path.append("..")
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import numpy as np
 import unittest
-from models.conv_shapelets import ConvShapeletModel, add_time_feature_to_input
+from models.ConvShapeletModel import ConvShapeletModel, add_time_feature_to_input
 import torch
 import logging
 

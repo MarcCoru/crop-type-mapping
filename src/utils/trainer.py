@@ -1,8 +1,10 @@
 import torch
 from utils.classmetric import ClassMetric
-from utils.logger import Printer, VisdomLogger, Logger
+from utils.logger import Logger
+from utils.printer import Printer
+from utils.visdomLogger import VisdomLogger
 import os
-from models.loss_functions import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear
+from loss import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear
 
 CLASSIFICATION_PHASE_NAME="classification"
 EARLINESS_PHASE_NAME="earliness"

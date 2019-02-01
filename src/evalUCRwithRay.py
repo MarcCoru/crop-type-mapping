@@ -1,16 +1,13 @@
 import ray
 import ray.tune as tune
 import argparse
-from utils.raytrainer import RayTrainerDualOutputRNN, RayTrainerConv1D
-import datetime
 import os
 import sys
-from utils.rayresultsparser import RayResultsParser
-from src.utils.UCR_Dataset import UCRDataset
-from models.conv_shapelets import ConvShapeletModel
+from datasets.UCR_Dataset import UCRDataset
+from models.ConvShapeletModel import ConvShapeletModel
 import torch
 from utils.trainer import Trainer
-from train import get_datasets_from_hyperparametercsv, readHyperparameterCSV
+from train import get_datasets_from_hyperparametercsv
 import pandas as pd
 import logging
 
@@ -18,7 +15,6 @@ def main():
     # parse input arguments
     args = parse_args()
     run_experiment_on_datasets(args)
-
 
 def parse_args():
     parser = argparse.ArgumentParser("e.g. execute: /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv -b 16 -c 2 -g .25 --skip-processed -r /tmp")
@@ -120,8 +116,6 @@ def run_experiment_on_datasets(args):
 
     :param args: argparse arguments forwarded further
     """
-    rayresultparser = RayResultsParser()
-
     datasets = get_datasets_from_hyperparametercsv(args.hyperparametercsv)
     resultsdir = os.path.join(args.local_dir, "sota_comparison")
     args.local_dir = resultsdir
