@@ -1,6 +1,52 @@
 End-to-end Learning for Early Classification of Time Series (ELECTS)
 ===
 
+### Experiments
+
+#### Produce Table 2
+
+```bash
+$python winloosetables.py
+
+& mori & relclass & edsc & ects \\
+\cmidrule(lr){1-1}\cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-4}
+$0.6$ & 7 / \textbf{38} & \textbf{31} / 14 & \textbf{34} / 8 & \textbf{40} / 5 \\
+$0.7$ & 3 / \textbf{42} & \textbf{28} / 17 & \textbf{28} / 14 & \textbf{35} / 10 \\
+$0.8$ & 5 / \textbf{40} & \textbf{23} / 22 & \textbf{30} / 12 & \textbf{34} / 11 \\
+$0.9$ & 12 / \textbf{33} & 19 / \textbf{26} & \textbf{33} / 9 & \textbf{26} / 19 \\
+```
+#### Figure 7 and Figure 8
+
+writes data to `viz/csv` and some preliminary plots to `viz/png`
+```angular2
+python viz.py
+```
+
+
+#### Figures 5 and 6
+
+start visdom server by typing `visdom` and browser navigate to `http://localhost:8097`
+
+start training
+```
+python train.py -d TwoPatterns \
+    -m Conv1D \
+    --hyperparametercsv /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv \
+    --loss_mode twophase_linear_loss \
+    -x test \
+    --train_on train \
+    --test_on valid \
+    -b 64 \
+    --dropout 0.5 -w 4 \
+    -i 1 \
+    -a 0.6 \
+    --overwrite \
+    --test_every_n_epochs 1 \
+    --store /tmp/run
+```
+
+
+
 ### Scripts
 
 ##### Train single dataset with visdom logging
@@ -43,6 +89,7 @@ python evalUCRwithRay.py /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hype
 ```angular2
 python runresultsparser.py
 ```
+
 
 ### Dependencies
 

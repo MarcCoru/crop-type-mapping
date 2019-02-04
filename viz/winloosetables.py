@@ -301,16 +301,16 @@ if __name__=="__main__":
     print("SOTA score")
     parse_sota(mode="score")
 
-    print("SOTA accuracy")
-    parse_sota(mode="accuracy")
+    #print("SOTA accuracy")
+    #parse_sota(mode="accuracy")
 
-    print("SOTA earliness")
-    parse_sota(mode="earliness")
+    #print("SOTA earliness")
+    #parse_sota(mode="earliness")
 
-    print("BETAS")
-    parse_domination_more_betas()
+    #print("BETAS")
+    #parse_domination_more_betas()
 
-    print("INTER BETAS")
-    parse_domination_inter_betas()
+    #print("INTER BETAS")
+    #parse_domination_inter_betas()
 
-    parse_accuracy_all()
+    #parse_accuracy_all()
