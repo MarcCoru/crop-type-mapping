@@ -1,1 +1,0 @@
--m DualOutputRNN --loss_mode twophase_linear_loss -r 120 -n 3 -l 0.0005 -e 30 -b 30 -w 4 -i 20 -d TwoPatterns --dropout .2 -a .75 --store /tmp

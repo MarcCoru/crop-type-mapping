@@ -29,7 +29,7 @@ def list_UCR_datasets():
 
 class UCRDataset(torch.utils.data.Dataset):
     """
-    A torch wrapper around tslearn UCR datasets
+    A torch wrapper around tslearn UCR_Datasets datasets
     """
 
     def __init__(self, name, partition="train", ratio=.75, randomstate=0, silent=True, augment_data_noise=0):

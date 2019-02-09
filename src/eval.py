@@ -11,7 +11,7 @@ import pandas as pd
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-d','--dataset', type=str, default="Trace", help='UCR Dataset. Will also name the experiment')
+        '-d','--dataset', type=str, default="Trace", help='UCR_Datasets Dataset. Will also name the experiment')
     parser.add_argument(
         '-b', '--batchsize', type=int, default=32, help='Batch Size')
     parser.add_argument(

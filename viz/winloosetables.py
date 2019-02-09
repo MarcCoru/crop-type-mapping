@@ -137,25 +137,26 @@ def parse_winloose_score_accuracy_only(dataframe, compare="mori", alpha=None, mo
         return r"{won} / {lost}".format(won = won, lost=lost)
 
 
-def parse_sota(mode="score"):
+def parse_sota(mode="score", runscsv = "data/sota_comparison/runs.csv", comparepath="data/morietal2017"):
 
     approaches = ["mori", "relclass", "edsc", "ects"] # "e0",
 
-    print(r"& " + " & ".join(approaches) + r" \\")
-    print("".join(["\cmidrule(lr){" + str(i) + "-" + str(i) + "}" for i in range(1, len(approaches) + 1)]))
+    outstring = list()
+    outstring.append(r"& " + " & ".join(approaches) + r" \\")
+    outstring.append("".join(["\cmidrule(lr){" + str(i) + "-" + str(i) + "}" for i in range(1, len(approaches) + 1)]))
 
     for alpha in [0.6, 0.7, 0.8, 0.9]: # , 0.7, 0.8, 0.8
 
         relclass_col, ects_col, edsc_col = choose_params(alpha)
 
-        mori = load("data/morietal2017/mori-{}-sr2-cf2.csv", "a={}".format(alpha), "mori")
-        relclass = load("data/morietal2017/relclass-{}-gaussian-quadratic-set.csv", relclass_col, "relclass")
-        edsc = load("data/morietal2017/edsc-{}.csv", edsc_col, "edsc")
-        ects = load("data/morietal2017/ects-{}-strict-method.csv", ects_col, "ects")
+        mori = load(comparepath+"/mori-{}-sr2-cf2.csv", "a={}".format(alpha), "mori")
+        relclass = load(comparepath+"/relclass-{}-gaussian-quadratic-set.csv", relclass_col, "relclass")
+        edsc = load(comparepath+"/edsc-{}.csv", edsc_col, "edsc")
+        ects = load(comparepath+"/ects-{}-strict-method.csv", ects_col, "ects")
 
         # ours regularized based on beta = 0.01 and epsilon=5/T
         def load_ours(ptsepsilon, entropy_factor):
-            df = pd.read_csv("data/sota_comparison/runs.csv")
+            df = pd.read_csv(runscsv)
             df = df.loc[df.ptsepsilon == ptsepsilon]
             df = df.loc[df.entropy_factor == entropy_factor]
             ours = df.loc[df.earliness_factor == alpha].set_index("dataset")[["accuracy", "earliness"]].sort_values(by="accuracy")
@@ -168,9 +169,9 @@ def parse_sota(mode="score"):
         ours = ours.rename(columns={"accuracy": "ours_accuracy", "earliness": "ours_earliness"})
 
         # ours regularized beta = 0 and epsilon = 0
-        df = pd.read_csv("data/entropy_pts/runs.csv")
-        e0 = select(df, entropy_factor=0)
-        e0 = e0.rename(columns={"accuracy": "e0_accuracy", "earliness": "e0_earliness"})
+        #df = pd.read_csv("data/entropy_pts/runs.csv")
+        #e0 = select(df, entropy_factor=0)
+        #e0 = e0.rename(columns={"accuracy": "e0_accuracy", "earliness": "e0_earliness"})
 
         #e0,
         dataframe = pd.concat([mori, relclass, edsc, ects, ours, ours_unregularized], axis=1, join="inner")
@@ -180,7 +181,9 @@ def parse_sota(mode="score"):
         for compare in approaches:
             line.append(parse_winloose_score(dataframe=dataframe, compare=compare, alpha=alpha, mode=mode))
 
-        print( r"${}$ & ".format(alpha) + " & ".join(line) + r' \\')
+        outstring.append( r"${}$ & ".format(alpha) + " & ".join(line) + r' \\')
+
+    return "\n".join(outstring)
 
 def parse_domination_more_betas():
 
@@ -252,7 +255,7 @@ def parse_domination_inter_betas():
 
 def parse_accuracy_all():
 
-    UCR = pd.read_csv("data/UCR/singleTrainTest.csv", index_col=0)
+    UCR = pd.read_csv("data/UCR_Datasets/singleTrainTest.csv", index_col=0)
 
     approaches = list(UCR.columns)
     new_colnames = [name + "_accuracy" for name in approaches]
@@ -262,7 +265,7 @@ def parse_accuracy_all():
     print("".join(["\cmidrule(lr){" + str(i) + "-" + str(i) + "}" for i in range(1, len(approaches) + 1)]))
 
     #"e0", "mori", "edsc", "relclass", "ects",
-    #approaches = list(UCR.columns)
+    #approaches = list(UCR_Datasets.columns)
 
     for alpha in [0.6, 0.7, 0.8, 0.9]:  # , 0.7, 0.8, 0.8
 
@@ -283,9 +286,9 @@ def parse_accuracy_all():
         e0 = select(df, entropy_factor=0)
         e0 = e0.rename(columns={"accuracy": "e0_accuracy", "earliness": "e0_earliness"})
 
-        # UCR dataset (no)
+        # UCR_Datasets dataset (no)
 
-        # UCR dataset (no)
+        # UCR_Datasets dataset (no)
 
         dataframe = pd.concat([e0, mori, relclass, edsc, ects, ours, UCR], axis=1, join="inner")
 
@@ -299,7 +302,7 @@ def parse_accuracy_all():
 if __name__=="__main__":
 
     print("SOTA score")
-    parse_sota(mode="score")
+    table = parse_sota(mode="score", comparepath="../data/UCR_Datasets")
 
     #print("SOTA accuracy")
     #parse_sota(mode="accuracy")

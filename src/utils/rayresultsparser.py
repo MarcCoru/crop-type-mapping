@@ -76,15 +76,13 @@ class RayResultsParser():
 
     def get_sota_experiment(self, path, outpath=None, columns=["accuracy", "earliness"]):
         data = self._load_all_runs(path)
-        data.sort_values(by="accuracy", ascending=False).drop_duplicates(
-            subset=['earliness_factor', 'entropy_factor', 'ptsepsilon'], keep='first')
         print("{} runs returned!".format(len(data)))
         data = pd.DataFrame(data).set_index(["dataset"])
+        data.sort_values(by="accuracy", ascending=False).drop_duplicates(
+            subset=['earliness_factor', 'entropy_factor', 'ptsepsilon'], keep='first')
         data[columns].to_csv(outpath)
 
-
-
-    def get_best_hyperparameters(self, path, outpath=None, group_by=["hidden_dims", "learning_rate", "num_rnn_layers"]):
+    def get_best_hyperparameters(self, path, hyperparametercsv=None, group_by=["hidden_dims", "learning_rate", "num_rnn_layers"]):
 
         experiments = os.listdir(path)
 
@@ -101,21 +99,22 @@ class RayResultsParser():
 
         summary = pd.concat(best_hyperparams)
 
-        if outpath is not None:
-            csvfile = os.path.join(outpath, "hyperparams_conv1d.csv")
+        if hyperparametercsv is not None:
+            outpath = os.path.dirname(hyperparametercsv)
 
             if not os.path.exists(outpath):
                 os.makedirs(outpath,exist_ok=True)
 
-            print("writing "+csvfile)
-            summary.to_csv(csvfile)
+            print("writing "+hyperparametercsv)
+            summary.to_csv(hyperparametercsv)
 
         return summary
 
-def parse_hyperparameters():
+def parse_hyperparameters(rayroot="/data/remote/hyperparams_conv1d_v2_secondrun/conv1d",
+                          outcsv="/data/remote/hyperparams_conv1d_v2_secondrun/hyperparams.csv"):
     parser = RayResultsParser()
-    summary = parser.get_best_hyperparameters("/data/remote/hyperparams_conv1d_v2_secondrun/conv1d",
-                                              outpath="/data/remote/hyperparams_conv1d_v2_secondrun/hyperparams.csv",
+    summary = parser.get_best_hyperparameters(rayroot,
+                                              outcsv=outcsv,
                                               group_by=["hidden_dims", "learning_rate", "num_layers",
                                                         "shapelet_width_increment"])
 
@@ -141,8 +140,11 @@ def parse_entropy_experiment():
 
 
 if __name__=="__main__":
-    import sys
-    # python ut"/data/remote/early_rnn/sota_comparison"
-    #parse_hyperparameters()
-    parse_sota_experiment(sys.argv[1], "../viz/data/sota_comparison/runs.csv")
-    #parse_entropy_experiment()
+
+    # hyperparameters train on train partition evaluated on validation partition in multiple folds
+    #parse_hyperparameters(rayroot="/data/remote/hyperparametertuning_conv1d/conv1d",
+    #                      hyperparametercsv="/data/remote/hyperparametertuning_conv1d/hyperparams.csv")
+
+    # results from runs using hyperparameters trained on train+valid partitions and tested on test partition
+    parse_sota_experiment(path="/data/remote/early_rnn/sota_comparison",
+                          outcsv="../viz/data/sota_comparison/runs.csv")

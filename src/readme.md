@@ -22,7 +22,6 @@ writes data to `viz/csv` and some preliminary plots to `viz/png`
 python viz.py
 ```
 
-
 #### Figures 5 and 6
 
 start visdom server by typing `visdom` and browser navigate to `http://localhost:8097`
@@ -31,13 +30,14 @@ start training
 ```
 python train.py -d TwoPatterns \
     -m Conv1D \
-    --hyperparametercsv /data/remote/hyperparams_conv1d_v2/hyperparams.csv/hyperparams_conv1d.csv \
+    --hyperparametercsv data/hyperparameter_conv1d.csv \
     --loss_mode twophase_linear_loss \
-    -x test \
+    --experiment test \
     --train_on train \
     --test_on valid \
-    -b 64 \
-    --dropout 0.5 -w 4 \
+    --batchsize 64 \
+    --dropout 0.5 \ 
+    --workers 4 \
     -i 1 \
     -a 0.6 \
     --overwrite \

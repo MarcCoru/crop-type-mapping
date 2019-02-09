@@ -13,7 +13,7 @@ import numpy as np
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-d','--datasets', type=str,default=None, nargs='+', help='UCR Datasets to train on. Multiple values are allowed. '
+        '-d','--datasets', type=str,default=None, nargs='+', help='UCR_Datasets Datasets to train on. Multiple values are allowed. '
                                                 'Will also define name of the experiment. '
                                                 'if not specified, will use all datasets of hyperparametercsv'
                                                 '(requires --hyperparametercsv)')

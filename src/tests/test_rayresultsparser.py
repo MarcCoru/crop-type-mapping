@@ -86,7 +86,7 @@ class TestRayResultsParser(unittest.TestCase):
     def test_get_best_hyperparameters_rnn(self):
         parser = RayResultsParser()
         summary = parser.get_best_hyperparameters("tests/data/tune_results/rnn",
-                                                  outpath="/tmp/rnn",
+                                                  hyperparametercsv="/tmp/rnn/hyperparameters.csv",
                                                   group_by=["hidden_dims", "learning_rate", "num_rnn_layers"])
 
         self.assertIsInstance(summary, pandas.core.frame.DataFrame)
@@ -96,7 +96,7 @@ class TestRayResultsParser(unittest.TestCase):
     def test_get_best_hyperparameters_conv1d(self):
         parser = RayResultsParser()
         summary = parser.get_best_hyperparameters("tests/data/tune_results/conv1d",
-                                                  outpath="/tmp/conv1d",
+                                                  hyperparametercsv="/tmp/rnn/hyperparameters.csv",
                                                   group_by=["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"])
 
         self.assertIsInstance(summary, pandas.core.frame.DataFrame)
