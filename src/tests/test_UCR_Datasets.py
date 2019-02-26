@@ -9,6 +9,7 @@ class TestTune(unittest.TestCase):
     def test_UCR_Dataset(self):
 
         trace_dataset = UCRDataset("Trace")
+        self.assertTrue(trace_dataset.ndims,1)
 
         available_datasets = trace_dataset.dataset.list_datasets()
 

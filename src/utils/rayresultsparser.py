@@ -57,7 +57,7 @@ class RayResultsParser():
 
         result = pd.DataFrame(resultlist)
         # average accuracy over the same columns (particularily over the fold variable...)
-        grouped = result.groupby(group_by)["accuracy"]
+        grouped = result.groupby(group_by)["mean_accuracy"]
 
         nfolds = grouped.count().rename("nfolds")
         mean_accuracy = grouped.mean().rename("mean_accuracy")

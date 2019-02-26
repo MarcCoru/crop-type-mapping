@@ -41,6 +41,15 @@ class TestTrain(unittest.TestCase):
 
         self.assertTrue(isinstance(traindataloader, torch.utils.data.dataloader.DataLoader))
 
+    def test_getDataloader_BavarianCrops(self):
+        traindataloader = getDataloader(dataset="BavarianCrops",
+                                        partition="train",
+                                        batch_size=32)
+
+        self.assertIsInstance(traindataloader, torch.utils.data.dataloader.DataLoader)
+
+
+
     def test_getDataloader_synthetic(self):
         traindataloader = getDataloader(dataset="synthetic",
                                         partition="train",

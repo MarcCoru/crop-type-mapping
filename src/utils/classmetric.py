@@ -59,5 +59,25 @@ class ClassMetric(object):
         classes = []
         overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
 
-        return overall_accuracy
+        # calculate Cohen Kappa (https://en.wikipedia.org/wiki/Cohen%27s_kappa)
+        N = total
+        p0 = np.sum(np.diag(self.hist)) / N
+        pc = np.sum(np.sum(self.hist, axis=0) * np.sum(self.hist, axis=1)) / N ** 2
+        kappa = (p0 - pc) / (1 - pc)
+
+        recall = np.diag(self.hist) / (np.sum(self.hist, axis=1) + 1e-12)
+        precision = np.diag(self.hist) / (np.sum(self.hist, axis=0) + 1e-12)
+        f1 = (2 * precision * recall) / (precision + recall)
+
+        # Per class accuracy
+        cl_acc = np.diag(self.hist) / (self.hist.sum(1) + 1e-12)
+
+        return dict(
+            overall_accuracy=overall_accuracy,
+            kappa=kappa,
+            precision=precision,
+            recall=recall,
+            f1=f1,
+            accuracy=cl_acc
+        )
 

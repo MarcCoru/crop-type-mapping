@@ -13,6 +13,7 @@ class DatasetWrapper(torch.utils.data.Dataset):
     def __init__(self, X, y):
         self.X = X
         self.y = y
+        self.ndims = 1
 
     def __len__(self):
         return self.X.shape[0]

@@ -4,10 +4,11 @@ import argparse
 import datetime
 import os
 import sys
-from src.utils.rayresultsparser import RayResultsParser
+from utils.rayresultsparser import RayResultsParser
 from models.DualOutputRNN import DualOutputRNN
 from models.ConvShapeletModel import ConvShapeletModel
 from datasets.UCR_Dataset import UCRDataset
+from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 import torch
 from utils.trainer import Trainer
 import ray.tune
@@ -51,13 +52,13 @@ def get_hyperparameter_search_space(experiment, args):
         return dict(
             batchsize=args.batchsize,
             workers=2,
-            epochs=99999,
+            epochs=30,
             switch_epoch=9999,
             earliness_factor=1,
-            fold=tune.grid_search([5,6,7,8,9]), #[0, 1, 2, 3, 4]),
+            fold=tune.grid_search([0]), #[0, 1, 2, 3, 4]),
             hidden_dims=tune.grid_search([2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
             learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
-            dropout=0.3,
+            dropout=0.5,
             num_layers=tune.grid_search([1,2,3,4]),
             dataset=args.dataset)
 
@@ -147,7 +148,7 @@ def tune_dataset_rnn(args, config):
                     "gpu": args.gpu,
                 },
                 'stop': {
-                    'training_iteration': 5 if not args.smoke_test else 1,
+                    'training_iteration': 1,
                     'time_total_s':600 if not args.smoke_test else 1,
                 },
                 "run": RayTrainerDualOutputRNN,
@@ -223,7 +224,7 @@ def tune_mori_datasets(args):
                 searched_parameters = ["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"]
             elif args.experiment == "test_rnn" or args.experiment == "rnn":
                 searched_parameters=["hidden_dims", "learning_rate", "num_layers"]
-            rayresultparser.get_best_hyperparameters(resultsdir, outpath=resultsdir,
+            rayresultparser.get_best_hyperparameters(resultsdir, hyperparametercsv=resultsdir+"/hyperparameter.csv",
                                                      group_by=searched_parameters)
 
             top = rayresultparser._get_n_best_runs(experimentpath=experimentpath,n=1,group_by=searched_parameters)
@@ -233,8 +234,9 @@ def tune_mori_datasets(args):
         except KeyboardInterrupt:
             sys.exit(0)
         except Exception as e:
-            print("error" + str(e))
-            continue
+            #print("error" + str(e))
+            #continue
+            raise
 
 def print_best(top, filename):
     """
@@ -265,18 +267,25 @@ def print_best(top, filename):
 class RayTrainerDualOutputRNN(ray.tune.Trainable):
     def _setup(self, config):
 
-        traindataset = UCRDataset(config["dataset"],
-                                  partition="train",
-                                  ratio=.8,
-                                  randomstate=config["fold"],
-                                  silent=False,
-                                  augment_data_noise=0)
+        if config["dataset"] == "BavarianCrops":
+            region = "HOLL_2018_MT_pilot"
+            root = "/home/marc/data/BavarianCrops"
+            nsamples=None
+            traindataset = BavarianCropsDataset(root=root, region=region, partition="train", nsamples=nsamples)
+            validdataset = BavarianCropsDataset(root=root, region=region, partition="valid", nsamples=nsamples)
+        else:
+            traindataset = UCRDataset(config["dataset"],
+                                      partition="train",
+                                      ratio=.8,
+                                      randomstate=config["fold"],
+                                      silent=False,
+                                      augment_data_noise=0)
 
-        validdataset = UCRDataset(config["dataset"],
-                                  partition="valid",
-                                  ratio=.8,
-                                  randomstate=config["fold"],
-                                  silent=False)
+            validdataset = UCRDataset(config["dataset"],
+                                      partition="valid",
+                                      ratio=.8,
+                                      randomstate=config["fold"],
+                                      silent=False)
 
         nclasses = traindataset.nclasses
 
@@ -289,7 +298,7 @@ class RayTrainerDualOutputRNN(ray.tune.Trainable):
         self.validdataloader = torch.utils.data.DataLoader(validdataset, batch_size=config["batchsize"], shuffle=False,
                                                       num_workers=config["workers"], pin_memory=False)
 
-        self.model = DualOutputRNN(input_dim=1,
+        self.model = DualOutputRNN(input_dim=traindataset.ndims,
                                    nclasses=nclasses,
                                    hidden_dims=config["hidden_dims"],
                                    num_rnn_layers=config["num_layers"])

@@ -18,6 +18,7 @@ class SyntheticDataset(torch.utils.data.Dataset):
         self.X, self.y = self.sample_dataset(num_samples, T)
         self.X -= self.X.mean()
         self.X /= self.X.std()
+        self.ndims=1
 
         self.T = T
 

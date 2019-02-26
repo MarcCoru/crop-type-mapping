@@ -92,7 +92,7 @@ def early_loss_cross_entropy(logprobabilities, pts, targets, alpha=None, entropy
 def loss_cross_entropy(logprobabilities, pts, targets):
 
     b,t,c = logprobabilities.shape
-    loss = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t))
+    loss = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t), ignore_index=-1)
 
     stats = dict(
         loss=loss,

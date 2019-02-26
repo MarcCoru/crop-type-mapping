@@ -160,9 +160,9 @@ class Trainer():
                                  fillarea=True,
                                  showlegend=True, legend=legend)
             self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
-            self.visdom.bar(stats["pts"][i, :], name="sample {} P(t) (class={})".format(i, classid))
-            self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
-            self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
+            if "pts" in stats.keys(): self.visdom.bar(stats["pts"][i, :], name="sample {} P(t) (class={})".format(i, classid))
+            if "deltas" in stats.keys(): self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
+            if "budget" in stats.keys(): self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
 
     def get_phase(self):
         if self.epoch < self.switch_epoch:
@@ -250,8 +250,9 @@ class Trainer():
             stats["mean_precision"] = accuracy_metrics["precision"].mean()
             stats["mean_f1"] = accuracy_metrics["f1"].mean()
             stats["kappa"] = accuracy_metrics["kappa"]
-            earliness = (t_stop.float()/(inputs.shape[1]-1)).mean()
-            stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
+            if t_stop is not None:
+                earliness = (t_stop.float()/(inputs.shape[1]-1)).mean()
+                stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
         return stats
 
@@ -288,15 +289,16 @@ class Trainer():
                 stats["mean_precision"] = accuracy_metrics["precision"].mean()
                 stats["mean_f1"] = accuracy_metrics["f1"].mean()
                 stats["kappa"] = accuracy_metrics["kappa"]
-                earliness = (t_stop.float() / (inputs.shape[1] - 1)).mean()
-                stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
+                if t_stop is not None:
+                    earliness = (t_stop.float() / (inputs.shape[1] - 1)).mean()
+                    stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
             stats["confusion_matrix"] = metric.hist
             stats["targets"] = targets.cpu().numpy()
             stats["inputs"] = inputs.cpu().numpy()
-            stats["deltas"] = deltas.detach().cpu().numpy()
-            stats["pts"] = pts.detach().cpu().numpy()
-            stats["budget"] = budget.detach().cpu().numpy()
+            if deltas is not None: stats["deltas"] = deltas.detach().cpu().numpy()
+            if pts is not None: stats["pts"] = pts.detach().cpu().numpy()
+            if budget is not None: stats["budget"] = budget.detach().cpu().numpy()
 
             probas = logprobabilities.exp().transpose(0, 1)
             stats["probas"] = probas.detach().cpu().numpy()
