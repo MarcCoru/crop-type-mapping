@@ -4,7 +4,7 @@ import os
 
 class Logger():
 
-    def __init__(self, columns, modes, epoch=0, idx=0, rootpath=None):
+    def __init__(self, columns, modes, epoch=0, idx=0, rootpath=None, verbose=True):
 
         self.columns=columns
         self.mode=modes[0]
@@ -13,6 +13,7 @@ class Logger():
         self.data = pd.DataFrame(columns=["epoch","iteration","mode"]+self.columns)
         self.stored_arrays = dict()
         self.rootpath=rootpath
+        self.verbose = verbose
 
     def resume(self, data):
         self.data = data
@@ -61,16 +62,18 @@ class Logger():
 
     def save(self):
 
-        if not os.path.exists(self.rootpath):
-            os.makedirs(self.rootpath)
+        path = os.path.join(self.rootpath,"npy")
 
-        arrayfile = "{epoch}_{name}.npy"
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        arrayfile = "{name}_{epoch}.npy"
         csvfile = "data.csv"
 
         for k,v in self.stored_arrays.items():
-            for el in v:
-                epoch, data = el
-                filename = arrayfile.format(epoch=epoch, name=k)
-                np.save(os.path.join(self.rootpath,filename),data)
+            for epoch, data in v:
+                filepath = os.path.join(path,arrayfile.format(epoch=epoch, name=k))
+                np.save(filepath, data)
+                if self.verbose: print("saving "+filepath)
 
         self.data.to_csv(os.path.join(self.rootpath,csvfile))

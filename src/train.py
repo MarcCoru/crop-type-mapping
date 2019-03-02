@@ -6,12 +6,13 @@ from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.Synthetic_Dataset import SyntheticDataset
 import argparse
 from argparse import Namespace
-from utils.accuracytrainer import Trainer
+from utils.trainer import Trainer
 import pandas as pd
 import os
 import numpy as np
 from models.wavenet_model import WaveNetModel
-
+from torch.utils.data.sampler import RandomSampler, SequentialSampler, BatchSampler, WeightedRandomSampler
+from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -35,6 +36,9 @@ def parse_args():
     parser.add_argument(
         '--test_on', type=str, default="valid",
         help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
+    parser.add_argument(
+        '--classmapping', type=str, default=None,
+        help="classmapping for the bavarian crops dataset line-wise text file of format (0,0,415)")
     parser.add_argument(
         '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
     parser.add_argument(
@@ -152,6 +156,8 @@ def train(args):
     if args.hyperparametercsv is not None:
         args = readHyperparameterCSV(args)
 
+    region = "HOLL_2018_MT_pilot"
+
     traindataloader = getDataloader(dataset=args.dataset,
                                     partition=args.train_on,
                                     batch_size=args.batchsize,
@@ -159,7 +165,9 @@ def train(args):
                                     shuffle=True,
                                     pin_memory=True,
                                     train_valid_split_ratio=args.train_valid_split_ratio,
-                                    train_valid_split_seed=args.train_valid_split_seed)
+                                    train_valid_split_seed=args.train_valid_split_seed,
+                                    region=region,
+                                    classmapping=args.classmapping)
 
     testdataloader = getDataloader(dataset=args.dataset,
                                    partition=args.test_on,
@@ -168,10 +176,22 @@ def train(args):
                                    shuffle=False,
                                    pin_memory=True,
                                    train_valid_split_ratio=args.train_valid_split_ratio,
-                                   train_valid_split_seed=args.train_valid_split_seed)
+                                   train_valid_split_seed=args.train_valid_split_seed,
+                                   region=region,
+                                   classmapping=args.classmapping)
+
+    #evaldataloader = getDataloader(dataset=args.dataset,
+    #                               partition="eval",
+    #                               batch_size=args.batchsize,
+    #                               num_workers=args.workers,
+    #                               shuffle=False,
+    #                               pin_memory=True,
+    #                               train_valid_split_ratio=args.train_valid_split_ratio,
+    #                               train_valid_split_seed=args.train_valid_split_seed,
+    #                               region=region)
 
     args.nclasses = traindataloader.dataset.nclasses
-    args.seqlength = traindataloader.dataset.sequencelength
+    args.seqlength = traindataloader.dataset.sequencelengths.max()
     args.input_dims = traindataloader.dataset.ndims
     model = getModel(args)
 
@@ -196,14 +216,18 @@ def train(args):
     trainer = Trainer(model,traindataloader,testdataloader,**config)
     trainer.fit()
 
+
+    #stats = trainer.test_epoch(evaldataloader)
+
+    pass
+
 def getDataloader(dataset, partition, train_valid_split_ratio=0.75,train_valid_split_seed=0, **kwargs):
 
     if dataset == "synthetic":
         torchdataset = SyntheticDataset(num_samples=2000, T=100)
     if dataset == "BavarianCrops":
-        region = "HOLL_2018_MT_pilot"
         root = "/home/marc/data/BavarianCrops"
-        torchdataset = BavarianCropsDataset(root=root, region=region, partition=partition, nsamples=None)
+        torchdataset = BavarianCropsDataset(root=root, region=kwargs["region"], partition=partition, nsamples=None, classmapping=kwargs["classmapping"])
     else:
         torchdataset = UCRDataset(dataset, partition=partition, ratio=train_valid_split_ratio, randomstate=train_valid_split_seed)
 
@@ -213,13 +237,28 @@ def getDataloader(dataset, partition, train_valid_split_ratio=0.75,train_valid_s
     np.random.seed(seed)
     torch.random.manual_seed(seed)
 
-    return torch.utils.data.DataLoader(torchdataset, **kwargs)
+    if kwargs["shuffle"]:
+        #sampler = WeightedRandomSampler(torchdataset.dataweights, len(torchdataset.dataweights),  replacement=True)
+        sampler = ImbalancedDatasetSampler(torchdataset)
+    else:
+        sampler = SequentialSampler(torchdataset)
+    # for training dataset -> shuffle is true
+
+    dataloader = torch.utils.data.DataLoader(dataset=torchdataset,
+                                             #batch_sampler=BatchSampler(sampler, kwargs["batch_size"], drop_last=False),
+                                             sampler=sampler,
+                                             batch_size=kwargs["batch_size"],
+                                             num_workers=kwargs["num_workers"],
+                                             pin_memory=kwargs["pin_memory"])
+
+    return dataloader
 
 def getModel(args):
     # Get Model
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout)
+                              num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True)
+
     elif args.model == "WaveNet":
 
         model = WaveNetModel(

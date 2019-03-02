@@ -155,3 +155,7 @@ docker push marccoru/early_rnn
 ```
 
 
+# Acknowledgement 
+
+https://github.com/ufoym/imbalanced-dataset-sampler
+from https://github.com/seba-1511/lstms.pth/blob/master/lstms/lstm.py

@@ -67,7 +67,7 @@ class ClassMetric(object):
 
         recall = np.diag(self.hist) / (np.sum(self.hist, axis=1) + 1e-12)
         precision = np.diag(self.hist) / (np.sum(self.hist, axis=0) + 1e-12)
-        f1 = (2 * precision * recall) / (precision + recall)
+        f1 = (2 * precision * recall) / ((precision + recall) + 1e-12)
 
         # Per class accuracy
         cl_acc = np.diag(self.hist) / (self.hist.sum(1) + 1e-12)

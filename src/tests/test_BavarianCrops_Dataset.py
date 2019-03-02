@@ -2,32 +2,48 @@ import sys
 sys.path.append("..")
 
 import unittest
+import os
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 import torch
 class BavarianCrops_Test(unittest.TestCase):
 
     def test_init(self):
         region = "HOLL_2018_MT_pilot"
-        root = "/data/BavarianCrops"
+        root = "data/CropsDataset"
 
         train = BavarianCropsDataset(root=root, region=region, partition="train")
         X,y = train[0]
 
-        train.analyze()
+        self.assertTrue(os.path.exists(train.root + "/classmapping.csv"))
 
-        self.assertTrue(train.sequencelength,147)
-        self.assertTrue(train.ndims, 11)
-        self.assertTrue(len(train), 4210)
-        self.assertIsInstance(X, torch.Tensor)
+        self.assertEqual(train.sequencelengths.max(), 147)
+        self.assertEqual(train.ndims, 13)
+        #self.assertIsInstance(X, torch.Tensor)
         self.assertIsInstance(y, torch.Tensor)
+        self.assertIsInstance(train.ndims, int)
         #self.assertIsInstance(id, int)
-        self.assertEqual(train.nclasses, 121)
+        self.assertEqual(train.nclasses, 4)
+
+        # check if correct files are cached
+        self.assertTrue(os.path.exists(os.path.join(train.cache,"classweights.npy")))
+        self.assertTrue(os.path.exists(os.path.join(train.cache, "sequencelengths.npy")))
+        self.assertTrue(os.path.exists(os.path.join(train.cache, "y.npy")))
+        self.assertTrue(os.path.exists(os.path.join(train.cache, "ndims.npy")))
+        self.assertTrue(os.path.exists(os.path.join(train.cache, "ids.npy")))
+        #self.assertTrue(os.path.exists(os.path.join(train.cache, "dataweights.npy")))
+
+        # load again from cached files
+        train.load_cached_dataset()
+        self.assertIsInstance(train.ndims, int)
+
+        # check if clean works
+        train.clean_cache()
+        self.assertFalse(os.path.exists(train.cache))
 
         valid = BavarianCropsDataset(root=root, region=region, partition="valid")
-        self.assertTrue(len(valid), 4210)
+
 
         eval = BavarianCropsDataset(root=root, region=region, partition="eval")
-        self.assertTrue(len(eval), 4210)
 
 if __name__ == '__main__':
     unittest.main()

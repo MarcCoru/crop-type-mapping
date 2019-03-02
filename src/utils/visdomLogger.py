@@ -71,16 +71,26 @@ class VisdomLogger():
 
             self.viz.line(X ,win=win, opts=opts)
 
-    def confusion_matrix(self, cm):
+    def confusion_matrix(self, cm, title="Confusion Matrix", norm=None):
         if self.connected:
             plt.clf()
 
-            name="confusion matrix"
+            if norm is not None:
+                cm /= np.expand_dims(cm.sum(norm),axis=norm)
+                cm[np.isnan(cm)] = 0
+                cm[np.isinf(cm)] = 0
+                vmin = 0
+                vmax = 1
+            else:
+                vmin = None
+                vmax = None
 
-            plt.rcParams['figure.figsize'] = (12, 12)
+            name=title
+
+            plt.rcParams['figure.figsize'] = (9, 9)
             #sn.set(font_scale=1.4)  # for label size
-            ax = sn.heatmap(cm, annot=True, annot_kws={"size": 11})  # font size
-            ax.set(xlabel='ground truth', ylabel='predicted', title="Confusion Matrix")
+            ax = sn.heatmap(cm, annot=True, annot_kws={"size": 11}, vmin=vmin, vmax=vmax)  # font size
+            ax.set(xlabel='ground truth', ylabel='predicted', title=title)
             plt.tight_layout()
             opts = dict(
                 resizeable=True
@@ -107,6 +117,34 @@ class VisdomLogger():
             )
 
             self.viz.matplot(plt, win=name, opts=opts)
+
+    def plot_boxplot(self, labels, t_stops, tmin=None, tmax=None):
+
+        if self.connected:
+            grouped = [t_stops[labels == i] for i in np.unique(labels)]
+            #legend = ["class {}".format(i) for i in np.unique(labels)]
+
+            plt.clf()
+
+            name = "boxplot"
+
+            plt.rcParams['figure.figsize'] = (9, 9)
+            # sn.set(font_scale=1.4)  # for label size
+            ax = sn.boxplot(data=grouped, orient="h")
+            ax.set_xlabel("t_stop")
+            ax.set_ylabel("class")
+            ax.set_xlim(tmin, tmax)
+            #ax = sn.heatmap(cm, annot=True, annot_kws={"size": 11}, vmin=vmin, vmax=vmax)  # font size
+            #ax.set(xlabel='ground truth', ylabel='predicted', title=title)
+            plt.tight_layout()
+            opts = dict(
+                resizeable=True
+            )
+
+            self.viz.matplot(plt, win=name, opts=opts)
+
+
+        pass
 
     def plot_epochs(self, data):
         """

@@ -4,7 +4,8 @@ from utils.logger import Logger
 from utils.printer import Printer
 from utils.visdomLogger import VisdomLogger
 import os
-from loss import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear
+from loss import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear, loss_early_reward
+import numpy as np
 
 CLASSIFICATION_PHASE_NAME="classification"
 EARLINESS_PHASE_NAME="earliness"
@@ -49,6 +50,8 @@ class Trainer():
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
         self.resume_optimizer = resume_optimizer
 
+        self.classweights = torch.FloatTensor(traindataloader.dataset.classweights).cuda()
+
         if visdomenv is not None:
             self.visdom = VisdomLogger(env=visdomenv)
 
@@ -84,19 +87,20 @@ class Trainer():
 
         ## try to optimize for earliness only when classification is correct
         if self.lossmode=="early_reward":
-            # TODO implement me
-            raise NotImplementedError("TODO Implement early reward loss!")
+            return loss_early_reward(logprobabilties, pts, targets, alpha=earliness_factor)
 
         elif self.lossmode=="loss_cross_entropy":
             return loss_cross_entropy(logprobabilties, pts,targets)
+
+        elif self.lossmode=="weighted_loss_cross_entropy":
+            return loss_cross_entropy(logprobabilties, pts,targets, weight=self.classweights)
 
         # first cross entropy then early reward loss
         elif self.lossmode == "twophase_early_reward":
             if self.get_phase() == CLASSIFICATION_PHASE_NAME:
                 return loss_cross_entropy(logprobabilties, pts, targets)
             elif self.get_phase() == EARLINESS_PHASE_NAME:
-                #TODO implement me
-                raise NotImplementedError("Implement early reward loss!")
+                return loss_early_reward(logprobabilties, pts, targets, alpha=earliness_factor)
 
         # first cross-entropy loss then linear classification loss and simple t/T regularization
         elif self.lossmode=="twophase_linear_loss":
@@ -131,7 +135,7 @@ class Trainer():
 
             if self.epoch % self.test_every_n_epochs == 0 or self.phase1_will_end() or self.phase2_will_end():
                 self.logger.set_mode("test")
-                stats = self.test_epoch(self.epoch)
+                stats = self.test_epoch(self.validdataloader)
                 self.logger.log(stats, self.epoch)
                 printer.print(stats, self.epoch, prefix="\nvalid: ")
                 self.visdom_log_test_run(stats)
@@ -139,6 +143,10 @@ class Trainer():
             self.visdom.plot_epochs(self.logger.get_data())
 
         self.check_events()
+
+        # stores all stored values in the rootpath of the logger
+        self.logger.save()
+
         return self.logger.data
 
     def new_epoch(self):
@@ -146,7 +154,14 @@ class Trainer():
         self.epoch += 1
 
     def visdom_log_test_run(self, stats):
-        self.visdom.confusion_matrix(stats["confusion_matrix"])
+
+
+
+        self.visdom.plot_boxplot(labels=stats["labels"], t_stops=stats["t_stops"], tmin=0, tmax=self.traindataloader.dataset.samplet)
+
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=None, title="Confusion Matrix")
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=0, title="Recall")
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=1, title="Precision")
         legend = ["class {}".format(c) for c in range(self.nclasses)]
         targets = stats["targets"]
         # either user-specified value or all available values
@@ -160,9 +175,9 @@ class Trainer():
                                  fillarea=True,
                                  showlegend=True, legend=legend)
             self.visdom.plot(stats["inputs"][i, :, 0], name="sample {} x (class={})".format(i, classid))
-            self.visdom.bar(stats["pts"][i, :], name="sample {} P(t) (class={})".format(i, classid))
-            self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
-            self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
+            if "pts" in stats.keys(): self.visdom.bar(stats["pts"][i, :], name="sample {} P(t) (class={})".format(i, classid))
+            if "deltas" in stats.keys(): self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
+            if "budget" in stats.keys(): self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
 
     def get_phase(self):
         if self.epoch < self.switch_epoch:
@@ -244,18 +259,19 @@ class Trainer():
             stats = metric.add(stats)
 
             accuracy_metrics = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-            stats["accuracy"] = accuracy_metrics["accuracy"]
+            stats["accuracy"] = accuracy_metrics["overall_accuracy"]
             stats["mean_accuracy"] = accuracy_metrics["accuracy"].mean()
             stats["mean_recall"] = accuracy_metrics["recall"].mean()
             stats["mean_precision"] = accuracy_metrics["precision"].mean()
             stats["mean_f1"] = accuracy_metrics["f1"].mean()
             stats["kappa"] = accuracy_metrics["kappa"]
-            earliness = (t_stop.float()/(inputs.shape[1]-1)).mean()
-            stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
+            if t_stop is not None:
+                earliness = (t_stop.float()/(inputs.shape[1]-1)).mean()
+                stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
 
         return stats
 
-    def test_epoch(self, epoch):
+    def test_epoch(self, dataloader):
         # sets the model to train mode: no dropout is applied
         self.model.eval()
 
@@ -264,8 +280,13 @@ class Trainer():
         metric = ClassMetric(num_classes=self.nclasses)
         #metric_all_t = ClassMetric(num_classes=self.nclasses)
 
+        tstops = list()
+        predictions = list()
+        labels = list()
+
+
         with torch.no_grad():
-            for iteration, data in enumerate(self.validdataloader):
+            for iteration, data in enumerate(dataloader):
 
                 inputs, targets = data
 
@@ -278,27 +299,46 @@ class Trainer():
                                                   self.entropy_factor, ptsepsilon=self.ptsepsilon)
                 prediction, t_stop = self.model.predict(logprobabilities, deltas)
 
+                ## enter numpy world
+                prediction = prediction.detach().cpu().numpy()
+                label = targets.mode(1)[0].detach().cpu().numpy()
+                t_stop = t_stop.cpu().detach().numpy()
+                pts = pts.detach().cpu().numpy()
+                deltas = deltas.detach().cpu().numpy()
+                budget = budget.detach().cpu().numpy()
+
+                tstops.append(t_stop)
+                predictions.append(prediction)
+                labels.append(label)
+
+
                 stats = metric.add(stats)
 
-                accuracy_metrics = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
-                                                         prediction.detach().cpu().numpy())
-                stats["accuracy"] = accuracy_metrics["accuracy"]
+                accuracy_metrics = metric.update_confmat(label,
+                                                         prediction)
+
+                stats["accuracy"] = accuracy_metrics["overall_accuracy"]
                 stats["mean_accuracy"] = accuracy_metrics["accuracy"].mean()
                 stats["mean_recall"] = accuracy_metrics["recall"].mean()
                 stats["mean_precision"] = accuracy_metrics["precision"].mean()
                 stats["mean_f1"] = accuracy_metrics["f1"].mean()
                 stats["kappa"] = accuracy_metrics["kappa"]
-                earliness = (t_stop.float() / (inputs.shape[1] - 1)).mean()
-                stats["earliness"] = metric.update_earliness(earliness.cpu().detach().numpy())
+                if t_stop is not None:
+                    earliness = (t_stop.astype(float) / (inputs.shape[1] - 1)).mean()
+                    stats["earliness"] = metric.update_earliness(earliness)
 
             stats["confusion_matrix"] = metric.hist
             stats["targets"] = targets.cpu().numpy()
             stats["inputs"] = inputs.cpu().numpy()
-            stats["deltas"] = deltas.detach().cpu().numpy()
-            stats["pts"] = pts.detach().cpu().numpy()
-            stats["budget"] = budget.detach().cpu().numpy()
+            if deltas is not None: stats["deltas"] = deltas
+            if pts is not None: stats["pts"] = pts
+            if budget is not None: stats["budget"] = budget
 
             probas = logprobabilities.exp().transpose(0, 1)
             stats["probas"] = probas.detach().cpu().numpy()
+
+            stats["t_stops"] = np.hstack(tstops)
+            stats["predictions"] = np.hstack(predictions)
+            stats["labels"] = np.hstack(labels)
 
         return stats

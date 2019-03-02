@@ -89,10 +89,10 @@ def early_loss_cross_entropy(logprobabilities, pts, targets, alpha=None, entropy
 
     return loss, stats
 
-def loss_cross_entropy(logprobabilities, pts, targets):
+def loss_cross_entropy(logprobabilities, pts, targets,weight=None):
 
     b,t,c = logprobabilities.shape
-    loss = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t), ignore_index=-1)
+    loss = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t), ignore_index=-1, weight=weight)
 
     stats = dict(
         loss=loss,
@@ -115,6 +115,34 @@ def loss_cross_entropy_entropy_regularized(logprobabilities,pts, targets, entrop
         loss=loss,
         loss_classification=loss_classification,
         loss_entropy=loss_entropy
+    )
+
+    return loss, stats
+
+def loss_early_reward(logprobabilities,pts, targets, alpha=1, ptsepsilon = 10, power=1):
+
+    batchsize, seqquencelength, nclasses = logprobabilities.shape
+    t_index = build_t_index(batchsize=batchsize, sequencelength=seqquencelength)
+
+    if ptsepsilon is not None:
+        ptsepsilon = ptsepsilon / seqquencelength
+        pts += ptsepsilon
+
+    b,t,c = logprobabilities.shape
+    #loss_classification = F.nll_loss(logprobabilities.view(b*t,c), targets.view(b*t))
+    xentropy = F.nll_loss(logprobabilities.transpose(1, 2).unsqueeze(-1), targets.unsqueeze(-1),
+                          reduction='none').squeeze(-1)
+    loss_classification = alpha * (pts * xentropy).sum(1).mean()
+
+    yyhat = build_yhaty(logprobabilities, targets)
+    earliness_reward = (1-alpha) * (pts * yyhat**power * (1 - (t_index / seqquencelength))).sum(1).mean()
+
+    loss = loss_classification - earliness_reward
+
+    stats = dict(
+        loss=loss,
+        loss_classification=loss_classification,
+        earliness_reward=earliness_reward
     )
 
     return loss, stats

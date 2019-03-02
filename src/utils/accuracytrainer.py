@@ -49,6 +49,8 @@ class Trainer():
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
         self.resume_optimizer = resume_optimizer
 
+        self.classweights = torch.FloatTensor(traindataloader.dataset.classweights).cuda()
+
         if visdomenv is not None:
             self.visdom = VisdomLogger(env=visdomenv)
 
@@ -89,6 +91,9 @@ class Trainer():
 
         elif self.lossmode=="loss_cross_entropy":
             return loss_cross_entropy(logprobabilties, pts,targets)
+
+        elif self.lossmode=="weighted_loss_cross_entropy":
+            return loss_cross_entropy(logprobabilties, pts,targets, weight=self.classweights)
 
         # first cross entropy then early reward loss
         elif self.lossmode == "twophase_early_reward":
@@ -146,7 +151,9 @@ class Trainer():
         self.epoch += 1
 
     def visdom_log_test_run(self, stats):
-        self.visdom.confusion_matrix(stats["confusion_matrix"])
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=None, title="Confusion Matrix")
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=0, title="Recall")
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=1, title="Precision")
         legend = ["class {}".format(c) for c in range(self.nclasses)]
         targets = stats["targets"]
         # either user-specified value or all available values
@@ -244,7 +251,7 @@ class Trainer():
             stats = metric.add(stats)
 
             accuracy_metrics = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(), prediction.detach().cpu().numpy())
-            stats["accuracy"] = accuracy_metrics["accuracy"]
+            stats["accuracy"] = accuracy_metrics["overall_accuracy"]
             stats["mean_accuracy"] = accuracy_metrics["accuracy"].mean()
             stats["mean_recall"] = accuracy_metrics["recall"].mean()
             stats["mean_precision"] = accuracy_metrics["precision"].mean()
@@ -283,7 +290,8 @@ class Trainer():
 
                 accuracy_metrics = metric.update_confmat(targets.mode(1)[0].detach().cpu().numpy(),
                                                          prediction.detach().cpu().numpy())
-                stats["accuracy"] = accuracy_metrics["accuracy"]
+
+                stats["accuracy"] = accuracy_metrics["overall_accuracy"]
                 stats["mean_accuracy"] = accuracy_metrics["accuracy"].mean()
                 stats["mean_recall"] = accuracy_metrics["recall"].mean()
                 stats["mean_precision"] = accuracy_metrics["precision"].mean()
