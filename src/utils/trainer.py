@@ -29,6 +29,7 @@ class Trainer():
                  loss_mode="twophase_linear_loss", # early_reward, twophase_early_reward, twophase_linear_loss, or twophase_early_simple
                  overwrite=True,
                  resume_optimizer=False,
+                 earliness_reward_power=1,
                  **kwargs):
 
         self.epochs = epochs
@@ -49,6 +50,7 @@ class Trainer():
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
         self.resume_optimizer = resume_optimizer
+        self.earliness_reward_power = earliness_reward_power
 
         self.classweights = torch.FloatTensor(traindataloader.dataset.classweights).cuda()
 
@@ -82,12 +84,12 @@ class Trainer():
         epoch=self.epoch,
         logged_data=self.logger.get_data())
 
-    def loss_criterion(self, logprobabilties, pts, targets, earliness_factor, entropy_factor, ptsepsilon):
+    def loss_criterion(self, logprobabilties, pts, targets, earliness_factor, entropy_factor, ptsepsilon, earliness_reward_power):
         """a wrapper around several possible loss functions for experiments"""
 
         ## try to optimize for earliness only when classification is correct
         if self.lossmode=="early_reward":
-            return loss_early_reward(logprobabilties, pts, targets, alpha=earliness_factor)
+            return loss_early_reward(logprobabilties, pts, targets, alpha=earliness_factor, power=earliness_reward_power)
 
         elif self.lossmode=="loss_cross_entropy":
             return loss_cross_entropy(logprobabilties, pts,targets)
@@ -250,7 +252,7 @@ class Trainer():
             logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
 
             loss, stats = self.loss_criterion(logprobabilities, pts, targets,
-                                              self.earliness_factor, self.entropy_factor, self.ptsepsilon)
+                                              self.earliness_factor, self.entropy_factor, self.ptsepsilon, self.earliness_reward_power)
             loss.backward()
             self.optimizer.step()
 
@@ -296,7 +298,8 @@ class Trainer():
 
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
                 loss, stats = self.loss_criterion(logprobabilities, pts, targets, self.earliness_factor,
-                                                  self.entropy_factor, ptsepsilon=self.ptsepsilon)
+                                                  self.entropy_factor, ptsepsilon=self.ptsepsilon,
+                                                  earliness_reward_power=self.earliness_reward_power)
                 prediction, t_stop = self.model.predict(logprobabilities, deltas)
 
                 ## enter numpy world

@@ -83,6 +83,10 @@ def parse_args():
     parser.add_argument(
         '--test_every_n_epochs', type=int, default=1, help='skip some test epochs for faster overall training')
     parser.add_argument(
+        '--earliness_reward_power', type=int, default=1, help='power of the y+ at the earliness term...')
+    parser.add_argument(
+        '--seed', type=int, default=None, help='seed for batching and weight initialization')
+    parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     parser.add_argument(
         '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
@@ -167,7 +171,8 @@ def train(args):
                                     train_valid_split_ratio=args.train_valid_split_ratio,
                                     train_valid_split_seed=args.train_valid_split_seed,
                                     region=region,
-                                    classmapping=args.classmapping)
+                                    classmapping=args.classmapping,
+                                    seed=args.seed)
 
     testdataloader = getDataloader(dataset=args.dataset,
                                    partition=args.test_on,
@@ -178,7 +183,8 @@ def train(args):
                                    train_valid_split_ratio=args.train_valid_split_ratio,
                                    train_valid_split_seed=args.train_valid_split_seed,
                                    region=region,
-                                   classmapping=args.classmapping)
+                                   classmapping=args.classmapping,
+                                   seed=args.seed)
 
     #evaldataloader = getDataloader(dataset=args.dataset,
     #                               partition="eval",
@@ -210,7 +216,8 @@ def train(args):
         ptsepsilon=args.epsilon,
         test_every_n_epochs=args.test_every_n_epochs,
         entropy_factor = args.entropy_factor,
-        resume_optimizer = args.resume_optimizer
+        resume_optimizer = args.resume_optimizer,
+        earliness_reward_power=args.earliness_reward_power
     )
 
     trainer = Trainer(model,traindataloader,testdataloader,**config)
@@ -221,7 +228,15 @@ def train(args):
 
     pass
 
-def getDataloader(dataset, partition, train_valid_split_ratio=0.75,train_valid_split_seed=0, **kwargs):
+def getDataloader(dataset, partition, train_valid_split_ratio=0.75,seed=None, **kwargs):
+
+    if seed is None:
+        # ensure the batchsing sequence is the same at different runs
+        # useful for qualitative experiments to see identical samples in visdom...
+        seed = sum([ord(ch) for ch in partition])
+
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
 
     if dataset == "synthetic":
         torchdataset = SyntheticDataset(num_samples=2000, T=100)
@@ -229,13 +244,7 @@ def getDataloader(dataset, partition, train_valid_split_ratio=0.75,train_valid_s
         root = "/home/marc/data/BavarianCrops"
         torchdataset = BavarianCropsDataset(root=root, region=kwargs["region"], partition=partition, nsamples=None, classmapping=kwargs["classmapping"])
     else:
-        torchdataset = UCRDataset(dataset, partition=partition, ratio=train_valid_split_ratio, randomstate=train_valid_split_seed)
-
-    # ensure the batchsing sequence is the same at different runs
-    # useful for qualitative experiments to see identical samples in visdom...
-    seed = sum([ord(ch) for ch in partition])
-    np.random.seed(seed)
-    torch.random.manual_seed(seed)
+        torchdataset = UCRDataset(dataset, partition=partition, ratio=train_valid_split_ratio, randomstate=seed)
 
     if kwargs["shuffle"]:
         #sampler = WeightedRandomSampler(torchdataset.dataweights, len(torchdataset.dataweights),  replacement=True)
