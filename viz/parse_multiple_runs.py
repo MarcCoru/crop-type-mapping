@@ -67,15 +67,36 @@ def parse_multiple_runs(path, alphas=[0,0.2,0.4,0.6,0.8,1],runs=[0,1,2]):
     df = pd.DataFrame(last_results)
 
 
-    df.groupby(by="alpha").std().sum()
-
+    std = df.groupby(by="alpha").std()
+    mean = df.groupby(by="alpha").mean()
     #print("writing "+csv)
     #df.to_csv(csv)
+    cols = ["accuracy", "earliness", "mean_f1", "mean_precision", "mean_recall", "kappa"]
+    for col in cols:
+        mean[col+"_std"] = std[col]
 
+    # scale to %
+    for col in ["accuracy", "earliness", "mean_f1", "mean_precision", "mean_recall"]:
+        mean[col] = mean[col]
+        mean[col+"_std"] = mean[col+"_std"]
 
     print(r"alpha & accuracy & earliness & f1 & precision & recall & kappa \\")
-    for index, row in df.iterrows():
+    for index, row in mean.iterrows():
 
-        print(r"{} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} \\".format(index, row["accuracy"], row["earliness"], row["mean_f1"], row["mean_precision"], row["mean_recall"], row["kappa"]))
+        line = r"{} & {:.2f} $\pm$ {:.2f} & {:.2f} $\pm$ {:.2f} & {:.2f} $\pm$ {:.2f} & {:.2f} $\pm$ {:.2f} & {:.2f} $\pm$ {:.2f} & {:.2f} $\pm$ {:.2f} \\".format(
+            index,
+            row["accuracy"], row["accuracy_std"],
+            row["earliness"], row["earliness_std"],
+            row["mean_f1"], row["mean_f1_std"],
+            row["mean_precision"], row["mean_precision_std"],
+            row["mean_recall"], row["mean_recall_std"],
+            row["kappa"], row["kappa_std"])
+        print(line.replace("0.", "."))
 
+print()
+print("earlyreward")
+parse_multiple_runs(path="/data/EV2019/earlyreward")
+
+print()
+print("twophasecrossentropy")
 parse_multiple_runs(path="/data/EV2019/twophasecrossentropy")
