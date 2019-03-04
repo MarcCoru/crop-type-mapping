@@ -47,10 +47,22 @@ upper whisker={upperwhisker},
 lower whisker={lowerwhisker},
 """
 
+txt = os.path.join(target, "stops.csv")
+print("writing " + txt)
+df = pd.DataFrame(grouped).T
+df.columns = classnames
+
+for classname in classnames:
+    filename=os.path.join(target, classname.replace(" ","_")+".csv")
+    print("writing "+filename)
+    pd.DataFrame(df[classname]).to_csv(filename)
+#df.to_csv(txt)
+
 print()
 print("Boxplots metrics")
 print()
 for cl in range(len(grouped)):
+
     data = grouped[cl]
     median = np.median(data)
     Q3 = np.percentile(data, 75)
