@@ -26,6 +26,7 @@ for epsilon in 0 1 10;
 do
     python train.py -d BavarianCrops -m DualOutputRNN --epsilon $epsilon --seed $run --loss_mode early_reward -x earlyreward-alpha${alpha}-epsilon${epsilon}-run${run} --train_on train --test_on eval $hparams -a $alpha --store /data/EV2019 --overwrite --classmapping /home/marc/data/BavarianCrops/classmapping.csv.holl
     python train.py -d BavarianCrops -m DualOutputRNN --epsilon $epsilon --seed $run --loss_mode twophase_cross_entropy -x twophasecrossentropy-alpha${alpha}-epsilon${epsilon}-run${run} --train_on train --test_on eval $hparams -i 5 -a $alpha --store /data/EV2019 --overwrite --classmapping /home/marc/data/BavarianCrops/classmapping.csv.holl
+    echo $(date) earlyreward-alpha${alpha}-epsilon${epsilon}-run${run} > $HOME/logs/EV2019_experiments.log
 done
 done
 done

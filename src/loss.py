@@ -65,18 +65,20 @@ def early_loss_linear(logprobabilities, pts, targets, alpha=None, entropy_factor
 
     return loss, stats
 
-def early_loss_cross_entropy(logprobabilities, pts, targets, alpha=None, entropy_factor=0, ptsepsilon = 0):
+def early_loss_cross_entropy(logprobabilities, pts, targets, alpha=None, entropy_factor=0, ptsepsilon = 10):
 
     batchsize, seqquencelength, nclasses = logprobabilities.shape
     t_index = build_t_index(batchsize=batchsize,sequencelength=seqquencelength)
 
-    ptsepsilon = ptsepsilon/seqquencelength
+    if ptsepsilon is not None:
+        ptsepsilon = ptsepsilon / seqquencelength
+        pts += ptsepsilon
 
     # reward_earliness = (Pts * (y_haty - 1/float(self.nclasses)) * t_reward).sum(1).mean()
-    loss_earliness = (1 - alpha) * ((pts+ptsepsilon) * (t_index / seqquencelength)).sum(1).mean()
+    loss_earliness = (1 - alpha) * (pts * (t_index / seqquencelength)).sum(1).mean()
 
     xentropy = F.nll_loss(logprobabilities.transpose(1,2).unsqueeze(-1), targets.unsqueeze(-1),reduction='none').squeeze(-1)
-    loss_classification = alpha * ((pts+ptsepsilon)*xentropy).sum(1).mean()
+    loss_classification = alpha * (pts*xentropy).sum(1).mean()
     loss_entropy = - entropy_factor * entropy(pts).mean()
 
     loss = loss_classification + loss_earliness + loss_entropy

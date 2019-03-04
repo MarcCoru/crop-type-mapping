@@ -51,7 +51,7 @@ axs[3].axvline(x=tstop*T)
 axs[4].bar(np.arange(len(budget)), budget)
 axs[4].axvline(x=tstop*T)
 
-plt.show()
+
 
 
 def write(input, proba, tstop, label, prediction):
@@ -75,4 +75,29 @@ def write(input, proba, tstop, label, prediction):
         f.write("{}, {}, {}".format(tstop, classnames[label], classnames[prediction]))
 
 write(input, proba, tstop, label, prediction)
+
+
+# loss illustration
+
+t_index = 1 - np.arange(T)/T
+
+yplus = probas[:,sample, label]
+
+fix, axs = plt.subplots(3,1)
+axs[0].plot(yplus)
+axs[1].bar(np.arange(len(t_index)), t_index)
+axs[2].bar(np.arange(len(pt)), pt)
+
+
+fix, axs = plt.subplots(2,1)
+axs[0].plot(-np.log(yplus))
+axs[1].bar(np.arange(len(pt)), pt)
+
+
+df = pd.DataFrame([yplus,t_index,pt,-np.log(yplus)]).T
+df.columns = ["yplus","t_index","pt","logyplus"]
+print("writing /home/marc/projects/EV2019/images/lossexample.csv")
+df.to_csv("/home/marc/projects/EV2019/images/lossexample.csv")
+plt.show()
 pass
+

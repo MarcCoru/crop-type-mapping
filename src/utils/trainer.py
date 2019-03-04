@@ -89,7 +89,9 @@ class Trainer():
 
         ## try to optimize for earliness only when classification is correct
         if self.lossmode=="early_reward":
-            return loss_early_reward(logprobabilties, pts, targets, alpha=earliness_factor, power=earliness_reward_power)
+            return loss_early_reward(logprobabilties, pts, targets,
+                                     alpha=earliness_factor, power=earliness_reward_power,
+                                     ptsepsilon=ptsepsilon)
 
         elif self.lossmode=="loss_cross_entropy":
             return loss_cross_entropy(logprobabilties, pts,targets)
