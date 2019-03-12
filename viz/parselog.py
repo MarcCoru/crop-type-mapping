@@ -3,15 +3,32 @@ import os
 import datetime
 import pandas as pd
 
+## EPSILON Qualitative Example
+
+
+## Example
 #root = "/data/EV2019/early_reward/BavarianCrops/"
 root="/data/EV2019/earlyrewardalpha0.4power2/BavarianCrops/"
 target = "/home/marc/projects/EV2019/images/logs/data/early_reward_p2/classes"
 
-data = pd.read_csv(os.path.join(root,"log_earliness.csv"))
-print("writing "+os.path.join(target,"log_earliness_train.csv"))
-data.loc[data["mode"]=="train"].to_csv(os.path.join(target,"log_earliness_train.csv"))
-print("writing "+os.path.join(target,"log_earliness_test.csv"))
-data.loc[data["mode"]=="test"].to_csv(os.path.join(target,"log_earliness_test.csv"))
+def split_log_in_train_test(root, target):
+    os.makedirs(target, exist_ok=True)
+
+    data = pd.read_csv(os.path.join(root,"log_earliness.csv"))
+    print("writing "+os.path.join(target,"log_earliness_train.csv"))
+    data.loc[data["mode"]=="train"].to_csv(os.path.join(target,"log_earliness_train.csv"))
+    print("writing "+os.path.join(target,"log_earliness_test.csv"))
+    data.loc[data["mode"]=="test"].to_csv(os.path.join(target,"log_earliness_test.csv"))
+
+# qualitative example
+split_log_in_train_test(root, target)
+
+for run in [0,1,2]:
+    # epsilon examples
+    split_log_in_train_test("/data/EV2019/earlyreward-alpha0.4-epsilon0-run{}/BavarianCrops".format(run), "/home/marc/projects/EV2019/images/logs/data/epsilon0_r{}".format(run))
+    split_log_in_train_test("/data/EV2019/earlyreward-alpha0.4-epsilon1-run{}/BavarianCrops".format(run), "/home/marc/projects/EV2019/images/logs/data/epsilon1_r{}".format(run))
+    split_log_in_train_test("/data/EV2019/earlyreward-alpha0.4-epsilon10-run{}/BavarianCrops".format(run), "/home/marc/projects/EV2019/images/logs/data/epsilon10_r{}".format(run))
+
 
 os.makedirs(target,exist_ok=True)
 
@@ -140,3 +157,33 @@ plt.show()
 #    median=median,
 #    std=std
 #))
+
+import matplotlib.pyplot as plt
+
+confusion_matrix = np.load("/data/EV2019/earlyrewardalpha0.4power2/BavarianCrops/npy/confusion_matrix_99.npy")
+plt.imshow(confusion_matrix)
+
+confusion_matrix = confusion_matrix.astype(float)
+
+total = np.sum(confusion_matrix)
+n_classes, _ = confusion_matrix.shape
+classes = []
+overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
+
+# calculate Cohen Kappa (https://en.wikipedia.org/wiki/Cohen%27s_kappa)
+N = total
+p0 = np.sum(np.diag(confusion_matrix)) / N
+pc = np.sum(np.sum(confusion_matrix, axis=0) * np.sum(confusion_matrix, axis=1)) / N ** 2
+kappa = (p0 - pc) / (1 - pc)
+
+recall = np.diag(confusion_matrix) / (np.sum(confusion_matrix, axis=1) + 1e-12)
+precision = np.diag(confusion_matrix) / (np.sum(confusion_matrix, axis=0) + 1e-12)
+f1 = (2 * precision * recall) / ((precision + recall) + 1e-12)
+
+# Per class accuracy
+cl_acc = np.diag(confusion_matrix) / (confusion_matrix.sum(1) + 1e-12)
+
+for cl in range(len(classnames)):
+    print("{}:{:.2f}".format(classnames[cl], cl_acc[cl]))
+
+pass
