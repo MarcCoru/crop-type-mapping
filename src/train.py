@@ -13,6 +13,8 @@ import numpy as np
 from models.wavenet_model import WaveNetModel
 from torch.utils.data.sampler import RandomSampler, SequentialSampler, BatchSampler, WeightedRandomSampler
 from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
+from models.rnn import RNN
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -266,7 +268,10 @@ def getModel(args):
     # Get Model
     if args.model == "DualOutputRNN":
         model = DualOutputRNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True)
+                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=True)
+    elif args.model == "rnn":
+        model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
+                              num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True, bidirectional=True)
 
     elif args.model == "WaveNet":
 

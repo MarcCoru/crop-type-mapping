@@ -35,7 +35,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         if classmapping is None:
             classmapping = self.root + "/classmapping.csv"
 
-        self.mapping = pd.read_csv(classmapping, index_col=0)
+        self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
         self.mapping = self.mapping.set_index("nutzcode")
         self.classes = self.mapping["id"].unique()
         self.nclasses = len(self.classes)
@@ -44,11 +44,14 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         print("read {} classes".format(self.nclasses))
 
+        if self.cache_exists() and not self.mapping_consistent_with_cache():
+            self.clean_cache()
+
         if self.cache_exists() and self.mapping_consistent_with_cache():
-            print("no cached dataset found. iterating through csv folders in "+str(self.data_folder))
+            print("precached dataset files found at " + self.cache)
             self.load_cached_dataset()
         else:
-            print("precached dataset files found at "+self.cache)
+            print("no cached dataset found. iterating through csv folders in " + str(self.data_folder))
             self.cache_dataset()
 
         print("loaded {} samples".format(len(self.ids)))
@@ -123,7 +126,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
     def mapping_consistent_with_cache(self):
         # cached y must have the same number of classes than the mapping
-        return len(np.unique(np.load(os.path.join(self.cache, "y.npy")))) == self.nclasses
+        return True
+        #return len(np.unique(np.load(os.path.join(self.cache, "y.npy")))) == self.nclasses
 
     def cache_variables(self, y, sequencelengths, ids, ndims, X, classweights):
         os.makedirs(self.cache, exist_ok=True)
@@ -147,7 +151,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.X = np.load(os.path.join(self.cache, "X.npy"))
 
     def cache_exists(self):
-        #weightsexist = os.path.exists(os.path.join(self.cache, "classweights.npy"))
+        weightsexist = os.path.exists(os.path.join(self.cache, "classweights.npy"))
         yexist = os.path.exists(os.path.join(self.cache, "y.npy"))
         ndimsexist = os.path.exists(os.path.join(self.cache, "ndims.npy"))
         sequencelengthsexist = os.path.exists(os.path.join(self.cache, "sequencelengths.npy"))
@@ -157,7 +161,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists
 
     def clean_cache(self):
-        #os.remove(os.path.join(self.cache, "classweights.npy"))
+        os.remove(os.path.join(self.cache, "classweights.npy"))
         os.remove(os.path.join(self.cache, "y.npy"))
         os.remove(os.path.join(self.cache, "ndims.npy"))
         os.remove(os.path.join(self.cache, "sequencelengths.npy"))

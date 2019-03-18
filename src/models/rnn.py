@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import os
-from models.EarlyClassificationModel import EarlyClassificationModel
+from models.ClassificationModel import ClassificationModel
 from models.AttentionModule import Attention
 from torch.nn.modules.normalization import LayerNorm
 
@@ -12,24 +12,23 @@ SEQUENCE_PADDINGS_VALUE=-1
 def entropy(p):
     return -(p*torch.log(p)).sum(1)
 
-class DualOutputRNN(EarlyClassificationModel):
+class RNN(ClassificationModel):
     def __init__(self, input_dim=1, hidden_dims=3, nclasses=5, num_rnn_layers=1, dropout=0.2, bidirectional=False,
                  use_batchnorm=False, use_attention=False, use_layernorm=True, init_late=True):
 
-        super(DualOutputRNN, self).__init__()
+        super(RNN, self).__init__()
 
         self.nclasses=nclasses
         self.use_batchnorm = use_batchnorm
         self.use_attention = use_attention
         self.use_layernorm = use_layernorm
 
-        if not use_batchnorm and not self.use_layernorm:
-            self.in_linear = nn.Linear(input_dim, input_dim, bias=True)
+
 
         if use_layernorm:
             # perform
             self.inlayernorm = nn.LayerNorm(input_dim)
-            self.lstmlayernorm = nn.LayerNorm(hidden_dims)
+            #self.lstmlayernorm = nn.LayerNorm(hidden_dims)
 
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dims, num_layers=num_rnn_layers,
                             bias=False, batch_first=True, dropout=dropout, bidirectional=bidirectional)
@@ -37,17 +36,14 @@ class DualOutputRNN(EarlyClassificationModel):
         if bidirectional: # if bidirectional we have twice as many hidden dims after lstm encoding...
             hidden_dims = hidden_dims * 2
 
+        self.linear_class = nn.Linear(hidden_dims*num_rnn_layers, nclasses, bias=True)
+
         if use_attention:
             self.attention = Attention(hidden_dims, attention_type="dot")
 
         if use_batchnorm:
             self.bn = nn.BatchNorm1d(hidden_dims)
 
-        self.linear_class = nn.Linear(hidden_dims, nclasses, bias=True)
-        self.linear_dec = nn.Linear(hidden_dims, 1, bias=True)
-
-        if init_late:
-            torch.nn.init.normal_(self.linear_dec.bias, mean=-10e1, std=1e-1)
 
     def _logits(self, x):
 
@@ -66,9 +62,6 @@ class DualOutputRNN(EarlyClassificationModel):
         # b,d,t -> b,t,d
         x = x.transpose(1,2)
 
-        if not self.use_batchnorm and not self.use_layernorm:
-            x = self.in_linear(x)
-
         if self.use_layernorm:
             x = self.inlayernorm(x)
 
@@ -76,16 +69,16 @@ class DualOutputRNN(EarlyClassificationModel):
         outputs, last_state_list = self.lstm.forward(x)
         #outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
-        if self.use_layernorm:
-            outputs = self.lstmlayernorm(outputs)
+        #if self.use_layernorm:
+        #    outputs = self.lstmlayernorm(outputs)
 
         if self.use_batchnorm:
             b,t,d = outputs.shape
             o_ = outputs.view(b, -1, d).permute(0,2,1)
             outputs = self.bn(o_).permute(0, 2, 1).view(b,t,d)
 
+        h, c = last_state_list
         if self.use_attention:
-            h, c = last_state_list
 
             query = c[-1]
 
@@ -97,22 +90,21 @@ class DualOutputRNN(EarlyClassificationModel):
             # repeat outputs to match non-attention model
             outputs = outputs.expand(b,t,d)
 
-        logits = self.linear_class.forward(outputs)
-        deltas = self.linear_dec.forward(outputs)
-
-        deltas = torch.sigmoid(deltas).squeeze(2)
-
-        pts, budget = self.attentionbudget(deltas)
+        nlayers, batchsize, n_hidden = c.shape
+        # use last cell state as classificaiton features
+        logits = self.linear_class.forward(c.transpose(0,1).contiguous().view(batchsize,nlayers*n_hidden))
 
         if self.use_attention:
             pts = weights
+        else:
+            pts = None
 
-        return logits, deltas, pts, budget
+        return logits, None, pts, None
 
     def forward(self,x):
         logits, deltas, pts, budget = self._logits(x)
 
-        logprobabilities = F.log_softmax(logits, dim=2)
+        logprobabilities = F.log_softmax(logits, dim=-1)
         # stack the lists to new tensor (b,d,t,h,w)
         return logprobabilities, deltas, pts, budget
 
