@@ -9,6 +9,7 @@ class RayResultsParser():
     def _load_run(self, path):
 
         result_file = os.path.join(path, "result.json")
+        #result_file = path
 
         if not os.path.exists(result_file):
             return None
@@ -82,7 +83,7 @@ class RayResultsParser():
             subset=['earliness_factor', 'entropy_factor', 'ptsepsilon'], keep='first')
         data[columns].to_csv(outpath)
 
-    def get_best_hyperparameters(self, path, hyperparametercsv=None, group_by=["hidden_dims", "learning_rate", "num_rnn_layers"]):
+    def get_best_hyperparameters(self, path, hyperparametercsv=None, group_by=["hidden_dims", "learning_rate", "num_rnn_layers"], n=1):
 
         experiments = os.listdir(path)
 
@@ -93,7 +94,7 @@ class RayResultsParser():
 
             if os.path.isdir(experimentpath):
                 print("parsing experiment "+experiment)
-                result = self._get_n_best_runs(experimentpath=experimentpath, n=1, group_by=group_by)
+                result = self._get_n_best_runs(experimentpath=experimentpath, n=n, group_by=group_by)
                 if result is not None:
                     best_hyperparams.append(result)
 
@@ -114,7 +115,7 @@ def parse_hyperparameters(rayroot="/data/remote/hyperparams_conv1d_v2_secondrun/
                           outcsv="/data/remote/hyperparams_conv1d_v2_secondrun/hyperparams.csv"):
     parser = RayResultsParser()
     summary = parser.get_best_hyperparameters(rayroot,
-                                              outcsv=outcsv,
+                                              hyperparametercsv=outcsv,
                                               group_by=["hidden_dims", "learning_rate", "num_layers",
                                                         "shapelet_width_increment"])
 
@@ -142,9 +143,16 @@ def parse_entropy_experiment():
 if __name__=="__main__":
 
     # hyperparameters train on train partition evaluated on validation partition in multiple folds
-    #parse_hyperparameters(rayroot="/data/remote/hyperparametertuning_conv1d/conv1d",
-    #                      hyperparametercsv="/data/remote/hyperparametertuning_conv1d/hyperparams.csv")
+    #parse_hyperparameters(rayroot="/home/marc/ray_results/crops/",
+    #                      outcsv="/home/marc/ray_results/crops/hyperparams.csv")
+
+    parser = RayResultsParser()
+    summary = parser.get_best_hyperparameters("/home/marc/ray_results/crops/",
+                                              hyperparametercsv="/home/marc/ray_results/crops/hyperparams.csv",
+                                              group_by=["hidden_dims", "learning_rate", "num_layers", "dropout"], n=5)
+
+    print(summary.set_index("dataset")[["mean_accuracy", "std_accuracy", "runs"]])
 
     # results from runs using hyperparameters trained on train+valid partitions and tested on test partition
-    parse_sota_experiment(path="/data/remote/early_rnn/sota_comparison",
-                          outcsv="../viz/data/sota_comparison/runs.csv")
+    #parse_sota_experiment(path="/data/remote/early_rnn/sota_comparison",
+    #                      outcsv="../viz/data/sota_comparison/runs.csv")

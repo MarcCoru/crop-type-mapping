@@ -28,6 +28,7 @@ class RNN(ClassificationModel):
         if use_layernorm:
             # perform
             self.inlayernorm = nn.LayerNorm(input_dim)
+            self.clayernorm = nn.LayerNorm((hidden_dims + hidden_dims*bidirectional)*num_rnn_layers)
             #self.lstmlayernorm = nn.LayerNorm(hidden_dims)
 
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dims, num_layers=num_rnn_layers,
@@ -92,7 +93,8 @@ class RNN(ClassificationModel):
 
         nlayers, batchsize, n_hidden = c.shape
         # use last cell state as classificaiton features
-        logits = self.linear_class.forward(c.transpose(0,1).contiguous().view(batchsize,nlayers*n_hidden))
+        h = self.clayernorm(c.transpose(0,1).contiguous().view(batchsize,nlayers*n_hidden))
+        logits = self.linear_class.forward(h)
 
         if self.use_attention:
             pts = weights

@@ -56,10 +56,10 @@ def get_hyperparameter_search_space(experiment, args):
             epochs=30,
             switch_epoch=9999,
             earliness_factor=1,
-            fold=tune.grid_search([0]), #[0, 1, 2, 3, 4]),
+            fold=tune.grid_search([0,1,2]), #[0, 1, 2, 3, 4]),
             hidden_dims=tune.grid_search([2 ** 6, 2 ** 7, 2 ** 8, 2 ** 9]),
             learning_rate=tune.grid_search([1e-2,1e-3,1e-4]),
-            dropout=0.5,
+            dropout=tune.grid_search([0.25,0.5,0.75]),
             num_layers=tune.grid_search([1,2,3,4]),
             dataset=args.dataset)
 

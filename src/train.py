@@ -3,6 +3,7 @@ from models.DualOutputRNN import DualOutputRNN
 from models.ConvShapeletModel import ConvShapeletModel
 from datasets.UCR_Dataset import UCRDataset
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
+from datasets.HDF5Dataset import HDF5Dataset
 from datasets.Synthetic_Dataset import SyntheticDataset
 import argparse
 from argparse import Namespace
@@ -163,40 +164,17 @@ def train(args):
         args = readHyperparameterCSV(args)
 
     region = "HOLL_2018_MT_pilot"
+    root = "/home/marc/data/BavarianCrops"
 
-    traindataloader = getDataloader(dataset=args.dataset,
-                                    partition=args.train_on,
-                                    batch_size=args.batchsize,
-                                    num_workers=args.workers,
-                                    shuffle=True,
-                                    pin_memory=True,
-                                    train_valid_split_ratio=args.train_valid_split_ratio,
-                                    train_valid_split_seed=args.train_valid_split_seed,
-                                    region=region,
-                                    classmapping=args.classmapping,
-                                    seed=args.seed)
+    dataset = BavarianCropsDataset(root=root, region=region, partition=args.train_on, classmapping=args.classmapping)
+    #dataset = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5")
+    traindataloader = torch.utils.data.DataLoader(dataset=dataset,sampler=ImbalancedDatasetSampler(dataset),batch_size=args.batchsize,num_workers=args.workers)
 
-    testdataloader = getDataloader(dataset=args.dataset,
-                                   partition=args.test_on,
-                                   batch_size=args.batchsize,
-                                   num_workers=args.workers,
-                                   shuffle=False,
-                                   pin_memory=True,
-                                   train_valid_split_ratio=args.train_valid_split_ratio,
-                                   train_valid_split_seed=args.train_valid_split_seed,
-                                   region=region,
-                                   classmapping=args.classmapping,
-                                   seed=args.seed)
+    dataset = BavarianCropsDataset(root=root, region=region, partition=args.test_on, classmapping=args.classmapping)
+    #dataset = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5")
+    testdataloader = torch.utils.data.DataLoader(dataset=dataset,sampler=SequentialSampler(dataset),batch_size=args.batchsize,num_workers=args.workers)
 
-    #evaldataloader = getDataloader(dataset=args.dataset,
-    #                               partition="eval",
-    #                               batch_size=args.batchsize,
-    #                               num_workers=args.workers,
-    #                               shuffle=False,
-    #                               pin_memory=True,
-    #                               train_valid_split_ratio=args.train_valid_split_ratio,
-    #                               train_valid_split_seed=args.train_valid_split_seed,
-    #                               region=region)
+    #
 
     args.nclasses = traindataloader.dataset.nclasses
     args.seqlength = traindataloader.dataset.sequencelengths.max()
@@ -230,39 +208,15 @@ def train(args):
 
     pass
 
-def getDataloader(dataset, partition, train_valid_split_ratio=0.75,seed=None, **kwargs):
+class ConcatDataset(torch.utils.data.Dataset):
+    def __init__(self, *datasets):
+        self.datasets = datasets
 
-    if seed is None:
-        # ensure the batchsing sequence is the same at different runs
-        # useful for qualitative experiments to see identical samples in visdom...
-        seed = sum([ord(ch) for ch in partition])
+    def __getitem__(self, i):
+        return tuple(d[i] for d in self.datasets)
 
-    np.random.seed(seed)
-    torch.random.manual_seed(seed)
-
-    if dataset == "synthetic":
-        torchdataset = SyntheticDataset(num_samples=2000, T=100)
-    if dataset == "BavarianCrops":
-        root = "/home/marc/data/BavarianCrops"
-        torchdataset = BavarianCropsDataset(root=root, region=kwargs["region"], partition=partition, nsamples=None, classmapping=kwargs["classmapping"])
-    else:
-        torchdataset = UCRDataset(dataset, partition=partition, ratio=train_valid_split_ratio, randomstate=seed)
-
-    if kwargs["shuffle"]:
-        #sampler = WeightedRandomSampler(torchdataset.dataweights, len(torchdataset.dataweights),  replacement=True)
-        sampler = ImbalancedDatasetSampler(torchdataset)
-    else:
-        sampler = SequentialSampler(torchdataset)
-    # for training dataset -> shuffle is true
-
-    dataloader = torch.utils.data.DataLoader(dataset=torchdataset,
-                                             #batch_sampler=BatchSampler(sampler, kwargs["batch_size"], drop_last=False),
-                                             sampler=sampler,
-                                             batch_size=kwargs["batch_size"],
-                                             num_workers=kwargs["num_workers"],
-                                             pin_memory=kwargs["pin_memory"])
-
-    return dataloader
+    def __len__(self):
+        return min(len(d) for d in self.datasets)
 
 def getModel(args):
     # Get Model

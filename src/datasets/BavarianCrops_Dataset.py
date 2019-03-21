@@ -13,7 +13,7 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, region=None, partition="train", nsamples=None, samplet=70, classmapping=None):
+    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None):
         """
 
         :param root:
@@ -21,6 +21,11 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         :param partition: one of train/valid/eval
         :param nsamples: load less samples for debug
         """
+
+        # ensure that different seeds are set per partition
+        seed = sum([ord(ch) for ch in partition])
+        np.random.seed(seed)
+        torch.random.manual_seed(seed)
 
         self.root = root
         self.region = region
@@ -57,17 +62,38 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         print("loaded {} samples".format(len(self.ids)))
         #print("class frequencies " + ", ".join(["{c}:{h}".format(h=h, c=c) for h, c in zip(self.hist, self.classes)]))
 
+    def read_ids(self):
+        if self.partition == "trainvalid":
+            ids_file_train = os.path.join(self.root, "ids", "{region}_{partition}.txt".format(region=self.region.lower(),
+                                                                                        partition="train"))
+            with open(ids_file_train,"r") as f:
+                train_ids = [int(id) for id in f.readlines()]
+            print("Found {} ids in {}".format(len(train_ids), ids_file_train))
+
+            ids_file_valid = os.path.join(self.root, "ids", "{region}_{partition}.txt".format(region=self.region.lower(),
+                                                                                        partition="valid"))
+            with open(ids_file_valid,"r") as f:
+                valid_ids = [int(id) for id in f.readlines()]
+
+            print("Found {} ids in {}".format(len(valid_ids), ids_file_valid))
+
+            ids = train_ids + valid_ids
+
+        elif self.partition in ["train","valid","eval"]:
+            ids_file = os.path.join(self.root,"ids","{region}_{partition}.txt".format(region=self.region.lower(), partition=self.partition))
+            with open(ids_file,"r") as f:
+                ids = [int(id) for id in f.readlines()]
+
+            print("Found {} ids in {}".format(len(ids),ids_file))
+
+        return ids
+
     def cache_dataset(self):
         """
         Iterates though the data folders and stores y, ids, classweights, and sequencelengths
         X is loaded at with getitem
         """
-
-        ids_file = os.path.join(self.root,"ids","{region}_{partition}.txt".format(region=self.region.lower(), partition=self.partition))
-        with open(ids_file,"r") as f:
-            ids = [int(id) for id in f.readlines()]
-
-        print("Found {} ids in {}".format(len(ids),ids_file))
+        ids = self.read_ids()
 
         self.X = list()
         self.nutzcodes = list()
