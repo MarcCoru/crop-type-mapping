@@ -1,3 +1,6 @@
+import sys
+sys.path.append("models")
+
 import torch
 from models.DualOutputRNN import DualOutputRNN
 from models.ConvShapeletModel import ConvShapeletModel
@@ -5,6 +8,7 @@ from datasets.UCR_Dataset import UCRDataset
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
 from datasets.Synthetic_Dataset import SyntheticDataset
+from models.TransformerEncoder import TransformerEncoder
 import argparse
 from argparse import Namespace
 from utils.trainer import Trainer
@@ -226,6 +230,17 @@ def getModel(args):
     elif args.model == "rnn":
         model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
                               num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True, bidirectional=True)
+    elif args.model == "transformer":
+
+        hidden_dims = 128
+        n_heads = 2
+        n_layers = 2
+
+        model = TransformerEncoder(in_channels=args.input_dims, len_max_seq=70,
+            d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=hidden_dims*4,
+            n_layers=n_layers, n_head=n_heads, d_k=hidden_dims//n_heads, d_v=hidden_dims//n_heads,
+            dropout=0.5, nclasses=args.nclasses)
+        pass
 
     elif args.model == "WaveNet":
 

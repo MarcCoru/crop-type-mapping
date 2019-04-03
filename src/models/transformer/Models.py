@@ -8,8 +8,7 @@ from transformer.Layers import EncoderLayer, DecoderLayer
 __author__ = "Yu-Hsiang Huang"
 
 def get_non_pad_mask(seq):
-    assert seq.dim() == 2
-    return seq.ne(Constants.PAD).type(torch.float).unsqueeze(-1)
+    return seq[:,:,0].ne(Constants.PAD).type(torch.float).unsqueeze(-1)
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     ''' Sinusoid position encoding table '''
@@ -29,7 +28,10 @@ def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
         # zero vector for padding dimension
         sinusoid_table[padding_idx] = 0.
 
-    return torch.FloatTensor(sinusoid_table)
+    if torch.cuda.is_available():
+        return torch.FloatTensor(sinusoid_table).cuda()
+    else:
+        return torch.FloatTensor(sinusoid_table)
 
 def get_attn_key_pad_mask(seq_k, seq_q):
     ''' For masking out the padding part of key sequence. '''
@@ -37,7 +39,7 @@ def get_attn_key_pad_mask(seq_k, seq_q):
     # Expand to fit the shape of key query attention matrix.
     len_q = seq_q.size(1)
     padding_mask = seq_k.eq(Constants.PAD)
-    padding_mask = padding_mask.unsqueeze(1).expand(-1, len_q, -1)  # b x lq x lk
+    padding_mask = padding_mask[:,:,0].unsqueeze(1).expand(-1, len_q, -1)  # b x lq x lk
 
     return padding_mask
 
@@ -64,8 +66,8 @@ class Encoder(nn.Module):
 
         n_position = len_max_seq + 1
 
-        self.src_word_emb = nn.Embedding(
-            n_src_vocab, d_word_vec, padding_idx=Constants.PAD)
+        #self.src_word_emb = nn.Embedding(
+        #   n_src_vocab, d_word_vec, padding_idx=Constants.PAD)
 
         self.position_enc = nn.Embedding.from_pretrained(
             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
@@ -80,11 +82,16 @@ class Encoder(nn.Module):
         enc_slf_attn_list = []
 
         # -- Prepare masks
-        slf_attn_mask = get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq)
+        #slf_attn_mask = get_attn_key_pad_mask(seq_k=src_seq, seq_q=src_seq)
+        slf_attn_mask = torch.zeros((src_seq.shape[0],src_seq.shape[1],src_seq.shape[1]),dtype=torch.uint8)
         non_pad_mask = get_non_pad_mask(src_seq)
 
-        # -- Forward
-        enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
+        if torch.cuda.is_available():
+            slf_attn_mask = slf_attn_mask.cuda()
+            non_pad_mask = non_pad_mask.cuda()
+
+        # -- Forward self.src_word_emb(src_seq)
+        enc_output = src_seq + self.position_enc(src_pos)
 
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(
