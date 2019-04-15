@@ -9,6 +9,7 @@ from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
 from datasets.Synthetic_Dataset import SyntheticDataset
 from models.TransformerEncoder import TransformerEncoder
+from models.transformer.Optim import ScheduledOptim
 import argparse
 from argparse import Namespace
 from utils.trainer import Trainer
@@ -232,9 +233,9 @@ def getModel(args):
                               num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True, bidirectional=True)
     elif args.model == "transformer":
 
-        hidden_dims = 128
-        n_heads = 2
-        n_layers = 2
+        hidden_dims = 256
+        n_heads = 8
+        n_layers = 6
 
         model = TransformerEncoder(in_channels=args.input_dims, len_max_seq=70,
             d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=hidden_dims*4,

@@ -18,6 +18,8 @@ class TransformerEncoder(ClassificationModel):
 
         super(TransformerEncoder, self).__init__()
 
+        self.d_model = 512
+
         self.inlayernorm = nn.LayerNorm(in_channels)
         self.convlayernorm = nn.LayerNorm(d_model)
         self.outlayernorm = nn.LayerNorm(d_model)

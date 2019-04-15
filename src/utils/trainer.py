@@ -3,12 +3,15 @@ from utils.classmetric import ClassMetric
 from utils.logger import Logger
 from utils.printer import Printer
 from utils.visdomLogger import VisdomLogger
+from models.TransformerEncoder import TransformerEncoder
 import os
 from loss import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear, loss_early_reward
 import numpy as np
 from models.ClassificationModel import ClassificationModel
 from models.EarlyClassificationModel import EarlyClassificationModel
 import torch.nn.functional as F
+import torch.optim as optim
+from models.transformer.Optim import ScheduledOptim
 
 CLASSIFICATION_PHASE_NAME="classification"
 EARLINESS_PHASE_NAME="earliness"
@@ -50,7 +53,15 @@ class Trainer():
         self.show_n_samples = show_n_samples
         self.lossmode = loss_mode
         self.model = model
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+        if isinstance(self.model, TransformerEncoder):
+            self.optimizer = ScheduledOptim(
+                optim.Adam(
+                    filter(lambda x: x.requires_grad, model.parameters()),
+                    betas=(0.9, 0.98), eps=1e-09),
+                self.model.d_model, 4000)
+        else:
+            self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
         self.resume_optimizer = resume_optimizer
         self.earliness_reward_power = earliness_reward_power
@@ -280,7 +291,10 @@ class Trainer():
             loss, stats = self.loss_criterion(logprobabilities, pts, targets,
                                               self.earliness_factor, self.entropy_factor, self.ptsepsilon, self.earliness_reward_power)
             loss.backward()
-            self.optimizer.step()
+            if isinstance(self.optimizer,ScheduledOptim):
+                self.optimizer.step_and_update_lr()
+            else:
+                self.optimizer.step()
 
             if isinstance(self.model, EarlyClassificationModel):
                 prediction, t_stop = self.model.predict(logprobabilities, deltas)
