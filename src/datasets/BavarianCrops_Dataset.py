@@ -13,7 +13,7 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None):
+    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None, cache=True):
         """
 
         :param root:
@@ -27,6 +27,14 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         np.random.seed(seed)
         torch.random.manual_seed(seed)
 
+        if classmapping is None:
+            classmapping = self.root + "/classmapping.csv"
+
+        self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
+        self.mapping = self.mapping.set_index("nutzcode")
+        self.classes = self.mapping["id"].unique()
+        self.nclasses = len(self.classes)
+
         self.root = root
         self.region = region
         self.partition = partition
@@ -37,22 +45,14 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         #self.csvfiles = [ for f in os.listdir(root)]
         print("Initializing BavarianCropsDataset {} partition in region {}".format(self.partition, self.region))
 
-        if classmapping is None:
-            classmapping = self.root + "/classmapping.csv"
-
-        self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
-        self.mapping = self.mapping.set_index("nutzcode")
-        self.classes = self.mapping["id"].unique()
-        self.nclasses = len(self.classes)
-
         self.cache = os.path.join(self.root,"npy",region, partition)
 
         print("read {} classes".format(self.nclasses))
 
-        if self.cache_exists() and not self.mapping_consistent_with_cache():
+        if cache and self.cache_exists() and not self.mapping_consistent_with_cache():
             self.clean_cache()
 
-        if self.cache_exists() and self.mapping_consistent_with_cache():
+        if cache and self.cache_exists() and self.mapping_consistent_with_cache():
             print("precached dataset files found at " + self.cache)
             self.load_cached_dataset()
         else:
@@ -172,6 +172,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.y = np.load(os.path.join(self.cache, "y.npy"))
         self.ndims = int(np.load(os.path.join(self.cache, "ndims.npy")))
         self.sequencelengths = np.load(os.path.join(self.cache, "sequencelengths.npy"))
+        self.sequencelength = self.sequencelengths.max()
         self.ids = np.load(os.path.join(self.cache, "ids.npy"))
         #self.dataweights = np.load(os.path.join(self.cache, "dataweights.npy"))
         self.X = np.load(os.path.join(self.cache, "X.npy"))

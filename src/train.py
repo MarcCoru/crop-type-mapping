@@ -10,6 +10,7 @@ from datasets.HDF5Dataset import HDF5Dataset
 from datasets.Synthetic_Dataset import SyntheticDataset
 from models.TransformerEncoder import TransformerEncoder
 from models.transformer.Optim import ScheduledOptim
+from datasets.ConcatDataset import ConcatDataset
 import argparse
 from argparse import Namespace
 from utils.trainer import Trainer
@@ -163,27 +164,46 @@ def readHyperparameterCSV(args):
 
     return Namespace(**args_dict)
 
+def prepare_dataset(args):
+    root = "/home/marc/data/BavarianCrops"
+
+    dataset_holl = BavarianCropsDataset(root=root, region="HOLL_2018_MT_pilot", partition=args.train_on,
+                                        classmapping=args.classmapping)
+    dataset_krum = BavarianCropsDataset(root=root, region="KRUM_2018_MT_pilot", partition=args.train_on,
+                                        classmapping=args.classmapping)
+    dataset_nowa = BavarianCropsDataset(root=root, region="NOWA_2018_MT_pilot", partition=args.train_on,
+                                        classmapping=args.classmapping)
+    traindataset = ConcatDataset([dataset_holl, dataset_krum, dataset_nowa])
+
+    traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=ImbalancedDatasetSampler(traindataset),
+                                                  batch_size=args.batchsize, num_workers=args.workers)
+
+    dataset_holl = BavarianCropsDataset(root=root, region="HOLL_2018_MT_pilot", partition=args.test_on,
+                                        classmapping=args.classmapping)
+    dataset_krum = BavarianCropsDataset(root=root, region="KRUM_2018_MT_pilot", partition=args.test_on,
+                                        classmapping=args.classmapping)
+    dataset_nowa = BavarianCropsDataset(root=root, region="NOWA_2018_MT_pilot", partition=args.test_on,
+                                        classmapping=args.classmapping)
+    testdataset = ConcatDataset([dataset_holl, dataset_krum, dataset_nowa])
+
+    testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
+                                                 batch_size=args.batchsize, num_workers=args.workers)
+
+    return traindataloader, testdataloader
+
 def train(args):
 
     if args.hyperparametercsv is not None:
         args = readHyperparameterCSV(args)
 
-    region = "HOLL_2018_MT_pilot"
-    root = "/home/marc/data/BavarianCrops"
-
-    dataset = BavarianCropsDataset(root=root, region=region, partition=args.train_on, classmapping=args.classmapping)
-    #dataset = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5")
-    traindataloader = torch.utils.data.DataLoader(dataset=dataset,sampler=ImbalancedDatasetSampler(dataset),batch_size=args.batchsize,num_workers=args.workers)
-
-    dataset = BavarianCropsDataset(root=root, region=region, partition=args.test_on, classmapping=args.classmapping)
-    #dataset = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5")
-    testdataloader = torch.utils.data.DataLoader(dataset=dataset,sampler=SequentialSampler(dataset),batch_size=args.batchsize,num_workers=args.workers)
+    traindataloader, testdataloader = prepare_dataset(args)
 
     #
 
     args.nclasses = traindataloader.dataset.nclasses
-    args.seqlength = traindataloader.dataset.sequencelengths.max()
+    args.seqlength = traindataloader.dataset.sequencelength
     args.input_dims = traindataloader.dataset.ndims
+
     model = getModel(args)
 
     visdomenv = "{}_{}_{}".format(args.experiment, args.dataset, args.loss_mode.replace("_","-"))
@@ -212,16 +232,6 @@ def train(args):
     #stats = trainer.test_epoch(evaldataloader)
 
     pass
-
-class ConcatDataset(torch.utils.data.Dataset):
-    def __init__(self, *datasets):
-        self.datasets = datasets
-
-    def __getitem__(self, i):
-        return tuple(d[i] for d in self.datasets)
-
-    def __len__(self):
-        return min(len(d) for d in self.datasets)
 
 def getModel(args):
     # Get Model
