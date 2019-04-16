@@ -77,3 +77,4 @@ class Logger():
                 if self.verbose: print("saving "+filepath)
 
         self.data.to_csv(os.path.join(self.rootpath,csvfile))
+

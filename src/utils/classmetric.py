@@ -1,5 +1,28 @@
 import numpy as np
 
+def confusion_matrix_to_accuraccies(confusion_matrix):
+
+    confusion_matrix = confusion_matrix.astype(float)
+
+    total = np.sum(confusion_matrix)
+    n_classes, _ = confusion_matrix.shape
+    overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
+
+    # calculate Cohen Kappa (https://en.wikipedia.org/wiki/Cohen%27s_kappa)
+    N = total
+    p0 = np.sum(np.diag(confusion_matrix)) / N
+    pc = np.sum(np.sum(confusion_matrix, axis=0) * np.sum(confusion_matrix, axis=1)) / N ** 2
+    kappa = (p0 - pc) / (1 - pc)
+
+    recall = np.diag(confusion_matrix) / (np.sum(confusion_matrix, axis=1) + 1e-12)
+    precision = np.diag(confusion_matrix) / (np.sum(confusion_matrix, axis=0) + 1e-12)
+    f1 = (2 * precision * recall) / ((precision + recall) + 1e-12)
+
+    # Per class accuracy
+    cl_acc = np.diag(confusion_matrix) / (confusion_matrix.sum(1) + 1e-12)
+
+    return overall_accuracy, kappa, precision, recall, f1, cl_acc
+
 class ClassMetric(object):
     def __init__(self, num_classes=2, ignore_index=0):
         self.num_classes = num_classes
@@ -52,25 +75,7 @@ class ClassMetric(object):
         if type(confusion_matrix) == list:
             confusion_matrix = np.array(confusion_matrix)
 
-        confusion_matrix = confusion_matrix.astype(float)
-
-        total = np.sum(confusion_matrix)
-        n_classes, _ = confusion_matrix.shape
-        classes = []
-        overall_accuracy = np.sum(np.diag(confusion_matrix)) / total
-
-        # calculate Cohen Kappa (https://en.wikipedia.org/wiki/Cohen%27s_kappa)
-        N = total
-        p0 = np.sum(np.diag(self.hist)) / N
-        pc = np.sum(np.sum(self.hist, axis=0) * np.sum(self.hist, axis=1)) / N ** 2
-        kappa = (p0 - pc) / (1 - pc)
-
-        recall = np.diag(self.hist) / (np.sum(self.hist, axis=1) + 1e-12)
-        precision = np.diag(self.hist) / (np.sum(self.hist, axis=0) + 1e-12)
-        f1 = (2 * precision * recall) / ((precision + recall) + 1e-12)
-
-        # Per class accuracy
-        cl_acc = np.diag(self.hist) / (self.hist.sum(1) + 1e-12)
+        overall_accuracy, kappa, precision, recall, f1, cl_acc = confusion_matrix_to_accuraccies(confusion_matrix)
 
         return dict(
             overall_accuracy=overall_accuracy,

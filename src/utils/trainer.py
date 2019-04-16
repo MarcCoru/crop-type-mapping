@@ -1,6 +1,6 @@
 import torch
 from utils.classmetric import ClassMetric
-from utils.logger import Logger
+
 from utils.printer import Printer
 from utils.visdomLogger import VisdomLogger
 from models.TransformerEncoder import TransformerEncoder
@@ -12,6 +12,7 @@ from models.EarlyClassificationModel import EarlyClassificationModel
 import torch.nn.functional as F
 import torch.optim as optim
 from models.transformer.Optim import ScheduledOptim
+import copy
 
 CLASSIFICATION_PHASE_NAME="classification"
 EARLINESS_PHASE_NAME="earliness"
@@ -36,6 +37,7 @@ class Trainer():
                  overwrite=True,
                  resume_optimizer=False,
                  earliness_reward_power=1,
+                 logger=None,
                  **kwargs):
 
         self.epochs = epochs
@@ -49,7 +51,7 @@ class Trainer():
         self.entropy_factor = entropy_factor
         self.store = store
         self.test_every_n_epochs = test_every_n_epochs
-        self.logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=self.store)
+        self.logger = logger
         self.show_n_samples = show_n_samples
         self.lossmode = loss_mode
         self.model = model
@@ -179,10 +181,8 @@ class Trainer():
 
         self.check_events()
 
-        # stores all stored values in the rootpath of the logger
-        self.logger.save()
 
-        return self.logger.data
+        return self.logger
 
     def new_epoch(self):
         self.check_events()
@@ -190,7 +190,8 @@ class Trainer():
 
     def visdom_log_test_run(self, stats):
 
-
+        # prevent side effects <- normalization of confusion matrix
+        stats = copy.deepcopy(stats)
 
         if "t_stops" in stats.keys(): self.visdom.plot_boxplot(labels=stats["labels"], t_stops=stats["t_stops"], tmin=0, tmax=self.traindataloader.dataset.samplet)
 
@@ -384,7 +385,7 @@ class Trainer():
                     earliness = (t_stop.astype(float) / (inputs.shape[1] - 1)).mean()
                     stats["earliness"] = metric.update_earliness(earliness)
 
-            stats["confusion_matrix"] = metric.hist
+            stats["confusion_matrix"] = copy.copy(metric.hist)
             stats["targets"] = targets.cpu().numpy()
             stats["inputs"] = inputs.cpu().numpy()
             if deltas is not None: stats["deltas"] = deltas

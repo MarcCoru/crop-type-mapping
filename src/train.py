@@ -21,6 +21,8 @@ from models.wavenet_model import WaveNetModel
 from torch.utils.data.sampler import RandomSampler, SequentialSampler, BatchSampler, WeightedRandomSampler
 from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
 from models.rnn import RNN
+from utils.texparser import confusionmatrix2table, texconfmat
+from utils.logger import Logger
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -201,12 +203,18 @@ def train(args):
     #
 
     args.nclasses = traindataloader.dataset.nclasses
+    classname = traindataloader.dataset.classname
+    klassenname = traindataloader.dataset.klassenname
     args.seqlength = traindataloader.dataset.sequencelength
     args.input_dims = traindataloader.dataset.ndims
 
     model = getModel(args)
 
     visdomenv = "{}_{}_{}".format(args.experiment, args.dataset, args.loss_mode.replace("_","-"))
+
+    store = os.path.join(args.store,args.experiment,args.dataset)
+
+    logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=store)
 
     config = dict(
         epochs=args.epochs,
@@ -216,17 +224,26 @@ def train(args):
         switch_epoch=args.switch_epoch,
         loss_mode=args.loss_mode,
         show_n_samples=args.show_n_samples,
-        store=os.path.join(args.store,args.experiment,args.dataset),
+        store=store,
         overwrite=args.overwrite,
         ptsepsilon=args.epsilon,
         test_every_n_epochs=args.test_every_n_epochs,
         entropy_factor = args.entropy_factor,
         resume_optimizer = args.resume_optimizer,
-        earliness_reward_power=args.earliness_reward_power
+        earliness_reward_power=args.earliness_reward_power,
+        logger=logger
     )
 
     trainer = Trainer(model,traindataloader,testdataloader,**config)
-    trainer.fit()
+    logger = trainer.fit()
+
+    # stores all stored values in the rootpath of the logger
+    logger.save()
+
+    confusionmatrix2table(store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs), classnames=klassenname)
+    texconfmat("/tmp/test/BavarianCrops/npy/confusion_matrix_1.npy")
+    #accuracy2table(store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs), classnames=klassenname)
+
 
 
     #stats = trainer.test_epoch(evaldataloader)

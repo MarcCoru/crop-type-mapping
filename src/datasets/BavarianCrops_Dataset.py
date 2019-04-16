@@ -33,6 +33,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
         self.mapping = self.mapping.set_index("nutzcode")
         self.classes = self.mapping["id"].unique()
+        self.classname = self.mapping.groupby("id").first().classname.values
+        self.klassenname = self.mapping.groupby("id").first().klassenname.values
         self.nclasses = len(self.classes)
 
         self.root = root
