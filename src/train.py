@@ -1,22 +1,14 @@
 import sys
-sys.path.append("models")
+sys.path.append("./models")
 
 import torch
-from models.DualOutputRNN import DualOutputRNN
-from models.ConvShapeletModel import ConvShapeletModel
-from datasets.UCR_Dataset import UCRDataset
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
-from datasets.Synthetic_Dataset import SyntheticDataset
 from models.TransformerEncoder import TransformerEncoder
-from models.transformer.Optim import ScheduledOptim
 from datasets.ConcatDataset import ConcatDataset
 import argparse
-from argparse import Namespace
 from utils.trainer import Trainer
-import pandas as pd
 import os
-import numpy as np
 from models.wavenet_model import WaveNetModel
 from torch.utils.data.sampler import RandomSampler, SequentialSampler, BatchSampler, WeightedRandomSampler
 from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
@@ -26,6 +18,7 @@ from utils.logger import Logger
 from utils.visdomLogger import VisdomLogger
 from models.transformer.Optim import ScheduledOptim
 import torch.optim as optim
+import os
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -86,7 +79,7 @@ def experiments(args):
     elif args.experiment == "TUM_ALL_rnn":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
-        args.classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
         args.num_layers = 1
         args.hidden_dims = 128
         args.bidirectional = True
@@ -96,7 +89,7 @@ def experiments(args):
     elif args.experiment == "TUM_HOLL_rnn":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
-        args.classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
         args.num_layers = 1
         args.hidden_dims = 128
         args.bidirectional = True
@@ -111,7 +104,7 @@ def experiments(args):
         args.n_layers = 3
         args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-        args.classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
 
     elif args.experiment == "GAFHDF5_transformer":
         args.model = "transformer"
@@ -125,7 +118,7 @@ def experiments(args):
 def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
-        root = "/home/marc/data/BavarianCrops"
+        root = os.getenv("HOME") + "/data/BavarianCrops"
         partitioning_scheme="random"
 
         train_dataset_list = list()
@@ -152,12 +145,12 @@ def prepare_dataset(args):
                                                      batch_size=args.batchsize, num_workers=args.workers)
 
     elif args.dataset == "GAFHDF5":
-        dataset_holl = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5", partition=args.train_on, samplet=args.samplet)
+        dataset_holl = HDF5Dataset(root=os.getenv("HOME") + "/data/gaf/holl_l2.h5", partition=args.train_on, samplet=args.samplet)
 
         traindataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=ImbalancedDatasetSampler(dataset_holl),
                                                       batch_size=args.batchsize, num_workers=args.workers)
 
-        dataset_holl = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5", partition=args.test_on, samplet=args.samplet)
+        dataset_holl = HDF5Dataset(root=os.getenv("HOME") + "/data/gaf/holl_l2.h5", partition=args.test_on, samplet=args.samplet)
 
         testdataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=SequentialSampler(dataset_holl),
                                                      batch_size=args.batchsize, num_workers=args.workers)
@@ -261,18 +254,6 @@ def getModel(args):
                  input_dims=args.input_dims,
                  bias=False)
 
-    elif args.model == "Conv1D":
-        model = ConvShapeletModel(num_layers=args.num_layers,
-                                  hidden_dims=args.hidden_dims,
-                                  ts_dim=args.input_dims,
-                                  n_classes=args.nclasses,
-                                  use_time_as_feature=True,
-                                  seqlength=args.seqlength,
-                                  scaleshapeletsize=args.shapelet_width_in_percent,
-                                  drop_probability=args.dropout,
-                                  shapelet_width_increment=args.shapelet_width_increment)
-    else:
-        raise ValueError("Invalid Model, Please insert either 'DualOutputRNN', or 'Conv1D'")
 
     if torch.cuda.is_available():
         model = model.cuda()

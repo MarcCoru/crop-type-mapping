@@ -3,13 +3,10 @@ from utils.classmetric import ClassMetric
 
 from utils.printer import Printer
 
-from models.TransformerEncoder import TransformerEncoder
 import os
 import numpy as np
 from models.ClassificationModel import ClassificationModel
-from models.EarlyClassificationModel import EarlyClassificationModel
 import torch.nn.functional as F
-import torch.optim as optim
 from models.transformer.Optim import ScheduledOptim
 import copy
 
@@ -183,11 +180,8 @@ class Trainer():
             else:
                 self.optimizer.step()
 
-            if isinstance(self.model, EarlyClassificationModel):
-                prediction, t_stop = self.model.predict(logprobabilities, deltas)
-            elif isinstance(self.model, ClassificationModel):
-                prediction = self.model.predict(logprobabilities)
-                t_stop = None
+            prediction = self.model.predict(logprobabilities)
+            t_stop = None
 
             stats = metric.add(stats)
 
@@ -235,11 +229,8 @@ class Trainer():
                     loss=loss,
                 )
 
-                if isinstance(self.model, EarlyClassificationModel):
-                    prediction, t_stop = self.model.predict(logprobabilities, deltas)
-                elif isinstance(self.model, ClassificationModel):
-                    prediction = self.model.predict(logprobabilities)
-                    t_stop = None
+                prediction = self.model.predict(logprobabilities)
+                t_stop = None
 
                 ## enter numpy world
                 prediction = prediction.detach().cpu().numpy()

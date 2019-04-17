@@ -2,7 +2,6 @@ import os
 import os.path
 import time
 from models.wavenet_modules import *
-from models.audio_data import *
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import Parameter
