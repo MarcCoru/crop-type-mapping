@@ -50,6 +50,7 @@ class UCRDataset(torch.utils.data.Dataset):
 
         train_mask = r.rand(len(X_trainvalid)) < ratio
         valid_mask = np.logical_not(train_mask)
+        self.classweights = None
 
         if partition == "train":
             self.X = X_trainvalid[train_mask]

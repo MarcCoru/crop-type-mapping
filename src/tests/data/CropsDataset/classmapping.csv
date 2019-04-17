@@ -1,0 +1,71 @@
+,id,nutzcode,classname,klassenname
+0,0,54,closure,Stilllegungen
+1,0,56,closure,Stilllegungen
+2,0,62,closure,Stilllegungen
+3,0,591,closure,Stilllegungen
+4,0,58,closure,Stilllegungen
+5,1,65,closure flowers,Stilllegungen mit Blühpflanzen
+6,1,66,closure flowers,Stilllegungen mit Blühpflanzen
+7,1,560,closure flowers,Stilllegungen mit Blühpflanzen
+8,1,590,closure flowers,Stilllegungen mit Blühpflanzen
+9,2,421,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+10,2,422,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+11,2,423,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+12,2,425,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+13,2,429,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+14,2,430,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+15,2,921,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+16,2,922,clover alfalfa protein plants,Klee- u./o. Luzernen u./o. Eiweißpflanzen
+17,3,424,grassland,Gräser
+18,3,428,grassland,Gräser
+19,3,441,grassland,Gräser
+20,3,912,grassland,Gräser
+21,4,125,winter mixture,Wintergemenge
+22,4,126,winter mixture,Wintergemenge
+23,5,144,summer mixture,Sommergemenge
+24,5,145,summer mixture,Sommergemenge
+25,6,240,protein plants mixture,Eiweißpflanzengemenge
+26,6,250,protein plants mixture,Eiweißpflanzengemenge
+27,7,112,winter wheat,Winterweizen
+28,7,115,winter wheat,Winterweizen
+29,7,118,winter wheat,Winterweizen
+30,8,171,corn,Mais
+31,8,177,corn,Mais
+32,8,410,corn,Mais
+33,8,411,corn,Mais
+34,8,412,corn,Mais
+35,9,113,summer wheat,Sommerweizen
+36,9,116,summer wheat,Sommerweizen
+37,9,119,summer wheat,Sommerweizen
+38,10,413,beet,Rüben
+39,10,603,beet,Rüben
+40,10,639,beet,Rüben
+41,11,181,millet,Hirsen
+42,11,183,millet,Hirsen
+43,11,803,millet,Hirsen
+44,12,601,potatoes,Kartoffeln
+45,12,602,potatoes,Kartoffeln
+46,13,50,mixture,Mischanbau
+47,13,870,mixture,Mischanbau
+48,14,57,closure meadow,Stilllegungen DG
+49,14,546,closure meadow,Stilllegungen DG
+50,14,567,closure meadow,Stilllegungen DG
+51,14,592,closure meadow,Stilllegungen DG
+52,15,451,machined meadow,DG mit Maschineneinsatz
+53,15,452,machined meadow,DG mit Maschineneinsatz
+54,15,458,machined meadow,DG mit Maschineneinsatz
+55,16,453,cattle meadow,DG mitViehbesatz
+56,16,454,cattle meadow,DG mitViehbesatz
+57,16,455,cattle meadow,DG mitViehbesatz
+58,16,460,cattle meadow,DG mitViehbesatz
+59,17,843,vineyards,Rebflächen
+60,17,845,vineyards,Rebflächen
+61,17,848,vineyards,Rebflächen
+62,18,64,silphium,Silphium
+63,18,802,silphium,Silphium
+64,19,63,miscanthus,Miscanthus
+65,19,852,miscanthus,Miscanthus
+66,20,59,brushwood,Niederwald
+67,20,841,brushwood,Niederwald
+68,21,320,yellow tall flowers,gelbe hohe Blume
+69,21,604,yellow tall flowers,gelbe hohe Blume

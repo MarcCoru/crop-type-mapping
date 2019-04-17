@@ -14,7 +14,7 @@ class TestRayResultsParser(unittest.TestCase):
 
     def test_load_run_rnn(self):
         parser = RayResultsParser()
-        runpath = "tests/data/tune_results/rnn/Mallat/RayTrainer_9_fold=9,hidden_dims=128,learning_rate=0.01,num_rnn_layers=1_2018-12-11_20-55-57ohafkid2"
+        runpath = "data/tune_results/rnn/Mallat/RayTrainer_9_fold=9,hidden_dims=128,learning_rate=0.01,num_rnn_layers=1_2018-12-11_20-55-57ohafkid2"
         run = parser._load_run(runpath)
         self.assertIsInstance(run, dict)
 
@@ -26,7 +26,7 @@ class TestRayResultsParser(unittest.TestCase):
 
     def test_load_run_conv1d(self):
         parser = RayResultsParser()
-        runpath = "tests/data/tune_results/conv1d/CricketY/RayTrainerConv1D_0_fold=0,hidden_dims=25,learning_rate=0.1,num_layers=7,shapelet_width_increment=10_2019-01-04_15-47-51v8e6nzyv"
+        runpath = "data/tune_results/conv1d/CricketY/RayTrainerConv1D_0_fold=0,hidden_dims=25,learning_rate=0.1,num_layers=7,shapelet_width_increment=10_2019-01-04_15-47-51v8e6nzyv"
         run = parser._load_run(runpath)
         self.assertIsInstance(run, dict)
 
@@ -39,7 +39,7 @@ class TestRayResultsParser(unittest.TestCase):
 
     def test_load_all_runs_rnn(self):
         parser = RayResultsParser()
-        path = 'tests/data/tune_results/rnn/Mallat'
+        path = 'data/tune_results/rnn/Mallat'
         resultlist = parser._load_all_runs(path=path)
 
         self.assertIsInstance(resultlist,list)
@@ -50,7 +50,7 @@ class TestRayResultsParser(unittest.TestCase):
 
     def test_load_all_runs_conv1d(self):
         parser = RayResultsParser()
-        path = 'tests/data/tune_results/conv1d/CricketY'
+        path = 'data/tune_results/conv1d/CricketY'
         resultlist = parser._load_all_runs(path=path)
 
         self.assertIsInstance(resultlist,list)
@@ -61,7 +61,7 @@ class TestRayResultsParser(unittest.TestCase):
     def test_get_n_best_runs_rnn(self):
 
         parser = RayResultsParser()
-        path = 'tests/data/tune_results/rnn/Mallat'
+        path = 'data/tune_results/rnn/Mallat'
         best_runs_dataframe = parser._get_n_best_runs(
                          experimentpath=path,
                          n=5,
@@ -74,7 +74,7 @@ class TestRayResultsParser(unittest.TestCase):
     def test_get_n_best_runs_conv1d(self):
 
         parser = RayResultsParser()
-        path = 'tests/data/tune_results/conv1d/CricketY'
+        path = 'data/tune_results/conv1d/CricketY'
         best_runs_dataframe = parser._get_n_best_runs(
                          experimentpath=path,
                          n=5,
@@ -85,23 +85,23 @@ class TestRayResultsParser(unittest.TestCase):
 
     def test_get_best_hyperparameters_rnn(self):
         parser = RayResultsParser()
-        summary = parser.get_best_hyperparameters("tests/data/tune_results/rnn",
+        summary = parser.get_best_hyperparameters("data/tune_results/rnn",
                                                   hyperparametercsv="/tmp/rnn/hyperparameters.csv",
                                                   group_by=["hidden_dims", "learning_rate", "num_rnn_layers"])
 
         self.assertIsInstance(summary, pandas.core.frame.DataFrame)
-        self.assertTrue(os.path.exists("/tmp/rnn/hyperparams_conv1d.csv"),
-                        "could not find /tmp/rnn/hyperparams_conv1d.csv")
+        self.assertTrue(os.path.exists("/tmp/rnn/hyperparameters.csv"),
+                        "could not find /tmp/rnn/hyperparameters.csv")
 
     def test_get_best_hyperparameters_conv1d(self):
         parser = RayResultsParser()
-        summary = parser.get_best_hyperparameters("tests/data/tune_results/conv1d",
+        summary = parser.get_best_hyperparameters("data/tune_results/conv1d",
                                                   hyperparametercsv="/tmp/rnn/hyperparameters.csv",
                                                   group_by=["hidden_dims", "learning_rate", "num_layers", "shapelet_width_increment"])
 
         self.assertIsInstance(summary, pandas.core.frame.DataFrame)
-        self.assertTrue(os.path.exists("/tmp/conv1d/hyperparams_conv1d.csv"),
-                        "could not find /tmp/conv1d/hyperparams_conv1d.csv")
+        self.assertTrue(os.path.exists("/tmp/rnn/hyperparameters.csv"),
+                        "could not find /tmp/rnn/hyperparameters.csv")
 
 
 

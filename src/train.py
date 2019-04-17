@@ -251,11 +251,8 @@ def train(args):
     pass
 
 def getModel(args):
-    # Get Model
-    if args.model == "DualOutputRNN":
-        model = DualOutputRNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=True)
-    elif args.model == "rnn":
+
+    if args.model == "rnn":
         model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
                               num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True, bidirectional=True)
     elif args.model == "transformer":

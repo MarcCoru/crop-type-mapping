@@ -17,7 +17,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         """
 
         :param root:
-        :param region: csv/<region>/<id>.csv
+        :param region: csv/<regionA>/<id>.csv
         :param partition: one of train/valid/eval
         :param nsamples: load less samples for debug
         """
@@ -26,6 +26,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         seed = sum([ord(ch) for ch in partition])
         np.random.seed(seed)
         torch.random.manual_seed(seed)
+
+        self.root = root
 
         if classmapping is None:
             classmapping = self.root + "/classmapping.csv"
@@ -37,7 +39,6 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.klassenname = self.mapping.groupby("id").first().klassenname.values
         self.nclasses = len(self.classes)
 
-        self.root = root
         self.region = region
         self.partition = partition
         self.data_folder = "{root}/csv/{region}".format(root=self.root, region=self.region)
@@ -45,7 +46,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         #all_csv_files
         #self.csvfiles = [ for f in os.listdir(root)]
-        print("Initializing BavarianCropsDataset {} partition in region {}".format(self.partition, self.region))
+        print("Initializing BavarianCropsDataset {} partition in regionA {}".format(self.partition, self.region))
 
         self.cache = os.path.join(self.root,"npy",region, partition)
 
