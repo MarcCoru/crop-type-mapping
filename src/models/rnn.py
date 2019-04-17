@@ -14,7 +14,7 @@ def entropy(p):
 
 class RNN(ClassificationModel):
     def __init__(self, input_dim=1, hidden_dims=3, nclasses=5, num_rnn_layers=1, dropout=0.2, bidirectional=False,
-                 use_batchnorm=False, use_attention=False, use_layernorm=True, init_late=True):
+                 use_batchnorm=False, use_attention=False, use_layernorm=True):
 
         super(RNN, self).__init__()
 
@@ -23,7 +23,7 @@ class RNN(ClassificationModel):
         self.use_attention = use_attention
         self.use_layernorm = use_layernorm
 
-
+        self.d_model = num_rnn_layers*hidden_dims
 
         if use_layernorm:
             # perform

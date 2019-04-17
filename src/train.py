@@ -23,6 +23,9 @@ from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
 from models.rnn import RNN
 from utils.texparser import confusionmatrix2table, texconfmat
 from utils.logger import Logger
+from utils.visdomLogger import VisdomLogger
+from models.transformer.Optim import ScheduledOptim
+import torch.optim as optim
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -34,7 +37,7 @@ def parse_args():
     parser.add_argument(
         '-b', '--batchsize', type=int, default=32, help='Batch Size')
     parser.add_argument(
-        '-m', '--model', type=str, default="DualOutputRNN", help='Model variant')
+        '-m', '--model', type=str, default="rnn", help='Model variant either rnn or transformer')
     parser.add_argument(
         '-e', '--epochs', type=int, default=100, help='number of epochs')
     parser.add_argument(
@@ -68,77 +71,21 @@ def parse_args():
         '--train-valid-split-ratio', type=float, default=.75,
         help='ratio of splitting the train dataset in training and validation partitions. '
              'only applies for --train_on train and --test_on valid. see also --train-valid-split-seed')
-    parser.add_argument(
-        '--augment_data_noise', type=float, default=0., help='augmentation data noise factor. defaults to 0.')
-    parser.add_argument(
-        '-a','--earliness_factor', type=float, default=1, help='earliness factor')
-    parser.add_argument(
-        '--entropy-factor', type=float, default=0, help='entropy factor')
-    parser.add_argument(
-        '--shapelet_width_increment', type=int, default=10,
-        help='increments in shapelet width in either percent of total sequencelength '
-             'by using --shapelet-width-in-percent flag. or in number of features.')
-    parser.add_argument('--shapelet-width-in-percent', action='store_true', help="interpret shapelet_width as percentage of full sequence")
-    parser.add_argument('--resume-optimizer', action='store_true',
-                        help="resume optimizer state as well (may lead to smaller learning rates")
     parser.add_argument('--overwrite', action='store_true',
                         help="Overwrite automatic snapshots if they exist")
-    parser.add_argument('--skip', action='store_true',
-                        help="skip dataset completely if already exists...")
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
-    parser.add_argument(
-        '--hyperparametercsv', type=str, default=None, help='hyperparams csv file')
     parser.add_argument(
         '--store', type=str, default="/tmp", help='store run logger results')
     parser.add_argument(
         '--test_every_n_epochs', type=int, default=1, help='skip some test epochs for faster overall training')
     parser.add_argument(
-        '--earliness_reward_power', type=int, default=1, help='power of the y+ at the earliness term...')
-    parser.add_argument(
         '--seed', type=int, default=None, help='seed for batching and weight initialization')
     parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
-    parser.add_argument(
-        '--loss_mode', type=str, default="twophase_early_simple", help='which loss function to choose. '
-                                                                       'valid options are early_reward,  '
-                                                                       'twophase_early_reward, '
-                                                                       'twophase_linear_loss, or twophase_early_simple')
-    parser.add_argument(
-        '-s', '--switch_epoch', type=int, default=None, help='epoch at which to switch the loss function '
-                                                             'from classification training to early training')
-
     args, _ = parser.parse_known_args()
 
-    if args.switch_epoch is None:
-        args.switch_epoch = args.epochs
-
-    args = parse_dataset_names(args)
-
     return args
-
-def parse_dataset_names(args):
-    if args.hyperparametercsv is not None:
-        datasets_with_hyperparameters = get_datasets_from_hyperparametercsv(args.hyperparametercsv)
-
-    if args.datasets is not None and args.hyperparametercsv is not None:
-        missing_datasets = [dataset for dataset in args.datasets if dataset not in datasets_with_hyperparameters]
-        if len(missing_datasets) > 0:
-            msg = "Datasets {} not present in hyperparametercsv {}. Please choose from {}"
-            raise ValueError(msg.format(", ".join(missing_datasets),
-                                        args.hyperparametercsv,
-                                        ", ".join(datasets_with_hyperparameters)))
-
-    if args.datasets is None and args.hyperparametercsv is not None:
-        datasets_with_hyperparameters.reverse() # from A-Z
-        args.datasets = datasets_with_hyperparameters
-
-    if args.datasets is None and args.hyperparametercsv is None:
-        raise ValueError("No --datasets and --hyperparametercsv provided. Either specifify the specific dataset "
-                         "or provide a list of datasets in --hyperparametercsv")
-
-    return args
-
 
 def readHyperparameterCSV(args):
     print("reading "+args.hyperparametercsv)
@@ -195,9 +142,6 @@ def prepare_dataset(args):
 
 def train(args):
 
-    if args.hyperparametercsv is not None:
-        args = readHyperparameterCSV(args)
-
     traindataloader, testdataloader = prepare_dataset(args)
 
     #
@@ -210,29 +154,33 @@ def train(args):
 
     model = getModel(args)
 
-    visdomenv = "{}_{}_{}".format(args.experiment, args.dataset, args.loss_mode.replace("_","-"))
+
 
     store = os.path.join(args.store,args.experiment,args.dataset)
 
     logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=store)
 
+    visdomenv = "{}_{}".format(args.experiment, args.dataset)
+    visdomlogger = VisdomLogger(env=visdomenv)
+
+    optimizer = ScheduledOptim(
+        optim.Adam(
+            filter(lambda x: x.requires_grad, model.parameters()),
+            betas=(0.9, 0.98), eps=1e-09),
+        model.d_model, 4000)
+
     config = dict(
         epochs=args.epochs,
         learning_rate=args.learning_rate,
-        earliness_factor=args.earliness_factor,
-        visdomenv=visdomenv,
-        switch_epoch=args.switch_epoch,
-        loss_mode=args.loss_mode,
         show_n_samples=args.show_n_samples,
         store=store,
+        visdomlogger=visdomlogger,
         overwrite=args.overwrite,
-        ptsepsilon=args.epsilon,
         test_every_n_epochs=args.test_every_n_epochs,
-        entropy_factor = args.entropy_factor,
-        resume_optimizer = args.resume_optimizer,
-        earliness_reward_power=args.earliness_reward_power,
-        logger=logger
+        logger=logger,
+        optimizer=optimizer
     )
+
 
     trainer = Trainer(model,traindataloader,testdataloader,**config)
     logger = trainer.fit()
@@ -254,7 +202,7 @@ def getModel(args):
 
     if args.model == "rnn":
         model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout, init_late=True, bidirectional=True)
+                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=True)
     elif args.model == "transformer":
 
         hidden_dims = 256
@@ -300,9 +248,6 @@ def getModel(args):
         model = model.cuda()
 
     return model
-
-def get_datasets_from_hyperparametercsv(hyperparametercsv):
-    return list(pd.read_csv(hyperparametercsv)["dataset"])
 
 if __name__=="__main__":
 

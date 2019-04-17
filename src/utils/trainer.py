@@ -2,10 +2,9 @@ import torch
 from utils.classmetric import ClassMetric
 
 from utils.printer import Printer
-from utils.visdomLogger import VisdomLogger
+
 from models.TransformerEncoder import TransformerEncoder
 import os
-from loss import loss_cross_entropy, early_loss_cross_entropy, early_loss_linear, loss_early_reward
 import numpy as np
 from models.ClassificationModel import ClassificationModel
 from models.EarlyClassificationModel import EarlyClassificationModel
@@ -24,57 +23,41 @@ class Trainer():
                  traindataloader,
                  validdataloader,
                  epochs=4,
-                 switch_epoch=2,
                  learning_rate=0.1,
-                 earliness_factor=0.7,
-                 ptsepsilon=5,
-                 entropy_factor=0.,
                  store="/tmp",
                  test_every_n_epochs=1,
-                 visdomenv=None,
+                 visdomlogger=None,
+                 optimizer=None,
                  show_n_samples=1,
-                 loss_mode="twophase_linear_loss", # early_reward, twophase_early_reward, twophase_linear_loss, or twophase_early_simple
                  overwrite=True,
-                 resume_optimizer=False,
-                 earliness_reward_power=1,
                  logger=None,
                  **kwargs):
 
         self.epochs = epochs
-        self.earliness_factor = earliness_factor
-        self.ptsepsilon = ptsepsilon
-        self.switch_epoch = switch_epoch
         self.batch_size = validdataloader.batch_size
         self.traindataloader = traindataloader
         self.validdataloader = validdataloader
         self.nclasses=traindataloader.dataset.nclasses
-        self.entropy_factor = entropy_factor
         self.store = store
         self.test_every_n_epochs = test_every_n_epochs
         self.logger = logger
         self.show_n_samples = show_n_samples
-        self.lossmode = loss_mode
         self.model = model
 
-        if isinstance(self.model, TransformerEncoder):
-            self.optimizer = ScheduledOptim(
-                optim.Adam(
-                    filter(lambda x: x.requires_grad, model.parameters()),
-                    betas=(0.9, 0.98), eps=1e-09),
-                self.model.d_model, 4000)
-        else:
+
+        if optimizer is None:
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        else:
+            self.optimizer = optimizer
         #self.optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-        self.resume_optimizer = resume_optimizer
-        self.earliness_reward_power = earliness_reward_power
 
         self.classweights = torch.FloatTensor(traindataloader.dataset.classweights)
 
         if torch.cuda.is_available():
             self.classweights = self.classweights.cuda()
 
-        if visdomenv is not None:
-            self.visdom = VisdomLogger(env=visdomenv)
+        if visdomlogger is not None:
+            self.visdom = visdomlogger
 
         # only save checkpoint if not previously resumed from it
         self.resumed_run = False
@@ -103,62 +86,6 @@ class Trainer():
         epoch=self.epoch,
         logged_data=self.logger.get_data())
 
-    def loss_criterion(self, logprobabilties, pts, targets, earliness_factor, entropy_factor, ptsepsilon, earliness_reward_power):
-        """a wrapper around several possible loss functions for experiments"""
-
-        if len(logprobabilties.shape) == 2: # loss for entire sequence b,d
-
-            loss = F.nll_loss(logprobabilties, targets[:,0])
-
-            stats = dict(
-                loss=loss,
-            )
-
-            return loss, stats
-
-
-
-        if len(logprobabilties.shape) == 3: # loss for each label b,t,d
-
-            ## try to optimize for earliness only when classification is correct
-            if self.lossmode=="early_reward":
-                return loss_early_reward(logprobabilties, pts, targets,
-                                         alpha=earliness_factor, power=earliness_reward_power,
-                                         ptsepsilon=ptsepsilon)
-
-            elif self.lossmode=="loss_cross_entropy":
-                return loss_cross_entropy(logprobabilties, pts,targets)
-
-            elif self.lossmode=="weighted_loss_cross_entropy":
-                return loss_cross_entropy(logprobabilties, pts,targets, weight=self.classweights)
-
-            # first cross entropy then early reward loss
-            elif self.lossmode == "twophase_early_reward":
-                if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                    return loss_cross_entropy(logprobabilties, pts, targets)
-                elif self.get_phase() == EARLINESS_PHASE_NAME:
-                    return loss_early_reward(logprobabilties, pts, targets, alpha=earliness_factor)
-
-            # first cross-entropy loss then linear classification loss and simple t/T regularization
-            elif self.lossmode=="twophase_linear_loss":
-                if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                    return loss_cross_entropy(logprobabilties, pts, targets)
-                elif self.get_phase() == EARLINESS_PHASE_NAME:
-                    return early_loss_linear(logprobabilties, pts, targets, alpha=earliness_factor,
-                                             entropy_factor=entropy_factor, ptsepsilon=ptsepsilon)
-
-            # first cross entropy on all dates, then cross entropy plus simple t/T regularization
-            elif self.lossmode == "twophase_cross_entropy":
-                if self.get_phase() == CLASSIFICATION_PHASE_NAME:
-                    return loss_cross_entropy(logprobabilties, pts, targets)
-                elif self.get_phase() == EARLINESS_PHASE_NAME:
-                    return early_loss_cross_entropy(logprobabilties, pts, targets, alpha=earliness_factor,
-                                                    entropy_factor=entropy_factor, ptsepsilon=ptsepsilon)
-
-            else:
-                raise ValueError("wrong loss_mode please choose either 'early_reward',  "
-                                 "'twophase_early_reward', 'twophase_linear_loss', or 'twophase_cross_entropy'")
-
     def fit(self):
         printer = Printer()
 
@@ -179,13 +106,9 @@ class Trainer():
 
             self.visdom.plot_epochs(self.logger.get_data())
 
-        self.check_events()
-
-
         return self.logger
 
     def new_epoch(self):
-        self.check_events()
         self.epoch += 1
 
     def visdom_log_test_run(self, stats):
@@ -218,27 +141,6 @@ class Trainer():
             if "pts" in stats.keys(): self.visdom.bar(stats["pts"][i, :], name="sample {} P(t) (class={})".format(i, classid))
             if "deltas" in stats.keys(): self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
             if "budget" in stats.keys(): self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
-
-    def get_phase(self):
-        if self.epoch < self.switch_epoch:
-            return CLASSIFICATION_PHASE_NAME
-        else:
-            return EARLINESS_PHASE_NAME
-
-    def phase2_will_end(self):
-        return self.epoch == self.epochs
-
-    def phase1_will_end(self):
-        return self.epoch+1 == self.switch_epoch
-
-    def check_events(self):
-        if self.epoch == 0:
-            self.starting_phase_classification_event()
-        if self.phase1_will_end():
-            self.ending_phase_classification_event()
-            self.starting_phase_earliness_event()
-        if self.phase2_will_end():
-            self.ending_phase_earliness_event()
 
     def get_classification_model_name(self):
         return os.path.join(self.store, "model_{}.pth".format(CLASSIFICATION_PHASE_NAME))
@@ -289,8 +191,12 @@ class Trainer():
 
             logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1,2))
 
-            loss, stats = self.loss_criterion(logprobabilities, pts, targets,
-                                              self.earliness_factor, self.entropy_factor, self.ptsepsilon, self.earliness_reward_power)
+            loss = F.nll_loss(logprobabilities, targets[:, 0])
+
+            stats = dict(
+                loss=loss,
+            )
+
             loss.backward()
             if isinstance(self.optimizer,ScheduledOptim):
                 self.optimizer.step_and_update_lr()
@@ -342,9 +248,12 @@ class Trainer():
                     targets = targets.cuda()
 
                 logprobabilities, deltas, pts, budget = self.model.forward(inputs.transpose(1, 2))
-                loss, stats = self.loss_criterion(logprobabilities, pts, targets, self.earliness_factor,
-                                                  self.entropy_factor, ptsepsilon=self.ptsepsilon,
-                                                  earliness_reward_power=self.earliness_reward_power)
+
+                loss = F.nll_loss(logprobabilities, targets[:, 0])
+
+                stats = dict(
+                    loss=loss,
+                )
 
                 if isinstance(self.model, EarlyClassificationModel):
                     prediction, t_stop = self.model.predict(logprobabilities, deltas)
@@ -363,7 +272,6 @@ class Trainer():
                 if t_stop is not None: tstops.append(t_stop)
                 predictions.append(prediction)
                 labels.append(label)
-
 
                 stats = metric.add(stats)
 
