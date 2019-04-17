@@ -13,13 +13,14 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None, cache=True):
+    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None, cache=True, partitioning_scheme="blocks"):
         """
 
         :param root:
         :param region: csv/<regionA>/<id>.csv
         :param partition: one of train/valid/eval
         :param nsamples: load less samples for debug
+        :param partitioning_scheme either blocks or random
         """
 
         # ensure that different seeds are set per partition
@@ -41,12 +42,13 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         self.region = region
         self.partition = partition
+        self.partitioning_scheme = partitioning_scheme
         self.data_folder = "{root}/csv/{region}".format(root=self.root, region=self.region)
         self.samplet = samplet
 
         #all_csv_files
         #self.csvfiles = [ for f in os.listdir(root)]
-        print("Initializing BavarianCropsDataset {} partition in regionA {}".format(self.partition, self.region))
+        print("Initializing BavarianCropsDataset {} partition in {}".format(self.partition, self.region))
 
         self.cache = os.path.join(self.root,"npy",region, partition)
 
@@ -62,11 +64,13 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
             print("no cached dataset found. iterating through csv folders in " + str(self.data_folder))
             self.cache_dataset()
 
+        self.hist, _ = np.histogram(self.y, bins=self.nclasses)
+
         print("loaded {} samples".format(len(self.ids)))
         #print("class frequencies " + ", ".join(["{c}:{h}".format(h=h, c=c) for h, c in zip(self.hist, self.classes)]))
 
-    def read_ids(self):
-        if self.partition == "trainvalid":
+    def read_ids(self, partition):
+        if partition == "trainvalid":
             ids_file_train = os.path.join(self.root, "ids", "{region}_{partition}.txt".format(region=self.region.lower(),
                                                                                         partition="train"))
             with open(ids_file_train,"r") as f:
@@ -82,8 +86,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
             ids = train_ids + valid_ids
 
-        elif self.partition in ["train","valid","eval"]:
-            ids_file = os.path.join(self.root,"ids","{region}_{partition}.txt".format(region=self.region.lower(), partition=self.partition))
+        elif partition in ["train","valid","eval"]:
+            ids_file = os.path.join(self.root,"ids","{region}_{partition}.txt".format(region=self.region.lower(), partition=partition))
             with open(ids_file,"r") as f:
                 ids = [int(id) for id in f.readlines()]
 
@@ -91,12 +95,48 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         return ids
 
+    def split(self, partition):
+
+        if self.partitioning_scheme == "blocks":
+            return self.read_ids(partition)
+        elif self.partitioning_scheme == "random":
+
+            # load all ids from the respective blocks
+            trainids = self.read_ids("train")
+            validids = self.read_ids("valid")
+            evalids = self.read_ids("eval")
+
+            allids = np.concatenate([trainids,validids,evalids])
+
+            return self.random_split(allids,partition)
+        else:
+            raise ValueError("Partitioning scheme either 'blocks' or 'random'")
+
+    def random_split(self, allids, partition):
+
+        np.random.seed(0)
+        np.random.shuffle(allids)
+
+        # start and end bounds of the respective partitions
+        train = (0, int(len(allids) * 0.6))
+        valid = (train[1]+1, train[1]+int(len(allids) * 0.2))
+        eval = (valid[1]+1, len(allids))
+
+        if partition == "train":
+            return allids[train[0]:train[1]]
+        elif partition == "valid":
+            return allids[valid[0]:valid[1]]
+        elif partition == "eval":
+            return allids[eval[0]:eval[1]]
+        elif partition == "trainvalid":
+            return np.concatenate([allids[train[0]:train[1]],allids[valid[0]:valid[1]]])
+
     def cache_dataset(self):
         """
         Iterates though the data folders and stores y, ids, classweights, and sequencelengths
         X is loaded at with getitem
         """
-        ids = self.read_ids()
+        ids = self.split(self.partition)
 
         self.X = list()
         self.nutzcodes = list()

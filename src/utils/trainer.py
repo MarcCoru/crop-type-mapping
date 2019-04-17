@@ -26,6 +26,7 @@ class Trainer():
                  learning_rate=0.1,
                  store="/tmp",
                  test_every_n_epochs=1,
+                 checkpoint_every_n_epochs=5,
                  visdomlogger=None,
                  optimizer=None,
                  show_n_samples=1,
@@ -43,7 +44,7 @@ class Trainer():
         self.logger = logger
         self.show_n_samples = show_n_samples
         self.model = model
-
+        self.checkpoint_every_n_epochs = checkpoint_every_n_epochs
 
         if optimizer is None:
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -64,9 +65,9 @@ class Trainer():
 
         self.epoch = 0
 
-        if os.path.exists(self.get_classification_model_name()) and not overwrite:
-            print("Resuming from snapshot {}.".format(self.get_classification_model_name()))
-            self.resume(self.get_classification_model_name())
+        if os.path.exists(self.get_model_name()) and not overwrite:
+            print("Resuming from snapshot {}.".format(self.get_model_name()))
+            self.resume(self.get_model_name())
             self.resumed_run = True
 
     def resume(self, filename):
@@ -74,9 +75,8 @@ class Trainer():
         if torch.cuda.is_available():
             self.model = self.model.cuda()
         self.epoch = snapshot["epoch"]
-        if self.resume_optimizer:
-            print("resuming optimizer state")
-            self.optimizer.load_state_dict(snapshot["optimizer_state_dict"])
+        print("resuming optimizer state")
+        self.optimizer.load_state_dict(snapshot["optimizer_state_dict"])
         self.logger.resume(snapshot["logged_data"])
 
     def snapshot(self, filename):
@@ -97,7 +97,7 @@ class Trainer():
             self.logger.log(stats, self.epoch)
             printer.print(stats, self.epoch, prefix="\ntrain: ")
 
-            if self.epoch % self.test_every_n_epochs == 0 or self.phase1_will_end() or self.phase2_will_end():
+            if self.epoch % self.test_every_n_epochs == 0:
                 self.logger.set_mode("test")
                 stats = self.test_epoch(self.validdataloader)
                 self.logger.log(stats, self.epoch)
@@ -105,6 +105,11 @@ class Trainer():
                 self.visdom_log_test_run(stats)
 
             self.visdom.plot_epochs(self.logger.get_data())
+
+            if self.epoch % self.checkpoint_every_n_epochs == 0:
+                self.snapshot(self.get_model_name())
+                print("Saving log to {}".format(self.get_log_name()))
+                self.logger.get_data().to_csv(self.get_log_name())
 
         return self.logger
 
@@ -142,36 +147,11 @@ class Trainer():
             if "deltas" in stats.keys(): self.visdom.bar(stats["deltas"][i, :], name="sample {} deltas (class={})".format(i, classid))
             if "budget" in stats.keys(): self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
 
-    def get_classification_model_name(self):
-        return os.path.join(self.store, "model_{}.pth".format(CLASSIFICATION_PHASE_NAME))
+    def get_model_name(self):
+        return os.path.join(self.store, "model.pth")
 
-    def get_classification_log_name(self):
-        return os.path.join(self.store, "log_{}.csv".format(CLASSIFICATION_PHASE_NAME))
-
-    def get_earliness_model_name(self):
-        return os.path.join(self.store, "model_{}.pth".format(EARLINESS_PHASE_NAME))
-
-    def get_earliness_log_name(self):
-        return os.path.join(self.store, "log_{}.csv".format(EARLINESS_PHASE_NAME))
-
-    def starting_phase_classification_event(self):
-        print("starting training phase classification")
-
-    def ending_phase_classification_event(self):
-        print("ending training phase classification")
-        if not self.resumed_run:
-            self.snapshot(self.get_classification_model_name())
-            print("Saving log to {}".format(self.get_classification_log_name()))
-            self.logger.get_data().to_csv(self.get_classification_log_name())
-
-    def starting_phase_earliness_event(self):
-        print("starting training phase earliness")
-
-    def ending_phase_earliness_event(self):
-        print("ending training phase earliness")
-        self.snapshot(self.get_earliness_model_name())
-        print("Saving log to {}".format(self.get_earliness_log_name()))
-        self.logger.get_data().to_csv(os.path.join(self.store, "log_earliness.csv"))
+    def get_log_name(self):
+        return os.path.join(self.store, "log.csv")
 
     def train_epoch(self, epoch):
         # sets the model to train mode: dropout is applied

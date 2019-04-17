@@ -67,9 +67,16 @@ class TransformerEncoder(ClassificationModel):
 
         return logprobabilities, None, None, None
 
-    def load(self):
-        pass
+    def save(self, path="model.pth", **kwargs):
+        print("\nsaving model to "+path)
+        model_state = self.state_dict()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        torch.save(dict(model_state=model_state,**kwargs),path)
 
-    def save(self):
-        pass
+    def load(self, path):
+        print("loading model from "+path)
+        snapshot = torch.load(path, map_location="cpu")
+        model_state = snapshot.pop('model_state', snapshot)
+        self.load_state_dict(model_state)
+        return snapshot
 

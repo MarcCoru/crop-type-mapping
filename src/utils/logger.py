@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+import pickle
 
 class Logger():
 
@@ -63,6 +64,7 @@ class Logger():
     def save(self):
 
         path = os.path.join(self.rootpath,"npy")
+        #pickle.dump(self, open( path + "/logger.pkl", "wb" ))
 
         if not os.path.exists(path):
             os.makedirs(path)
@@ -77,4 +79,3 @@ class Logger():
                 if self.verbose: print("saving "+filepath)
 
         self.data.to_csv(os.path.join(self.rootpath,csvfile))
-

@@ -5,8 +5,10 @@ import numpy as np
 import os
 import sys
 
+NORMALIZE_X = np.array([1e-4,1e-4,1e-4,1e-4,1e-4,1e-4,1e-4,1e-4,1e-4,1e-4,1e-4,1e-1])
+
 class HDF5Dataset(torch.utils.data.Dataset):
-    def __init__(self, root):
+    def __init__(self, root, partition="trainvalid", samplet=None):
 
         self.root = root
 
@@ -38,27 +40,58 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self.X = self.X2
 
         empty_ids = list()
-        for id in np.arange(self.X2.shape[0]):
+        for id in np.arange(self.X.shape[0]):
             if self.X[id].shape[0] == 0:
                 empty_ids.append(id)
+            elif self.X[id].shape == (0):
+                pass
 
         self.X = np.delete(self.X,empty_ids)
         self.y = np.delete(self.y,empty_ids)
 
-        self.ids = np.arange(self.X.shape[0])
+        allids = np.arange(self.X.shape[0])
+
+        self.ids = self.split(allids, partition=partition)
+
+
+        self.mapping = dict(zip(np.unique(self.y), np.arange(len(np.unique(self.y)))))
 
         self.classes = np.unique(self.y)
 
         self.nclasses = len(self.classes)
 
+
+        self.classname = self.klassenname = ["class_{}".format(c) for c in self.classes]
+
         self.sequencelengths = np.array([np.array(X).shape[0] for X in self.X])
         self.sequencelength = self.sequencelengths.max()
         self.ndims = np.array(self.X[0]).shape[1]
 
+        self.samplet = samplet
+        if self.samplet is not None:
+            self.sequencelength = samplet
+
         self.hist,_ = np.histogram(self.y, bins=self.nclasses)
         self.classweights = 1 / self.hist
 
-        pass
+    def split(self, allids, partition):
+
+        np.random.seed(0)
+        np.random.shuffle(allids)
+
+        # start and end bounds of the respective partitions
+        train = (0, int(len(allids) * 0.6))
+        valid = (train[1]+1, train[1]+int(len(allids) * 0.2))
+        eval = (valid[1]+1, len(allids))
+
+        if partition == "train":
+            return allids[train[0]:train[1]]
+        elif partition == "valid":
+            return allids[valid[0]:valid[1]]
+        elif partition == "eval":
+            return allids[eval[0]:eval[1]]
+        elif partition == "trainvalid":
+            return np.concatenate([allids[train[0]:train[1]],allids[valid[0]:valid[1]]])
 
     def cache_variables(self):
 
@@ -114,20 +147,29 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return len(self.ids)
 
     def __getitem__(self, idx):
-        X = self.X2[idx]
+        X = self.X[idx]
         y = self.y[idx]
+
+        # ensure sequential class ids by a mapping lookup: 0,3,5 -> 0,1,2
+        y = self.mapping[y]
 
         y = np.array(y).repeat(X.shape[0])
         #idxs = np.random.choice(t, self.samplet, replace=False)
         #idxs.sort()
         #X = X[idxs]
         #y = y[idxs]
+        X *= NORMALIZE_X
 
+        t = X.shape[0]
+        if self.samplet is not None:
+            idxs = np.random.choice(t, self.samplet, replace=False)
+            idxs.sort()
+            X = X[idxs]
+            y = y[idxs]
 
         X = torch.from_numpy(X).type(torch.FloatTensor)
         y = torch.from_numpy(y).type(torch.LongTensor)
 
-        #print(idx, X.shape, y.shape, sep=",")
         return X,y
 
 class HDF5Parser:

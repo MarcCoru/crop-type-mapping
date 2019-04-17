@@ -37,8 +37,6 @@ def parse_args():
     parser.add_argument(
         '-b', '--batchsize', type=int, default=32, help='Batch Size')
     parser.add_argument(
-        '-m', '--model', type=str, default="rnn", help='Model variant either rnn or transformer')
-    parser.add_argument(
         '-e', '--epochs', type=int, default=100, help='number of epochs')
     parser.add_argument(
         '-w', '--workers', type=int, default=4, help='number of CPU workers to load the next batch')
@@ -51,26 +49,11 @@ def parse_args():
         '--test_on', type=str, default="valid",
         help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
     parser.add_argument(
-        '--classmapping', type=str, default=None,
-        help="classmapping for the bavarian crops dataset line-wise text file of format (0,0,415)")
-    parser.add_argument(
         '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
-    parser.add_argument(
-        '--epsilon', type=float, default=.2, help='bias factor to add on P(t) as a regularization parameter')
     parser.add_argument(
         '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
                                                         'RNN layers for recurrent models and as number of convolutions'
                                                         'for convolutional models...')
-    parser.add_argument(
-        '-r', '--hidden_dims', type=int, default=32, help='number of hidden dimensions per layer stacked hidden dimensions')
-    parser.add_argument(
-        '--train-valid-split-seed', type=int, default=0,
-        help='random seed for splitting of train and validation datasets. '
-             'only applies for --train_on train and --test_on valid. see also --train-valid-ratio')
-    parser.add_argument(
-        '--train-valid-split-ratio', type=float, default=.75,
-        help='ratio of splitting the train dataset in training and validation partitions. '
-             'only applies for --train_on train and --test_on valid. see also --train-valid-split-seed')
     parser.add_argument('--overwrite', action='store_true',
                         help="Overwrite automatic snapshots if they exist")
     parser.add_argument(
@@ -80,6 +63,8 @@ def parse_args():
     parser.add_argument(
         '--test_every_n_epochs', type=int, default=1, help='skip some test epochs for faster overall training')
     parser.add_argument(
+        '--checkpoint_every_n_epochs', type=int, default=5, help='save checkpoints during training')
+    parser.add_argument(
         '--seed', type=int, default=None, help='seed for batching and weight initialization')
     parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
@@ -87,64 +72,104 @@ def parse_args():
 
     return args
 
-def readHyperparameterCSV(args):
-    print("reading "+args.hyperparametercsv)
+def experiments(args):
 
-    # get hyperparameters from the hyperparameter file for the current dataset...
-    hparams = pd.read_csv(args.hyperparametercsv)
+    args.samplet = 30
 
-    # select only current dataset
-    hparams = hparams.set_index("dataset").loc[args.dataset]
+    if args.experiment == "GAF_HOLL_rnn":
+        args.model = "rnn"
+        args.dataset = "GAFHDF5"
+        args.num_layers = 1
+        args.hidden_dims = 128
+        args.bidirectional = True
 
-    args_dict = vars(args)
+    elif args.experiment == "TUM_ALL_rnn":
+        args.model = "rnn"
+        args.dataset = "BavarianCrops"
+        args.classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+        args.num_layers = 1
+        args.hidden_dims = 128
+        args.bidirectional = True
+        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
 
-    for key,value in hparams.iteritems():
+    elif args.experiment == "TUM_HOLL_rnn":
+        args.model = "rnn"
+        args.dataset = "BavarianCrops"
+        args.classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+        args.num_layers = 1
+        args.hidden_dims = 128
+        args.bidirectional = True
+        args.trainregions = ["HOLL_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot"]
 
-        # ignore empty columns
-        if 'Unnamed' not in key:
+    elif args.experiment == "TUM_ALL_transformer":
+        args.model = "transformer"
+        args.dataset = "BavarianCrops"
+        args.hidden_dims = 256
+        args.n_heads = 4
+        args.n_layers = 3
+        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+        args.classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
 
-            # only overwrite if key exists in parsed arguments
-            if key in args_dict.keys():
-                datatype_function = type(args_dict[key])
-                value = datatype_function(value)
+    elif args.experiment == "GAFHDF5_transformer":
+        args.model = "transformer"
+        args.dataset = "GAFHDF5"
+        args.hidden_dims = 256
+        args.n_heads = 8
+        args.n_layers = 6
 
-                args_dict[key] = value
-                print("overwriting {key} with {value}".format(key=key,value=value))
-
-    return Namespace(**args_dict)
+    return args
 
 def prepare_dataset(args):
-    root = "/home/marc/data/BavarianCrops"
 
-    dataset_holl = BavarianCropsDataset(root=root, region="HOLL_2018_MT_pilot", partition=args.train_on,
-                                        classmapping=args.classmapping)
-    dataset_krum = BavarianCropsDataset(root=root, region="KRUM_2018_MT_pilot", partition=args.train_on,
-                                        classmapping=args.classmapping)
-    dataset_nowa = BavarianCropsDataset(root=root, region="NOWA_2018_MT_pilot", partition=args.train_on,
-                                        classmapping=args.classmapping)
-    traindataset = ConcatDataset([dataset_holl, dataset_krum, dataset_nowa])
+    if args.dataset == "BavarianCrops":
+        root = "/home/marc/data/BavarianCrops"
+        partitioning_scheme="random"
 
-    traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=ImbalancedDatasetSampler(traindataset),
-                                                  batch_size=args.batchsize, num_workers=args.workers)
+        train_dataset_list = list()
+        for region in args.trainregions:
+            train_dataset_list.append(
+                BavarianCropsDataset(root=root, region=region, partition=args.train_on,
+                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+            )
 
-    dataset_holl = BavarianCropsDataset(root=root, region="HOLL_2018_MT_pilot", partition=args.test_on,
-                                        classmapping=args.classmapping)
-    dataset_krum = BavarianCropsDataset(root=root, region="KRUM_2018_MT_pilot", partition=args.test_on,
-                                        classmapping=args.classmapping)
-    dataset_nowa = BavarianCropsDataset(root=root, region="NOWA_2018_MT_pilot", partition=args.test_on,
-                                        classmapping=args.classmapping)
-    testdataset = ConcatDataset([dataset_holl, dataset_krum, dataset_nowa])
+        traindataset = ConcatDataset(train_dataset_list)
+        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=ImbalancedDatasetSampler(traindataset),
+                                                      batch_size=args.batchsize, num_workers=args.workers)
 
-    testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
-                                                 batch_size=args.batchsize, num_workers=args.workers)
+        test_dataset_list = list()
+        for region in args.testregions:
+            test_dataset_list.append(
+                BavarianCropsDataset(root=root, region=region, partition=args.test_on,
+                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+            )
+
+        testdataset = ConcatDataset(test_dataset_list)
+
+        testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
+                                                     batch_size=args.batchsize, num_workers=args.workers)
+
+    elif args.dataset == "GAFHDF5":
+        dataset_holl = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5", partition=args.train_on, samplet=args.samplet)
+
+        traindataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=ImbalancedDatasetSampler(dataset_holl),
+                                                      batch_size=args.batchsize, num_workers=args.workers)
+
+        dataset_holl = HDF5Dataset(root="/home/marc/data/gaf/holl_l2.h5", partition=args.test_on, samplet=args.samplet)
+
+        testdataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=SequentialSampler(dataset_holl),
+                                                     batch_size=args.batchsize, num_workers=args.workers)
 
     return traindataloader, testdataloader
 
 def train(args):
 
-    traindataloader, testdataloader = prepare_dataset(args)
+    # prepare dataset, model, hyperparameters for the respective experiments
+    args = experiments(args)
 
-    #
+    traindataloader, testdataloader = prepare_dataset(args)
 
     args.nclasses = traindataloader.dataset.nclasses
     classname = traindataloader.dataset.classname
@@ -154,9 +179,7 @@ def train(args):
 
     model = getModel(args)
 
-
-
-    store = os.path.join(args.store,args.experiment,args.dataset)
+    store = os.path.join(args.store,args.experiment)
 
     logger = Logger(columns=["accuracy"], modes=["train", "test"], rootpath=store)
 
@@ -167,7 +190,7 @@ def train(args):
         optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
             betas=(0.9, 0.98), eps=1e-09),
-        model.d_model, 4000)
+        model.d_model, 500)
 
     config = dict(
         epochs=args.epochs,
@@ -176,11 +199,11 @@ def train(args):
         store=store,
         visdomlogger=visdomlogger,
         overwrite=args.overwrite,
+        checkpoint_every_n_epochs=args.checkpoint_every_n_epochs,
         test_every_n_epochs=args.test_every_n_epochs,
         logger=logger,
         optimizer=optimizer
     )
-
 
     trainer = Trainer(model,traindataloader,testdataloader,**config)
     logger = trainer.fit()
@@ -188,8 +211,11 @@ def train(args):
     # stores all stored values in the rootpath of the logger
     logger.save()
 
-    confusionmatrix2table(store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs), classnames=klassenname)
-    texconfmat("/tmp/test/BavarianCrops/npy/confusion_matrix_1.npy")
+    pth = store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs)
+    confusionmatrix2table(pth,
+                          classnames=klassenname,
+                          outfile=store+"/npy/table.tex")
+    texconfmat(pth)
     #accuracy2table(store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs), classnames=klassenname)
 
 
@@ -202,17 +228,21 @@ def getModel(args):
 
     if args.model == "rnn":
         model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=True)
+                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=args.bidirectional)
+
     elif args.model == "transformer":
 
-        hidden_dims = 256
-        n_heads = 8
-        n_layers = 6
+        hidden_dims = args.hidden_dims # 256
+        n_heads = args.n_heads # 8
+        n_layers = args.n_layers # 6
+        len_max_seq = args.seqlength
+        dropout = args.dropout
+        d_inner = hidden_dims*4
 
-        model = TransformerEncoder(in_channels=args.input_dims, len_max_seq=70,
-            d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=hidden_dims*4,
+        model = TransformerEncoder(in_channels=args.input_dims, len_max_seq=len_max_seq,
+            d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=d_inner,
             n_layers=n_layers, n_head=n_heads, d_k=hidden_dims//n_heads, d_v=hidden_dims//n_heads,
-            dropout=0.5, nclasses=args.nclasses)
+            dropout=dropout, nclasses=args.nclasses)
         pass
 
     elif args.model == "WaveNet":
@@ -252,10 +282,4 @@ def getModel(args):
 if __name__=="__main__":
 
     args = parse_args()
-    for args.dataset in args.datasets:
-
-        if os.path.exists(os.path.join(args.store,args.dataset)) and args.skip:
-            print("path exists. skipping "+args.dataset)
-            continue
-
-        train(args)
+    train(args)
