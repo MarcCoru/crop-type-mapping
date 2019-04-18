@@ -6,7 +6,7 @@ import os
 def confusionmatrix2table(path, classnames=None, outfile=None):
     confusion_matrix = np.load(path)
     overall_accuracy, kappa, precision, recall, f1, cl_acc = confusion_matrix_to_accuraccies(confusion_matrix)
-    support = confusion_matrix.sum(0)
+    support = confusion_matrix.sum(1) # 0 -> prediction 1 -> ground truth
 
     if classnames is None:
         classnames = np.array(["class_{}".format(i) for i in range(confusion_matrix.shape[0])])
@@ -41,14 +41,14 @@ def texconfmat(path, classnames=None):
     if classnames is None:
         classnames = np.array(["class_{}".format(i) for i in range(confmat.shape[0])])
 
-    precision = confmat / (confmat.sum(axis=0) + 1e-10)
-    recall = confmat / (confmat.sum(axis=1) + 1e-10)
+    precision = confmat / (confmat.sum(axis=0)[np.newaxis,:] + 1e-10)
+    recall = confmat / (confmat.sum(axis=1)[:,np.newaxis] + 1e-10)
 
     outcsv = ""
     rows, columns = confmat.shape
     for c in range(columns):
         for r in range(rows):
-            row = "{r} {c} {absolute} {precision} {recall}".format(r=r + 1, c=c + 1, absolute=int(confmat[r, c]),
+            row = "{r} {c} {absolute} {precision} {recall}".format(r=r + 1, c=c + 1, absolute=np.log10(int(confmat[r, c])),
                                                                    precision=precision[r, c], recall=recall[r, c])
             outcsv += row + "\n"
 

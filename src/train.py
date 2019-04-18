@@ -67,20 +67,30 @@ def parse_args():
 
 def experiments(args):
 
-    args.samplet = 30
+    args.samplet = 50
 
     if args.experiment == "GAF_HOLL_rnn":
         args.model = "rnn"
         args.dataset = "GAFHDF5"
-        args.num_layers = 1
+        args.num_layers = 3
         args.hidden_dims = 128
         args.bidirectional = True
+
+    elif args.experiment == "test":
+        args.model = "rnn"
+        args.dataset = "BavarianCrops"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
+        args.num_layers = 3
+        args.hidden_dims = 128
+        args.bidirectional = True
+        args.trainregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
 
     elif args.experiment == "TUM_ALL_rnn":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
         args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-        args.num_layers = 1
+        args.num_layers = 3
         args.hidden_dims = 128
         args.bidirectional = True
         args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
@@ -90,18 +100,30 @@ def experiments(args):
         args.model = "rnn"
         args.dataset = "BavarianCrops"
         args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-        args.num_layers = 1
+        args.num_layers = 3
         args.hidden_dims = 128
         args.bidirectional = True
         args.trainregions = ["HOLL_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot"]
 
+    elif args.experiment == "TUM_HOLL_transformer":
+        args.model = "transformer"
+        args.dataset = "BavarianCrops"
+        args.hidden_dims = 256
+        args.samplet = 30
+        args.n_heads = 4
+        args.n_layers = 4
+        args.trainregions = ["HOLL_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot"]
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
+
     elif args.experiment == "TUM_ALL_transformer":
         args.model = "transformer"
         args.dataset = "BavarianCrops"
         args.hidden_dims = 256
+        args.samplet = 30
         args.n_heads = 4
-        args.n_layers = 3
+        args.n_layers = 4
         args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
         args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
@@ -129,9 +151,9 @@ def prepare_dataset(args):
             )
 
         traindataset = ConcatDataset(train_dataset_list)
-        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=ImbalancedDatasetSampler(traindataset),
+        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=SequentialSampler(traindataset),
                                                       batch_size=args.batchsize, num_workers=args.workers)
-
+        #ImbalancedDatasetSampler
         test_dataset_list = list()
         for region in args.testregions:
             test_dataset_list.append(

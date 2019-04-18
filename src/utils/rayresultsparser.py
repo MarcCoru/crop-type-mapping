@@ -23,7 +23,7 @@ class RayResultsParser():
             return None
 
     def _load_all_runs(self, path):
-        runs = os.listdir(path)
+        runs = [r for r in os.listdir(path) if os.path.isdir(os.path.join(path,r))]
 
         result_list = list()
         for run in runs:
@@ -139,6 +139,17 @@ def parse_entropy_experiment():
     parser.get_sota_experiment("/data/remote/entropy_pts/entropy_pts",
                                outpath=outpath, columns=["earliness_factor","entropy_factor","accuracy","earliness"])
 
+def save_tex(df, outfile):
+
+    df["acc"] *= 100
+
+    df = df.set_index("acc")
+    df.index = df.index.astype(int)
+
+    tex = df.to_latex(float_format=lambda x: '%10.0f' % x, escape=False, na_rep='')
+
+    print("writing latex tabular to " + outfile)
+    print(tex, file=open(outfile, "w"))
 
 if __name__=="__main__":
 
@@ -147,11 +158,31 @@ if __name__=="__main__":
     #                      outcsv="/home/marc/ray_results/crops/hyperparams.csv")
 
     parser = RayResultsParser()
-    summary = parser.get_best_hyperparameters("/home/marc/ray_results/crops/",
-                                              hyperparametercsv="/home/marc/ray_results/crops/hyperparams.csv",
-                                              group_by=["hidden_dims", "learning_rate", "num_layers", "dropout"], n=5)
+    #summary = parser.get_best_hyperparameters("/data/remote/croptypemapping/rnn",
+    #                                          hyperparametercsv="/data/remote/croptypemapping/rnn.csv",
+    #                                          group_by=["hidden_dims", "learning_rate", "num_layers", "dropout"], n=5)
 
-    print(summary.set_index("dataset")[["mean_accuracy", "std_accuracy", "runs"]])
+
+    result = pd.DataFrame(parser._load_all_runs("/data/remote/croptypemapping/rnn/"))
+
+    top = result.sort_values(by="accuracy", ascending=False).iloc[:20]
+    top = top[["accuracy","hidden_dims", "num_layers", "dropout", "samplet"]]
+    top["dropout"] *= 100
+    top["dropout"].astype(int)
+    top.columns = ["acc", "$h$", "$L$", "$d$", "$T$"]
+    save_tex(top, "/home/marc/projects/gafreport/images/hyperparam/rnn.csv")
+
+    result = pd.DataFrame(parser._load_all_runs("/data/remote/croptypemapping/transformer/"))
+    top = result.sort_values(by="accuracy", ascending=False).iloc[:20]
+    top["dropout"] *= 100
+    top["dropout"].astype(int)
+    top = top[["accuracy","hidden_dims", "n_layers", "samplet", "dropout","n_heads"]]
+    top.columns = ["acc", "$h$", "$L$", "$T$", "$d$", "$H$"]
+    save_tex(top,outfile="/home/marc/projects/gafreport/images/hyperparam/transformer.csv")
+
+
+
+    #print(summary.set_index("dataset")[["mean_accuracy", "std_accuracy", "runs"]])
 
     # results from runs using hyperparameters trained on train+valid partitions and tested on test partition
     #parse_sota_experiment(path="/data/remote/early_rnn/sota_comparison",

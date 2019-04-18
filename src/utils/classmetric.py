@@ -3,6 +3,7 @@ import numpy as np
 def confusion_matrix_to_accuraccies(confusion_matrix):
 
     confusion_matrix = confusion_matrix.astype(float)
+    # sum(0) <- predicted sum(1) ground truth
 
     total = np.sum(confusion_matrix)
     n_classes, _ = confusion_matrix.shape
