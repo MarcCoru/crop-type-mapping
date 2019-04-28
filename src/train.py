@@ -166,6 +166,35 @@ def prepare_dataset(args):
         testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
                                                      batch_size=args.batchsize, num_workers=args.workers)
 
+
+    if args.dataset == "BreizhCrops":
+        root = "/data/france/BreizhCrops"
+        partitioning_scheme="random"
+
+        train_dataset_list = list()
+        for region in args.trainregions:
+            train_dataset_list.append(
+                BavarianCropsDataset(root=root, region=region, partition=args.train_on,
+                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+            )
+
+        traindataset = ConcatDataset(train_dataset_list)
+        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=SequentialSampler(traindataset),
+                                                      batch_size=args.batchsize, num_workers=args.workers)
+        #ImbalancedDatasetSampler
+        test_dataset_list = list()
+        for region in args.testregions:
+            test_dataset_list.append(
+                BavarianCropsDataset(root=root, region=region, partition=args.test_on,
+                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+            )
+
+        testdataset = ConcatDataset(test_dataset_list)
+
+        testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
+                                                     batch_size=args.batchsize, num_workers=args.workers)
+
+
     elif args.dataset == "GAFHDF5":
         dataset_holl = HDF5Dataset(root=os.getenv("HOME") + "/data/gaf/holl_l2.h5", partition=args.train_on, samplet=args.samplet)
 
