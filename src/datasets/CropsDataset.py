@@ -40,6 +40,7 @@ class CropsDataset(torch.utils.data.Dataset):
         self.mapping = self.mapping.set_index("code")
         self.classes = self.mapping["id"].unique()
         self.classname = self.mapping.groupby("id").first().classname.values
+        self.klassenname=self.classname
         self.nclasses = len(self.classes)
 
         self.region = region

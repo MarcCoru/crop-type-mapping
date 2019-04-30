@@ -3,6 +3,7 @@ sys.path.append("./models")
 
 import torch
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
+from datasets.CropsDataset import CropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
 from models.TransformerEncoder import TransformerEncoder
 from datasets.ConcatDataset import ConcatDataset
@@ -76,6 +77,8 @@ def experiments(args):
         args.hidden_dims = 128
         args.bidirectional = True
 
+
+
     elif args.experiment == "test":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
@@ -95,6 +98,27 @@ def experiments(args):
         args.bidirectional = True
         args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+
+    elif args.experiment == "BreizhCrops_rnn":
+        args.model = "rnn"
+        args.dataset = "BreizhCrops"
+        args.classmapping = None
+        args.num_layers = 3
+        args.samplet = 45
+        args.hidden_dims = 128
+        args.bidirectional = True
+        args.trainregions = ["frh01", "frh02", "frh03"]
+        args.testregions = ["frh04"]
+
+    elif args.experiment == "BreizhCrops_transformer":
+        args.model = "transformer"
+        args.dataset = "BreizhCrops"
+        args.hidden_dims = 128
+        args.samplet = 45
+        args.n_heads = 4
+        args.n_layers = 4
+        args.trainregions = ["frh01", "frh02", "frh03"]
+        args.testregions = ["frh04"]
 
     elif args.experiment == "TUM_HOLL_rnn":
         args.model = "rnn"
@@ -168,14 +192,13 @@ def prepare_dataset(args):
 
 
     if args.dataset == "BreizhCrops":
-        root = "/data/france/BreizhCrops"
+        root = "/home/marc/projects/BreizhCrops/data"
         partitioning_scheme="random"
 
         train_dataset_list = list()
         for region in args.trainregions:
             train_dataset_list.append(
-                BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+                CropsDataset(root=root, region=region, samplet=args.samplet)
             )
 
         traindataset = ConcatDataset(train_dataset_list)
@@ -185,8 +208,7 @@ def prepare_dataset(args):
         test_dataset_list = list()
         for region in args.testregions:
             test_dataset_list.append(
-                BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+                CropsDataset(root=root, region=region, samplet=args.samplet)
             )
 
         testdataset = ConcatDataset(test_dataset_list)
