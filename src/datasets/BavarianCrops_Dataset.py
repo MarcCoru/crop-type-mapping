@@ -50,7 +50,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         #self.csvfiles = [ for f in os.listdir(root)]
         print("Initializing BavarianCropsDataset {} partition in {}".format(self.partition, self.region))
 
-        self.cache = os.path.join(self.root,"npy",region, partition)
+        self.cache = os.path.join(self.root,"npy",os.path.basename(classmapping),region, partition)
 
         print("read {} classes".format(self.nclasses))
 
@@ -102,11 +102,13 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         elif self.partitioning_scheme == "random":
 
             # load all ids from the respective blocks
-            trainids = self.read_ids("train")
-            validids = self.read_ids("valid")
-            evalids = self.read_ids("eval")
+            #trainids = self.read_ids("train")
+            #validids = self.read_ids("valid")
+            #evalids = self.read_ids("eval")
 
-            allids = np.concatenate([trainids,validids,evalids])
+            #allids = np.concatenate([trainids,validids,evalids])
+
+            allids = [int(os.path.splitext(f)[0]) for f in os.listdir(self.data_folder)]
 
             return self.random_split(allids,partition)
         else:
@@ -301,7 +303,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         X = torch.from_numpy(X).type(torch.FloatTensor)
         y = torch.from_numpy(y).type(torch.LongTensor)
 
-        return X, y
+        return X, y, self.ids[idx]
 
 def update_progress(progress):
     barLength = 20 # Modify this to change the length of the progress bar

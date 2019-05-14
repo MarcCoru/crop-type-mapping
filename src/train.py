@@ -77,8 +77,6 @@ def experiments(args):
         args.hidden_dims = 128
         args.bidirectional = True
 
-
-
     elif args.experiment == "test":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
@@ -89,6 +87,27 @@ def experiments(args):
         args.trainregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
 
+    elif args.experiment == "TUM_ALL_rnn_allclasses":
+        args.model = "rnn"
+        args.dataset = "BavarianCrops"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.107.csv"
+        args.num_layers = 3
+        args.hidden_dims = 128
+        args.bidirectional = True
+        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+
+    elif args.experiment == "TUM_ALL_transformer_allclasses":
+        args.model = "transformer"
+        args.dataset = "BavarianCrops"
+        args.hidden_dims = 256
+        args.samplet = 30
+        args.n_heads = 4
+        args.n_layers = 4
+        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.107.csv"
+
     elif args.experiment == "TUM_ALL_rnn":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
@@ -98,6 +117,16 @@ def experiments(args):
         args.bidirectional = True
         args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+
+    elif args.experiment == "TUM_GEN_rnn":
+        args.model = "rnn"
+        args.dataset = "BavarianCrops"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
+        args.num_layers = 3
+        args.hidden_dims = 128
+        args.bidirectional = True
+        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot"]
+        args.testregions = ["NOWA_2018_MT_pilot"]
 
     elif args.experiment == "BreizhCrops_rnn":
         args.model = "rnn"

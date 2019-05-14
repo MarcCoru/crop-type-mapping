@@ -124,7 +124,7 @@ class Trainer():
         if np.array(["class_" in k for k in stats.keys()]).any():
             self.visdom.plot_class_accuracies(stats)
 
-        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=None, title="Confusion Matrix")
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=None, title="Confusion Matrix", logscale=True)
         self.visdom.confusion_matrix(stats["confusion_matrix"], norm=0, title="Recall")
         self.visdom.confusion_matrix(stats["confusion_matrix"], norm=1, title="Precision")
         legend = ["class {}".format(c) for c in range(self.nclasses)]
@@ -160,7 +160,7 @@ class Trainer():
         for iteration, data in enumerate(self.traindataloader):
             self.optimizer.zero_grad()
 
-            inputs, targets = data
+            inputs, targets, _ = data
 
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
@@ -209,13 +209,15 @@ class Trainer():
 
         tstops = list()
         predictions = list()
+        probas = list()
+        ids_list = list()
         labels = list()
 
 
         with torch.no_grad():
             for iteration, data in enumerate(dataloader):
 
-                inputs, targets = data
+                inputs, targets, ids = data
 
                 if torch.cuda.is_available():
                     inputs = inputs.cuda()
@@ -243,6 +245,8 @@ class Trainer():
                 if t_stop is not None: tstops.append(t_stop)
                 predictions.append(prediction)
                 labels.append(label)
+                probas.append(logprobabilities.exp().detach().cpu().numpy())
+                ids_list.append(ids.detach().cpu().numpy())
 
                 stats = metric.add(stats)
 
@@ -271,11 +275,13 @@ class Trainer():
             if pts is not None: stats["pts"] = pts
             if budget is not None: stats["budget"] = budget
 
-            probas = logprobabilities.exp().transpose(0, 1)
-            stats["probas"] = probas.detach().cpu().numpy()
 
-            if t_stop is not None: stats["t_stops"] = np.hstack(tstops)
-            stats["predictions"] = np.hstack(predictions)
-            stats["labels"] = np.hstack(labels)
+
+
+        if t_stop is not None: stats["t_stops"] = np.hstack(tstops)
+        stats["predictions"] = np.hstack(predictions) # N
+        stats["labels"] = np.hstack(labels) # N
+        stats["probas"] = np.vstack(probas) # NxC
+        stats["ids"] = np.hstack(ids_list)
 
         return stats
