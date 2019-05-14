@@ -3,5 +3,7 @@ pandas
 matplotlib
 seaborn
 visdom
+beautifulsoup4
+lxml
 ray
 psutil

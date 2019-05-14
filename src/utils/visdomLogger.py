@@ -3,6 +3,17 @@ import matplotlib.pyplot as plt
 import seaborn as sn
 from visdom import Visdom
 
+def run_async(func):
+    from threading import Thread
+    from functools import wraps
+
+    @wraps(func)
+    def async_func(*args, **kwargs):
+        thread = Thread(target=func, args=args, kwargs=kwargs)
+        thread.start()
+
+    return async_func
+
 class VisdomLogger():
     def __init__(self,**kwargs):
 
@@ -71,9 +82,13 @@ class VisdomLogger():
 
             self.viz.line(X ,win=win, opts=opts)
 
-    def confusion_matrix(self, cm, title="Confusion Matrix", norm=None):
+    #@run_async
+    def confusion_matrix(self, cm, title="Confusion Matrix", norm=None, logscale=None):
         if self.connected:
-            plt.clf()
+            #plt.clf()
+            if logscale is not None:
+                cm = np.log10(cm, where=cm>0)
+                title += " log10"
 
             if norm is not None:
                 cm /= np.expand_dims(cm.sum(norm),axis=norm)
@@ -87,20 +102,31 @@ class VisdomLogger():
 
             name=title
 
-            plt.rcParams['figure.figsize'] = (9, 9)
-            if cm.shape[0] > 30:
-                annot_kws={"size": 6}
-            elif cm.shape[0] <= 30:
-                annot_kws={"size": 11}
+            figsize = (11, 9)
+            if cm.shape[0] > 15 and cm.shape[0] < 30:
 
-            ax = sn.heatmap(cm, annot=True, annot_kws=annot_kws, vmin=vmin, vmax=vmax)  # font size
+                annot = True
+                annot_kws={"size": 6}
+            elif cm.shape[0] <= 15:
+                annot = True
+                annot_kws={"size": 11}
+            elif cm.shape[0] >= 30:
+                annot=False
+                annot_kws = dict()
+
+
+            fig,ax = plt.subplots(figsize=figsize)
+
+            ax = sn.heatmap(cm, annot=annot, annot_kws=annot_kws, vmin=vmin, vmax=vmax, ax=ax, cmap="Blues")  # font size
             ax.set(xlabel='ground truth', ylabel='predicted', title=title)
-            plt.tight_layout()
+            #plt.tight_layout()
             opts = dict(
-                resizeable=True
+                resizeable=False
             )
 
-            self.viz.matplot(plt, win=name, opts=opts)
+            self.viz.matplot(fig, win=name, opts=opts)
+
+            fig.clf()
 
     def plot_class_p(self,X):
         if self.connected:
