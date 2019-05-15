@@ -111,6 +111,34 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
             allids = [int(os.path.splitext(f)[0]) for f in os.listdir(self.data_folder)]
 
             return self.random_split(allids,partition)
+
+        elif self.partitioning_scheme == "gaf":
+
+            allids = np.array([int(os.path.splitext(f)[0]) for f in os.listdir(self.data_folder)])
+
+            eval_ids_all = pd.read_csv(self.root+"/ids/gaf_83classes.csv").values[:,0]
+
+            evalids, idx_all, idx_eval = np.intersect1d(allids, eval_ids_all, return_indices=True)
+            assert (allids[idx_all] == evalids).all()
+            assert allids[idx_all[0]] == eval_ids_all[idx_eval[0]]
+
+            not_eval_mask = np.ones(allids.shape, dtype=bool)  # np.ones_like(a,dtype=bool)
+            not_eval_mask[idx_all] = False
+
+            trainvalid_ids = allids[not_eval_mask]
+
+            # make sure no intersection between eval and trainvalid
+            assert len(np.intersect1d(evalids,trainvalid_ids)) == 0
+
+            if partition == "train":
+                raise NotImplementedError()
+            elif partition == "valid":
+                raise NotImplementedError()
+            elif partition == "eval":
+                return evalids
+            elif partition == "trainvalid":
+                return trainvalid_ids
+
         else:
             raise ValueError("Partitioning scheme either 'blocks' or 'random'")
 
