@@ -90,7 +90,7 @@ def experiments(args):
     elif args.experiment == "TUM_ALL_rnn_allclasses":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.107.csv"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping83.csv"
         args.num_layers = 3
         args.hidden_dims = 128
         args.bidirectional = True
@@ -106,7 +106,7 @@ def experiments(args):
         args.n_layers = 4
         args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
         args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.107.csv"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping83.csv"
 
     elif args.experiment == "TUM_ALL_rnn":
         args.model = "rnn"
@@ -194,7 +194,7 @@ def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
         root = os.getenv("HOME") + "/data/BavarianCrops"
-        partitioning_scheme="random"
+        partitioning_scheme="gaf"
 
         train_dataset_list = list()
         for region in args.trainregions:
