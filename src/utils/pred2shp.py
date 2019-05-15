@@ -3,17 +3,27 @@ import numpy as np
 import os
 import pandas as pd
 from shutil import copyfile
+import sys
 
-run="/home/marc/projects/gafreport/images/data/TUM_ALL_rnn"
+run = sys.argv[1]
+
+#outpath = "/tmp/eval"
+outpath = sys.argv[2]
+
+#classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+classmapping = sys.argv[3]
+
+
+#run="/home/marc/projects/gafreport/images/data/TUM_ALL_rnn"
 epoch=35
-outpath = "/tmp/eval"
+
 os.makedirs(outpath,exist_ok=True)
 
 path = "/home/marc/data/BavarianCrops/shp/"
 regions = ["NOWA_2018_MT_pilot.shp","HOLL_2018_MT_pilot.shp","KRUM_2018_MT_pilot.shp"]
 
 outshp = os.path.join(outpath,"eval.shp")
-classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.gaf"
+
 
 print("copying {} to {}".format(classmapping, os.path.join(outpath,"classmapping.csv")))
 copyfile(classmapping, os.path.join(outpath,"classmapping.csv"))
