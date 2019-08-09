@@ -1,7 +1,6 @@
 import re
 import numpy as np
 import os
-
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -10,74 +9,31 @@ from matplotlib.lines import Line2D
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
-sns.set_style("whitegrid")
+sns.set_style("white")
 
-def discrete_cmap(N, base_cmap=None):
-    """Create an N-bin discrete colormap from the specified input map"""
-
-    # Note that if base_cmap is a string or None, you can simply do
-    #    return plt.cm.get_cmap(base_cmap, N)
-    # The following works for string, None, or a colormap instance:
-
-    base = plt.cm.get_cmap(base_cmap)
-    color_list = base(np.linspace(0, 1, N))
-    cmap_name = base.name + str(N)
-    return base.from_list(cmap_name, color_list, N)
-
-# cache datasets -> faster loading
-if not os.path.exists("/tmp/testdataset.csv") or not os.path.exists("/tmp/traindataset.csv"):
-    hdf =  pd.HDFStore('./test_train.h5','r')
-    testset =  hdf['test_data']
-    trainset =  hdf['train_data']
-    hdf.close()
-
-    testset.to_csv("/tmp/testdataset.csv")
-    trainset.to_csv("/tmp/traindataset.csv")
-else:
-    testset = pd.read_csv("/tmp/testdataset.csv")
-    trainset = pd.read_csv("/tmp/traindataset.csv")
-
-def get_raw_pattern(band="B02"):
-    return ".*/"+band+"_[0-9]{4}-[0-9]{2}-[0-9]{2}_median"
-
-def get_three_month_aggregate_pattern(band="B02", aggr="median"):
-    return ".*/"+band+"_median_(Jan|Feb|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Oct|Nov|Dec){2}_"+aggr
-
-def get_annual_pattern(band="B02", aggr="median"):
-    return ".*/" + band + "_median_annual_"+aggr
-
-bands = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12", "B8A",
+BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12", "B8A",
          "BRIGHTNESS", "IRECI", "NDVI", "NDWI", "NDVVVH", "RATIOVVVH", "VH", "VV"]
 
-aggregation_methods = ["mean", "median", "std", "p05", "p95"]
+AGGREGATION_METHODS = ["mean", "median", "std", "p05", "p95"]
 
-cols = np.array(testset.columns)
+def main():
+    testset, trainset = load_dataset(path='./test_train.h5')
 
-categories = dict()
-for band in bands:
-    categories[band] = dict()
-    r = re.compile(get_raw_pattern(band=band))
-    vmatch = np.vectorize(lambda x: bool(r.match(x)))
-    idx = vmatch(cols)
+    categories = split_column_names_into_categories(np.array(testset.columns))
 
-    categories[band]["raw"] = cols[idx]
+    plotfig, legendfig = plot(trainset, testset, categories)
 
-    for aggr in aggregation_methods:
+    plotfig.savefig("/tmp/plot.png", dpi=300)
+    legendfig.savefig("/tmp/legend.png", dpi=300)
 
-        r = re.compile(get_three_month_aggregate_pattern(band=band, aggr=aggr))
-        vmatch = np.vectorize(lambda x: bool(r.match(x)))
-        idx = vmatch(cols)
-        categories[band]["3m"] = cols[idx]
+    plt.show()
 
-        r = re.compile(get_annual_pattern(band=band, aggr=aggr))
-        vmatch = np.vectorize(lambda x: bool(r.match(x)))
-        idx = vmatch(cols)
-        categories[band]["a"] = cols[idx]
 
-def colname2datetime(col):
-    return datetime.datetime.strptime(col.split("_")[1], "%Y-%m-%d")
+def get_data(trainset, testset, band, categories, type="raw"):
 
-def get_data(band, type="raw"):
+    def colname2datetime(col):
+        return datetime.datetime.strptime(col.split("_")[1], "%Y-%m-%d")
+
     cols = categories[band][type]
 
     dates = [colname2datetime(col) for col in cols]
@@ -91,33 +47,95 @@ def get_data(band, type="raw"):
 
     return Xtrain, ytrain, Xtest, ytest
 
-colors = 10 * ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928']
+def load_dataset(path='./test_train.h5'):
+    # cache datasets -> faster loading
+    if not os.path.exists("/tmp/testdataset.csv") or not os.path.exists("/tmp/traindataset.csv"):
+        hdf = pd.HDFStore(path, 'r')
+        testset = hdf['test_data']
+        trainset = hdf['train_data']
+        hdf.close()
 
-classes = np.unique(testset["CRPGRPSTM"].unique() + trainset["CRPGRPSTM"].unique())
+        testset.to_csv("/tmp/testdataset.csv")
+        trainset.to_csv("/tmp/traindataset.csv")
+    else:
+        testset = pd.read_csv("/tmp/testdataset.csv")
+        trainset = pd.read_csv("/tmp/traindataset.csv")
 
-
-fig, axs = plt.subplots(len(bands)+1,2, figsize=(16,25))
-for i in range(len(bands)):
-    Xtrain, ytrain, Xtest, ytest = get_data(bands[i], "raw")
-
-    axs[0][0].set_title("Trainset by bands")
-    axs[0][1].set_title("Testset by bands")
-
-    axs[i][0].set_ylabel(bands[i])
-    axs[i][1].set_ylabel(bands[i])
-    for j in range(len(classes)):
-        traindata = Xtrain.loc[ytrain == classes[j]]
-        if len(traindata) > 0:
-            axs[i][0].plot(traindata.transpose(), linewidth=0.5, c=colors[j], alpha=0.05, zorder=np.random.randint(100))
-
-        testdata = Xtest.loc[ytest == classes[j]]
-        if len(testdata) > 0:
-            axs[i][1].plot(testdata.transpose(), linewidth=0.5, c=colors[j], alpha=0.2, zorder=np.random.randint(100))
+    return testset, trainset
 
 
-legend_elements = [Line2D([0], [0], color=colors[i], lw=4, label=classes[i]) for i in range(len(classes))]
-axs[len(bands)][0].legend(handles=legend_elements, ncol=10)
 
-sns.despine(offset=10, left=True)
+def split_column_names_into_categories(cols):
 
-plt.show()
+    """regex generator functions"""
+    def get_raw_pattern(band="B02"):
+        return ".*/" + band + "_[0-9]{4}-[0-9]{2}-[0-9]{2}_median"
+
+    def get_three_month_aggregate_pattern(band="B02", aggr="median"):
+        return ".*/" + band + "_median_(Jan|Feb|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Oct|Nov|Dec){2}_" + aggr
+
+    def get_annual_pattern(band="B02", aggr="median"):
+        return ".*/" + band + "_median_annual_" + aggr
+
+
+
+    categories = dict()
+    for band in BANDS:
+        categories[band] = dict()
+        r = re.compile(get_raw_pattern(band=band))
+        vmatch = np.vectorize(lambda x: bool(r.match(x)))
+        idx = vmatch(cols)
+
+        categories[band]["raw"] = cols[idx]
+
+        for aggr in AGGREGATION_METHODS:
+
+            r = re.compile(get_three_month_aggregate_pattern(band=band, aggr=aggr))
+            vmatch = np.vectorize(lambda x: bool(r.match(x)))
+            idx = vmatch(cols)
+            categories[band]["3m"] = cols[idx]
+
+            r = re.compile(get_annual_pattern(band=band, aggr=aggr))
+            vmatch = np.vectorize(lambda x: bool(r.match(x)))
+            idx = vmatch(cols)
+            categories[band]["a"] = cols[idx]
+
+    return categories
+
+def plot(trainset, testset, categories):
+    colors = 10 * ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6',
+                   '#6a3d9a', '#ffff99', '#b15928']
+
+    classes = np.unique(testset["CRPGRPSTM"].unique() + trainset["CRPGRPSTM"].unique())
+
+    plotfig, axs = plt.subplots(len(BANDS), 2, figsize=(16, 25))
+    for i in range(len(BANDS)):
+        Xtrain, ytrain, Xtest, ytest = get_data(trainset, testset, BANDS[i], categories, "raw")
+
+        axs[0][0].set_title("Trainset by bands")
+        axs[0][1].set_title("Testset by bands")
+
+        axs[i][0].set_ylabel(BANDS[i])
+        axs[i][1].set_ylabel(BANDS[i])
+        for j in range(len(classes)):
+            traindata = Xtrain.loc[ytrain == classes[j]]
+            if len(traindata) > 0:
+                axs[i][0].plot(traindata.transpose(), linewidth=0.5, c=colors[j], alpha=0.01,
+                               zorder=np.random.randint(100))
+
+            testdata = Xtest.loc[ytest == classes[j]]
+            if len(testdata) > 0:
+                axs[i][1].plot(testdata.transpose(), linewidth=0.5, c=colors[j], alpha=0.2,
+                               zorder=np.random.randint(100))
+
+    sns.despine(offset=6, left=True)
+
+    # draw legend in a separate plot
+    legendfig, ax = plt.subplots(1, 1, figsize=(16, 4))
+    legend_elements = [Line2D([0], [0], color=colors[i], lw=4, label=classes[i]) for i in range(len(classes))]
+    ax.legend(handles=legend_elements, ncol=14, loc="center")
+    ax.axis("off")
+
+    return plotfig, legendfig
+if __name__=="__main__":
+    main()
