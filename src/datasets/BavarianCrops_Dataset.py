@@ -13,7 +13,7 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None, cache=True, partitioning_scheme="blocks"):
+    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None, cache=True, partitioning_scheme="blocks", trainids=None, testids=None):
         """
 
         :param root:
@@ -65,6 +65,19 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
             self.cache_dataset()
 
         self.hist, _ = np.histogram(self.y, bins=self.nclasses)
+
+        if trainids is not None and testids is not None:
+            if partition=="eval":
+                selectids = np.loadtxt(testids).astype(int)
+            elif partition=="trainvalid":
+                selectids = np.loadtxt(trainids).astype(int)
+            else:
+                raise ValueError("explicid ids files provided. only partitions 'eval' and 'trainvalid' allowed")
+
+            mask = np.isin(self.ids, selectids)
+
+            print("explicit ids provided selecting {} from {} total field parcels".format(mask.sum(), mask.size))
+            self.ids = self.ids[mask]
 
         print("loaded {} samples".format(len(self.ids)))
         #print("class frequencies " + ", ".join(["{c}:{h}".format(h=h, c=c) for h, c in zip(self.hist, self.classes)]))
@@ -248,7 +261,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.sequencelength = self.sequencelengths.max()
         self.ids = np.load(os.path.join(self.cache, "ids.npy"))
         #self.dataweights = np.load(os.path.join(self.cache, "dataweights.npy"))
-        self.X = np.load(os.path.join(self.cache, "X.npy"))
+        self.X = np.load(os.path.join(self.cache, "X.npy"), allow_pickle=True)
 
     def cache_exists(self):
         weightsexist = os.path.exists(os.path.join(self.cache, "classweights.npy"))

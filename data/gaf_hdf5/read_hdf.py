@@ -16,18 +16,59 @@ BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12", "B8A",
 
 AGGREGATION_METHODS = ["mean", "median", "std", "p05", "p95"]
 
-def main():
-    testset, trainset = load_dataset(path='./test_train.h5')
-
+def load_raw_dataset(path='./test_train.h5'):
+    testset, trainset = load_dataset(path=path)
     categories = split_column_names_into_categories(np.array(testset.columns))
+    return trainset, testset, categories
 
-    plotfig, legendfig = plot(trainset, testset, categories)
+def save_cache(path='./test_train.h5', cache="/tmp"):
+    trainset, testset, categories = load_raw_dataset(path)
+
+    Xtrain, Xtest, ytrain, ytest = stack(trainset, testset, categories)
+
+    print("saving data to "+cache)
+    np.save(os.path.join(cache,"Xtrain.npy"), Xtrain)
+    np.save(os.path.join(cache,"Xtest.npy"), Xtest)
+    np.save(os.path.join(cache,"ytrain.npy"), ytrain)
+    np.save(os.path.join(cache,"ytest.npy"), ytest)
+
+def load_cache(cache="/tmp"):
+    Xtrain = np.load(os.path.join(cache, "Xtrain.npy"))
+    ytrain = np.load(os.path.join(cache, "ytrain.npy"))
+    Xtest = np.load(os.path.join(cache, "Xtest.npy"))
+    ytest = np.load(os.path.join(cache, "ytest.npy"))
+    return Xtrain, ytrain, Xtest, ytest
+
+def main():
+
+    save_cache(path='./test_train.h5')
+    Xtrain, ytrain, Xtest, ytest = load_cache()
+
+
+    plotfig, legendfig = plot()
 
     plotfig.savefig("/tmp/plot.png", dpi=300)
     legendfig.savefig("/tmp/legend.png", dpi=300)
 
     plt.show()
 
+def stack(trainset, testset, categories):
+    data = dict(
+        Xtrain=list(),
+        Xtest=list(),
+    )
+    for i in range(len(BANDS)):
+        Xtrain, ytrain, Xtest, ytest = get_data(trainset, testset, BANDS[i], categories, "raw")
+        data["Xtrain"].append(Xtrain.values)
+        data["Xtest"].append(Xtest.values)
+
+    ytest = ytest.values
+    ytrain = ytrain.values
+
+    Xtrain = np.dstack(data["Xtrain"])
+    Xtest = np.dstack(data["Xtest"])
+
+    return Xtrain, Xtest, ytrain, ytest
 
 def get_data(trainset, testset, band, categories, type="raw"):
 
@@ -62,8 +103,6 @@ def load_dataset(path='./test_train.h5'):
         trainset = pd.read_csv("/tmp/traindataset.csv")
 
     return testset, trainset
-
-
 
 def split_column_names_into_categories(cols):
 
@@ -102,7 +141,9 @@ def split_column_names_into_categories(cols):
 
     return categories
 
-def plot(trainset, testset, categories):
+def plot():
+    trainset, testset, categories = load_raw_dataset(path)
+
     colors = 10 * ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6',
                    '#6a3d9a', '#ffff99', '#b15928']
 
@@ -137,5 +178,6 @@ def plot(trainset, testset, categories):
     ax.axis("off")
 
     return plotfig, legendfig
+
 if __name__=="__main__":
     main()

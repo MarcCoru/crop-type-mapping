@@ -7,6 +7,7 @@ from datasets.CropsDataset import CropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
 from models.TransformerEncoder import TransformerEncoder
 from datasets.ConcatDataset import ConcatDataset
+from datasets.GAF import GAFDataset
 import argparse
 from utils.trainer import Trainer
 import os
@@ -18,7 +19,9 @@ from utils.texparser import confusionmatrix2table, texconfmat
 from utils.logger import Logger
 from utils.visdomLogger import VisdomLogger
 from models.transformer.Optim import ScheduledOptim
+from models.multi_scale_resnet import MSResNet
 import torch.optim as optim
+from experiments import experiments
 import os
 
 def parse_args():
@@ -66,130 +69,6 @@ def parse_args():
 
     return args
 
-def experiments(args):
-
-    args.samplet = 50
-
-    if args.experiment == "GAF_HOLL_rnn":
-        args.model = "rnn"
-        args.dataset = "GAFHDF5"
-        args.num_layers = 3
-        args.hidden_dims = 128
-        args.bidirectional = True
-
-    elif args.experiment == "test":
-        args.model = "rnn"
-        args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-        args.num_layers = 3
-        args.hidden_dims = 128
-        args.bidirectional = True
-        args.trainregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-
-    elif args.experiment == "TUM_ALL_rnn_allclasses":
-        args.model = "rnn"
-        args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping83.csv"
-        args.num_layers = 3
-        args.hidden_dims = 128
-        args.bidirectional = True
-        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-
-    elif args.experiment == "TUM_ALL_transformer_allclasses":
-        args.model = "transformer"
-        args.dataset = "BavarianCrops"
-        args.hidden_dims = 256
-        args.samplet = 30
-        args.n_heads = 4
-        args.n_layers = 4
-        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping83.csv"
-
-    elif args.experiment == "TUM_ALL_rnn":
-        args.model = "rnn"
-        args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-        args.num_layers = 3
-        args.hidden_dims = 128
-        args.bidirectional = True
-        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-
-    elif args.experiment == "TUM_GEN_rnn":
-        args.model = "rnn"
-        args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-        args.num_layers = 3
-        args.hidden_dims = 128
-        args.bidirectional = True
-        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot"]
-        args.testregions = ["NOWA_2018_MT_pilot"]
-
-    elif args.experiment == "BreizhCrops_rnn":
-        args.model = "rnn"
-        args.dataset = "BreizhCrops"
-        args.classmapping = None
-        args.num_layers = 3
-        args.samplet = 45
-        args.hidden_dims = 128
-        args.bidirectional = True
-        args.trainregions = ["frh01", "frh02", "frh03"]
-        args.testregions = ["frh04"]
-
-    elif args.experiment == "BreizhCrops_transformer":
-        args.model = "transformer"
-        args.dataset = "BreizhCrops"
-        args.hidden_dims = 128
-        args.samplet = 45
-        args.n_heads = 4
-        args.n_layers = 4
-        args.trainregions = ["frh01", "frh02", "frh03"]
-        args.testregions = ["frh04"]
-
-    elif args.experiment == "TUM_HOLL_rnn":
-        args.model = "rnn"
-        args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-        args.num_layers = 3
-        args.hidden_dims = 128
-        args.bidirectional = True
-        args.trainregions = ["HOLL_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot"]
-
-    elif args.experiment == "TUM_HOLL_transformer":
-        args.model = "transformer"
-        args.dataset = "BavarianCrops"
-        args.hidden_dims = 256
-        args.samplet = 30
-        args.n_heads = 4
-        args.n_layers = 4
-        args.trainregions = ["HOLL_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot"]
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-
-    elif args.experiment == "TUM_ALL_transformer":
-        args.model = "transformer"
-        args.dataset = "BavarianCrops"
-        args.hidden_dims = 256
-        args.samplet = 30
-        args.n_heads = 4
-        args.n_layers = 4
-        args.trainregions = ["HOLL_2018_MT_pilot","KRUM_2018_MT_pilot","NOWA_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
-
-    elif args.experiment == "GAFHDF5_transformer":
-        args.model = "transformer"
-        args.dataset = "GAFHDF5"
-        args.hidden_dims = 256
-        args.n_heads = 8
-        args.n_layers = 6
-
-    return args
-
 def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
@@ -201,7 +80,7 @@ def prepare_dataset(args):
         for region in args.testregions:
             test_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
             )
 
         testdataset = ConcatDataset(test_dataset_list)
@@ -214,11 +93,11 @@ def prepare_dataset(args):
         for region in args.trainregions:
             train_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet)
+                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
             )
 
         traindataset = ConcatDataset(train_dataset_list)
-        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=SequentialSampler(traindataset),
+        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=RandomSampler(traindataset),
                                                       batch_size=args.batchsize, num_workers=args.workers)
 
 
@@ -258,6 +137,18 @@ def prepare_dataset(args):
         dataset_holl = HDF5Dataset(root=os.getenv("HOME") + "/data/gaf/holl_l2.h5", partition=args.test_on, samplet=args.samplet)
 
         testdataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=SequentialSampler(dataset_holl),
+                                                     batch_size=args.batchsize, num_workers=args.workers)
+
+    elif args.dataset == "GAFv2":
+        traindataset = GAFDataset("/data/gaf/data", partition="train", features=args.features)
+
+        traindataloader = torch.utils.data.DataLoader(dataset=traindataset,
+                                                      sampler=RandomSampler(traindataset),
+                                                      batch_size=args.batchsize, num_workers=args.workers)
+
+        testdataset = GAFDataset("/data/gaf/data", partition="test", features=args.features)
+
+        testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
                                                      batch_size=args.batchsize, num_workers=args.workers)
 
     return traindataloader, testdataloader
@@ -327,6 +218,9 @@ def getModel(args):
     if args.model == "rnn":
         model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
                               num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=args.bidirectional)
+
+    if args.model == "msresnet":
+        model = MSResNet(input_channel=args.input_dims, layers=[1, 1, 1, 1], num_classes=args.nclasses)
 
     elif args.model == "transformer":
 
