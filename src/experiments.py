@@ -31,6 +31,11 @@ def experiments(args):
         args.bidirectional = True
         args.features="all"
 
+    elif args.experiment == "tumgaf_gaf_tempcnn_all":
+        args.model = "tempcnn"
+        args.dataset = "GAFv2"
+        args.features = "all"
+
         """Models and Datasets"""
     elif args.experiment == "tumgaf_tum_rnn":
         args.model = "rnn"
@@ -67,8 +72,26 @@ def experiments(args):
         args.test_on = "eval"
         args.train_on = "trainvalid"
 
+    elif args.experiment == "tumgaf_tum_tempcnn":
+        args.model = "tempcnn"
+        args.dataset = "GAFv2"
+
+        args.dataset = "BavarianCrops"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2"
+        args.trainregions = ["HOLL_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot"]
+        args.trainids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_trainids.csv"
+        args.testids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_testids.csv"
+        args.test_on = "eval"
+        args.train_on = "trainvalid"
+
     elif args.experiment == "tumgaf_gaf_msresnet":
         args.model = "msresnet"
+        args.dataset = "GAFv2"
+        args.features = "optical"
+
+    elif args.experiment == "tumgaf_gaf_tempcnn":
+        args.model = "tempcnn"
         args.dataset = "GAFv2"
         args.features = "optical"
 

@@ -22,6 +22,7 @@ from models.transformer.Optim import ScheduledOptim
 from models.multi_scale_resnet import MSResNet
 import torch.optim as optim
 from experiments import experiments
+from models.TempCNN import TempCNN
 import os
 
 def parse_args():
@@ -175,11 +176,18 @@ def train(args):
     visdomenv = "{}_{}".format(args.experiment, args.dataset)
     visdomlogger = VisdomLogger(env=visdomenv)
 
-    optimizer = ScheduledOptim(
-        optim.Adam(
+    if args.model in ["rnn", "msresnet", "transformer"]:
+        optimizer = ScheduledOptim(
+            optim.Adam(
+                filter(lambda x: x.requires_grad, model.parameters()),
+                betas=(0.9, 0.98), eps=1e-09, weight_decay=0),
+            model.d_model, 500)
+    elif args.model in ["tempcnn"]:
+        optimizer = optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
-            betas=(0.9, 0.98), eps=1e-09),
-        model.d_model, 500)
+            betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-6, lr=0.001)
+    else:
+        raise ValueError(args.model + "no valid model. either 'rnn', 'msresnet', 'transformer', 'tempcnn'")
 
     config = dict(
         epochs=args.epochs,
@@ -221,6 +229,9 @@ def getModel(args):
 
     if args.model == "msresnet":
         model = MSResNet(input_channel=args.input_dims, layers=[1, 1, 1, 1], num_classes=args.nclasses)
+
+    if args.model == "tempcnn":
+        model = TempCNN(input_dim=args.input_dims, nclasses=args.nclasses, sequence_length=args.seqlength)
 
     elif args.model == "transformer":
 
