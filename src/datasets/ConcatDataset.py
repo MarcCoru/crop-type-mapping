@@ -37,6 +37,7 @@ class ConcatDataset(torch.utils.data.Dataset):
         self.classname = datasets[0].classname
         self.klassenname = datasets[0].klassenname
         self.hist = np.array([d.hist for d in self.datasets]).sum(0)
+        self.partition = self.datasets[0].partition
 
         self.y = np.concatenate([d.y for d in self.datasets], axis=0)
         self.cumulative_sizes = self.cumsum(self.datasets)

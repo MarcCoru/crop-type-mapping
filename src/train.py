@@ -74,14 +74,13 @@ def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
         root = os.getenv("HOME") + "/data/BavarianCrops"
-        partitioning_scheme="gaf"
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()
         for region in args.testregions:
             test_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
+                                            classmapping=args.classmapping, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
             )
 
         testdataset = ConcatDataset(test_dataset_list)
@@ -94,7 +93,7 @@ def prepare_dataset(args):
         for region in args.trainregions:
             train_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, partitioning_scheme=partitioning_scheme, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
+                                            classmapping=args.classmapping, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
             )
 
         traindataset = ConcatDataset(train_dataset_list)

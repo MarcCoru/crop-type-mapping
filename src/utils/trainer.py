@@ -3,6 +3,11 @@ from utils.classmetric import ClassMetric
 
 from utils.printer import Printer
 
+import sys
+sys.path.append("../models")
+sys.path.append("models")
+sys.path.append("..")
+
 import os
 import numpy as np
 from models.ClassificationModel import ClassificationModel
@@ -92,13 +97,13 @@ class Trainer():
             self.logger.set_mode("train")
             stats = self.train_epoch(self.epoch)
             self.logger.log(stats, self.epoch)
-            printer.print(stats, self.epoch, prefix="\ntrain: ")
+            printer.print(stats, self.epoch, prefix="\n"+self.traindataloader.dataset.partition+": ")
 
             if self.epoch % self.test_every_n_epochs == 0:
                 self.logger.set_mode("test")
                 stats = self.test_epoch(self.validdataloader)
                 self.logger.log(stats, self.epoch)
-                printer.print(stats, self.epoch, prefix="\nvalid: ")
+                printer.print(stats, self.epoch, prefix="\n"+self.validdataloader.dataset.partition+": ")
                 self.visdom_log_test_run(stats)
 
             self.visdom.plot_epochs(self.logger.get_data())

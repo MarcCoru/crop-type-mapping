@@ -126,12 +126,16 @@ def experiments(args):
     elif args.experiment == "test":
         args.model = "rnn"
         args.dataset = "BavarianCrops"
-        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf"
+        args.classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2"
         args.num_layers = 3
+        args.trainids = os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt"
+        args.testids = os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_test.txt"
         args.hidden_dims = 128
         args.bidirectional = True
-        args.trainregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
-        args.testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"]
+        args.test_on = "test"
+        args.train_on = "train"
+        args.trainregions = ["HOLL_2018_MT_pilot"]
+        args.testregions = ["HOLL_2018_MT_pilot"]
 
     elif args.experiment == "TUM_ALL_rnn_allclasses":
         args.model = "rnn"

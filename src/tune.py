@@ -1,5 +1,5 @@
 import sys
-sys.path.append("models")
+sys.path.append("./models")
 
 import ray.tune as tune
 import argparse
@@ -9,8 +9,15 @@ import torch
 from utils.trainer import Trainer
 import ray.tune
 from argparse import Namespace
+import torch.optim as optim
 
 from train import prepare_dataset, getModel
+
+from ray.tune.schedulers import AsyncHyperBandScheduler, ASHAScheduler
+from ray.tune.suggest.bayesopt import BayesOptSearch
+from ray.tune.suggest.hyperopt import HyperOptSearch
+from hyperopt import hp
+
 
 
 def parse_args():
@@ -19,9 +26,6 @@ def parse_args():
         'experiment', type=str, default="rnn",
         help='experiment name. defines hyperparameter search space and tune dataset function'
              "use 'rnn', 'test_rnn', 'conv1d', or 'test_conv1d'")
-    parser.add_argument(
-        '-d', '--datasetfile', type=str, default="experiments/morietal2017/UCR_dataset_names.txt",
-            help='text file containing dataset names in new lines')
     parser.add_argument(
         '-b', '--batchsize', type=int, default=96, help='Batch Size')
     parser.add_argument(
@@ -34,10 +38,6 @@ def parse_args():
     parser.add_argument(
         '-r', '--local_dir', type=str, default=os.path.join(os.environ["HOME"],"ray_results"),
         help='ray local dir. defaults to $HOME/ray_results')
-    parser.add_argument(
-        '--smoke-test', action='store_true', help='Finish quickly for testing')
-    parser.add_argument(
-        '--skip-processed', action='store_true', help='skip already processed datasets (defined by presence of results folder)')
     args, _ = parser.parse_known_args()
     return args
 
@@ -50,21 +50,41 @@ def get_hyperparameter_search_space(experiment):
     """
     if experiment == "rnn":
 
-        return dict(
-            epochs = 10,
+        space =  dict(
+            epochs = 5,
             model = "rnn",
             dataset = "BavarianCrops",
-            classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf",
-            num_layers = tune.grid_search([1,2,3,4]),
-            hidden_dims = tune.grid_search([2**6,2**7,2**8]),
-            samplet=tune.grid_search([30,50,70]),
+            testids = None,
+            classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
+            samplet=50,
             bidirectional = True,
-            dropout=tune.grid_search([.25,.50,.75]),
+            trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
             train_on="train",
             test_on="valid",
-            trainregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"],
-            testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"],
+            trainregions = ["HOLL_2018_MT_pilot"],
+            testregions = ["HOLL_2018_MT_pilot"],
+            num_layers=hp.choice("num_layers", [1, 2, 3, 4, 5, 6, 7]),
+            hidden_dims=hp.choice("hidden_dims", [2**4, 2**5, 2**6, 2**7, 2**8]),
+            dropout=hp.uniform("dropout", 0, 1),
+            weight_decay=hp.loguniform("weight_decay", -4,-8),
+            learning_rate=hp.loguniform("learning_rate", -1,-5),
             )
+
+        try:
+            analysis = tune.Analysis(os.path.join(args.local_dir, args.experiment))
+            top_runs = analysis.dataframe().sort_values(by="kappa", ascending=False).iloc[:3]
+            top_runs.columns = [col.replace("config:","") for col in top_runs.columns]
+
+            params = top_runs[["num_layers","dropout","weight_decay","learning_rate"]]
+
+            points_to_evaluate = list(params.T.to_dict().values())
+        except ValueError as e:
+            print("could not extraction previous runs from "+os.path.join(args.local_dir, args.experiment))
+            points_to_evaluate = None
+            pass
+
+
+        return space, points_to_evaluate
 
     if experiment == "transformer":
 
@@ -72,7 +92,9 @@ def get_hyperparameter_search_space(experiment):
             epochs = 10,
             model = "transformer",
             dataset = "BavarianCrops",
-            classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf",
+            trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
+            testids=None,
+            classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
             hidden_dims = tune.grid_search([2**7,2**8,2**6]),
             n_heads = tune.grid_search([2,4,6,8]),
             n_layers = tune.grid_search([8,4,2,1]),
@@ -81,8 +103,8 @@ def get_hyperparameter_search_space(experiment):
             dropout=tune.grid_search([.25,.50,.75]),
             train_on="train",
             test_on="valid",
-            trainregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"],
-            testregions = ["HOLL_2018_MT_pilot", "KRUM_2018_MT_pilot", "NOWA_2018_MT_pilot"],
+            trainregions = ["HOLL_2018_MT_pilot"],
+            testregions = ["HOLL_2018_MT_pilot"],
             )
 
 def print_best(top, filename):
@@ -109,10 +131,12 @@ def print_best(top, filename):
                                                                                           param_string=param_string),
           file=open(filename, "a"))
 
-class RayTrainerRNN(ray.tune.Trainable):
+class RayTrainer(ray.tune.Trainable):
     def _setup(self, config):
 
         self.epochs = config["epochs"]
+
+        print(config)
 
         args = Namespace(**config)
         self.traindataloader, self.validdataloader = prepare_dataset(args)
@@ -128,18 +152,31 @@ class RayTrainerRNN(ray.tune.Trainable):
 
         if "model" in config.keys():
             config.pop('model', None)
-        trainer = Trainer(self.model, self.traindataloader, self.validdataloader, **config)
+        #trainer = Trainer(self.model, self.traindataloader, self.validdataloader, **config)
 
-        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, **config)
+        optimizer = optim.Adam(
+            filter(lambda x: x.requires_grad, self.model.parameters()),
+            betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay, lr=args.learning_rate)
+
+        self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, optimizer=optimizer, **config)
 
     def _train(self):
         # epoch is used to distinguish training phases. epoch=None will default to (first) cross entropy phase
 
         # train five epochs and then infer once. to avoid overhead on these small datasets
         for i in range(self.epochs):
-            self.trainer.train_epoch(epoch=None)
+            trainstats = self.trainer.train_epoch(epoch=None)
 
-        return self.trainer.test_epoch(self.validdataloader, epoch=None)
+        stats = self.trainer.test_epoch(self.validdataloader, epoch=None)
+        stats.pop("inputs")
+        stats.pop("ids")
+        stats.pop("confusion_matrix")
+        stats.pop("probas")
+
+        stats["lossdelta"] = trainstats["loss"] - stats["loss"]
+        stats["trainloss"] = trainstats["loss"]
+
+        return stats
 
     def _save(self, path):
         path = path + ".pth"
@@ -156,13 +193,45 @@ if __name__=="__main__":
 
     args = parse_args()
 
-    config = get_hyperparameter_search_space(args.experiment)
+    config, points_to_evaluate = get_hyperparameter_search_space(args.experiment)
 
     args_dict = vars(args)
     config = {**config, **args_dict}
     args = Namespace(**config)
 
-    tune.run_experiments(
+    algo = HyperOptSearch(
+        config,
+        max_concurrent=4,
+        metric="kappa",
+        mode="max",
+        points_to_evaluate=points_to_evaluate
+    )
+
+
+    scheduler = AsyncHyperBandScheduler(metric="kappa", mode="max",max_t=60,
+        grace_period=2,
+        reduction_factor=3,
+        brackets=4)
+
+
+    analysis = tune.run(
+        RayTrainer,
+        config=config,
+        name=args.experiment,
+        num_samples=300,
+        local_dir=args.local_dir,
+        search_alg=algo,
+        scheduler=scheduler,
+        verbose=True,
+        reuse_actors=True,
+        resume=True,
+        checkpoint_at_end=True,
+        global_checkpoint_period=360,
+        checkpoint_score_attr="kappa",
+        keep_checkpoints_num=5,
+        resources_per_trial=dict(cpu=args.cpu, gpu=args.gpu))
+
+    """
         {
             args.experiment: {
                 "resources_per_trial": {
@@ -171,14 +240,19 @@ if __name__=="__main__":
                 },
                 'stop': {
                     'training_iteration': 1,
-                    'time_total_s':3600 if not args.smoke_test else 1,
+                    'time_total_s':3600,
                 },
-                "run": RayTrainerRNN,
+                "run": RayTrainer,
                 "num_samples": 1,
                 "checkpoint_at_end": False,
                 "config": config,
                 "local_dir":args.local_dir
             }
         },
-        verbose=0,)
+        search_alg=algo,
+        #scheduler=scheduler,
+        verbose=True,)
+    """
+    print("Best config is", analysis.get_best_config(metric="kappa"))
+    analysis.dataframe().to_csv("/tmp/result.csv")
 

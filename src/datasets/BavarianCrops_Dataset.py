@@ -5,6 +5,8 @@ import os
 import sys
 import numpy as np
 from numpy import genfromtxt
+import tqdm
+
 
 BANDS = ['B1', 'B10', 'B11', 'B12', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8',
        'B8A', 'B9']
@@ -13,15 +15,9 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, region=None, partition="train", samplet=70, classmapping=None, cache=True, partitioning_scheme="blocks", trainids=None, testids=None):
-        """
-
-        :param root:
-        :param region: csv/<regionA>/<id>.csv
-        :param partition: one of train/valid/eval
-        :param nsamples: load less samples for debug
-        :param partitioning_scheme either blocks or random
-        """
+    def __init__(self, root, partition, classmapping, trainids, validids=None, testids=None, region=None, samplet=70, cache=True, seed=0, validfraction=0.1):
+        self.seed = seed
+        self.validfraction = validfraction
 
         # ensure that different seeds are set per partition
         seed = sum([ord(ch) for ch in partition])
@@ -30,8 +26,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         self.root = root
 
-        if classmapping is None:
-            classmapping = self.root + "/classmapping.csv"
+        self.trainids = trainids
+        self.testids = testids
 
         self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
         self.mapping = self.mapping.set_index("nutzcode")
@@ -42,7 +38,6 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         self.region = region
         self.partition = partition
-        self.partitioning_scheme = partitioning_scheme
         self.data_folder = "{root}/csv/{region}".format(root=self.root, region=self.region)
         self.samplet = samplet
 
@@ -66,120 +61,66 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         self.hist, _ = np.histogram(self.y, bins=self.nclasses)
 
-        if trainids is not None and testids is not None:
-            if partition=="eval":
-                selectids = np.loadtxt(testids).astype(int)
-            elif partition=="trainvalid":
-                selectids = np.loadtxt(trainids).astype(int)
-            else:
-                raise ValueError("explicid ids files provided. only partitions 'eval' and 'trainvalid' allowed")
-
-            mask = np.isin(self.ids, selectids)
-
-            print("explicit ids provided selecting {} from {} total field parcels".format(mask.sum(), mask.size))
-            self.ids = self.ids[mask]
-
         print("loaded {} samples".format(len(self.ids)))
         #print("class frequencies " + ", ".join(["{c}:{h}".format(h=h, c=c) for h, c in zip(self.hist, self.classes)]))
 
-    def read_ids(self, partition):
-        if partition == "trainvalid":
-            ids_file_train = os.path.join(self.root, "ids", "{region}_{partition}.txt".format(region=self.region.lower(),
-                                                                                        partition="train"))
-            with open(ids_file_train,"r") as f:
-                train_ids = [int(id) for id in f.readlines()]
-            print("Found {} ids in {}".format(len(train_ids), ids_file_train))
+    def read_ids(self):
+        assert isinstance(self.seed, int)
+        assert isinstance(self.validfraction, float)
+        assert self.partition in ["train", "valid", "test"]
+        assert self.trainids is not None
+        assert os.path.exists(self.trainids)
 
-            ids_file_valid = os.path.join(self.root, "ids", "{region}_{partition}.txt".format(region=self.region.lower(),
-                                                                                        partition="valid"))
-            with open(ids_file_valid,"r") as f:
-                valid_ids = [int(id) for id in f.readlines()]
+        np.random.seed(self.seed)
 
-            print("Found {} ids in {}".format(len(valid_ids), ids_file_valid))
+        """if trainids file provided and no testids file <- sample holdback set from trainids"""
+        if self.testids is None:
+            assert self.partition in ["train", "valid"]
 
-            ids = train_ids + valid_ids
+            print("partition {} and no test ids file provided. Splitting trainids file in train and valid partitions".format(self.partition))
 
-        elif partition in ["train","valid","eval"]:
-            ids_file = os.path.join(self.root,"ids","{region}_{partition}.txt".format(region=self.region.lower(), partition=partition))
-            with open(ids_file,"r") as f:
+            with open(self.trainids,"r") as f:
                 ids = [int(id) for id in f.readlines()]
+            print("Found {} ids in {}".format(len(ids), self.trainids))
 
-            print("Found {} ids in {}".format(len(ids),ids_file))
+            np.random.shuffle(ids)
 
-        return ids
+            validsize = int(len(ids) * self.validfraction)
+            validids = ids[:validsize]
+            trainids = ids[validsize:]
 
-    def split(self, partition):
+            print("splitting {} ids in {} for training and {} for validation".format(len(ids), len(trainids), len(validids)))
 
-        if self.partitioning_scheme == "blocks":
-            return self.read_ids(partition)
-        elif self.partitioning_scheme == "random":
+            assert len(validids) + len(trainids) == len(ids)
 
-            # load all ids from the respective blocks
-            #trainids = self.read_ids("train")
-            #validids = self.read_ids("valid")
-            #evalids = self.read_ids("eval")
+            if self.partition == "train":
+                return trainids
+            if self.partition == "valid":
+                return validids
 
-            #allids = np.concatenate([trainids,validids,evalids])
+        elif self.testids is not None:
+            assert self.partition in ["train", "test"]
 
-            allids = [int(os.path.splitext(f)[0]) for f in os.listdir(self.data_folder)]
+            if self.partition=="test":
+                with open(self.testids,"r") as f:
+                    test_ids = [int(id) for id in f.readlines()]
+                print("Found {} ids in {}".format(len(test_ids), self.testids))
+                return test_ids
 
-            return self.random_split(allids,partition)
-
-        elif self.partitioning_scheme == "gaf":
-
-            allids = np.array([int(os.path.splitext(f)[0]) for f in os.listdir(self.data_folder)])
-
-            eval_ids_all = pd.read_csv(self.root+"/ids/gaf_83classes.csv").values[:,0]
-
-            evalids, idx_all, idx_eval = np.intersect1d(allids, eval_ids_all, return_indices=True)
-            assert (allids[idx_all] == evalids).all()
-            assert allids[idx_all[0]] == eval_ids_all[idx_eval[0]]
-
-            not_eval_mask = np.ones(allids.shape, dtype=bool)  # np.ones_like(a,dtype=bool)
-            not_eval_mask[idx_all] = False
-
-            trainvalid_ids = allids[not_eval_mask]
-
-            # make sure no intersection between eval and trainvalid
-            assert len(np.intersect1d(evalids,trainvalid_ids)) == 0
-
-            if partition == "train":
-                raise NotImplementedError()
-            elif partition == "valid":
-                raise NotImplementedError()
-            elif partition == "eval":
-                return evalids
-            elif partition == "trainvalid":
-                return trainvalid_ids
-
-        else:
-            raise ValueError("Partitioning scheme either 'blocks' or 'random'")
-
-    def random_split(self, allids, partition):
-
-        np.random.seed(0)
-        np.random.shuffle(allids)
-
-        # start and end bounds of the respective partitions
-        train = (0, int(len(allids) * 0.6))
-        valid = (train[1]+1, train[1]+int(len(allids) * 0.2))
-        eval = (valid[1]+1, len(allids))
-
-        if partition == "train":
-            return allids[train[0]:train[1]]
-        elif partition == "valid":
-            return allids[valid[0]:valid[1]]
-        elif partition == "eval":
-            return allids[eval[0]:eval[1]]
-        elif partition == "trainvalid":
-            return np.concatenate([allids[train[0]:train[1]],allids[valid[0]:valid[1]]])
+            if self.partition == "train":
+                with open(self.trainids, "r") as f:
+                    train_ids = [int(id) for id in f.readlines()]
+                return train_ids
 
     def cache_dataset(self):
         """
         Iterates though the data folders and stores y, ids, classweights, and sequencelengths
         X is loaded at with getitem
         """
-        ids = self.split(self.partition)
+        #ids = self.split(self.partition)
+
+        ids = self.read_ids()
+        assert len(ids) > 0
 
         self.X = list()
         self.nutzcodes = list()
@@ -188,11 +129,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         )
         self.ids = list()
         self.samples = list()
-        i = 0
-        for id in ids:
-            if i%500==0:
-                update_progress(i/float(len(ids)))
-            i+=1
+        #i = 0
+        for id in tqdm.tqdm(ids):
 
             id_file = self.data_folder+"/{id}.csv".format(id=id)
             if os.path.exists(id_file):
@@ -201,16 +139,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
                 X,nutzcode = self.load(id_file)
 
                 if len(nutzcode) > 0:
-
-                    # only take first since class id does not change through time
                     nutzcode = nutzcode[0]
-
-                    # drop samples where nutzcode is not in mapping table
                     if nutzcode in self.mapping.index:
-
-                        # replace nutzcode with class id- e.g. 451 -> 0, 999 -> 1
-                        #y = self.mapping.loc[y]["id"]
-
                         self.X.append(X)
                         self.nutzcodes.append(nutzcode)
                         self.ids.append(id)
@@ -220,6 +150,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.y = self.applyclassmapping(self.nutzcodes)
 
         self.sequencelengths = np.array([np.array(X).shape[0] for X in self.X])
+        assert len(self.sequencelengths) > 0
         self.sequencelength = self.sequencelengths.max()
         self.ndims = np.array(X).shape[1]
 
@@ -345,25 +276,6 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         y = torch.from_numpy(y).type(torch.LongTensor)
 
         return X, y, self.ids[idx]
-
-def update_progress(progress):
-    barLength = 20 # Modify this to change the length of the progress bar
-    status = ""
-    if isinstance(progress, int):
-        progress = float(progress)
-    if not isinstance(progress, float):
-        progress = 0
-        status = "error: progress var must be float\r\n"
-    if progress < 0:
-        progress = 0
-        status = "Halt...\r\n"
-    if progress >= 1:
-        progress = 1
-        status = "Done...\r\n"
-    block = int(round(barLength*progress))
-    text = "\rLoaded: [{0}] {1:.2f}% {2}".format( "#"*block + "-"*(barLength-block), progress*100, status)
-    sys.stdout.write(text)
-    sys.stdout.flush()
 
 if __name__=="__main__":
     root = "/home/marc/data/BavarianCrops"
