@@ -30,6 +30,7 @@ class GAFDataset(torch.utils.data.Dataset):
 
         self.cache = cache
         self.hdf5_path = path
+        self.partition = partition
 
         if not self.cache_exists() or overwrite_cache:
             self.save_cache()

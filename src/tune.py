@@ -18,7 +18,7 @@ from ray.tune.suggest.bayesopt import BayesOptSearch
 from ray.tune.suggest.hyperopt import HyperOptSearch
 from hyperopt import hp
 
-
+from models.transformer.Optim import ScheduledOptim
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -33,6 +33,8 @@ def parse_args():
     parser.add_argument(
         '-w', '--workers', type=int, default=2, help='cpu workers')
     parser.add_argument(
+        '--redis-address', type=str, default=None, help='address of ray tune head node: e.g. "localhost:6379"')
+    parser.add_argument(
         '-g', '--gpu', type=float, default=.2,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
     parser.add_argument(
@@ -40,6 +42,49 @@ def parse_args():
         help='ray local dir. defaults to $HOME/ray_results')
     args, _ = parser.parse_known_args()
     return args
+
+BavarianCrops_parameters = Namespace(
+    dataset = "BavarianCrops",
+    testids = None,
+    classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
+    samplet=50,
+    trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
+    train_on="train",
+    test_on="valid",
+    trainregions = ["HOLL_2018_MT_pilot"],
+    testregions = ["HOLL_2018_MT_pilot"],
+)
+
+GAF_parameters = Namespace(
+    dataset = "GAFv2",
+    testids = None,
+    classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
+    samplet=50,
+    trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
+    train_on="train",
+    test_on="valid"
+)
+
+rnn_parameters = Namespace(
+    model="rnn",
+    num_layers=hp.choice("num_layers", [1, 2, 3, 4, 5, 6, 7]),
+    hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8]),
+    dropout=hp.uniform("dropout", 0, 1),
+    weight_decay=hp.loguniform("weight_decay", -1, -8),
+    learning_rate=hp.loguniform("learning_rate", -1, -5),
+    bidirectional=True,
+)
+
+transformer_parameters = Namespace(
+    model = "transformer",
+    hidden_dims = hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8]),
+    n_heads = hp.choice("n_heads", [1,2,3,4,5,6,7,8]),
+    n_layers = hp.choice("n_layers", [1, 2, 3, 4, 5, 6, 7, 8]),
+    weight_decay = hp.loguniform("weight_decay", -1, -8),
+    learning_rate = hp.loguniform("learning_rate", -1, -5),
+    warmup = hp.choice("warmup", [1,10,100,1000]),
+    dropout=hp.uniform("dropout", 0, 1),
+)
 
 def get_hyperparameter_search_space(experiment):
     """
@@ -49,63 +94,29 @@ def get_hyperparameter_search_space(experiment):
     :return: ray config dictionary
     """
     if experiment == "rnn":
+        space =  dict(**BavarianCrops_parameters.__dict__,
+                      **rnn_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
 
-        space =  dict(
-            epochs = 5,
-            model = "rnn",
-            dataset = "BavarianCrops",
-            testids = None,
-            classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
-            samplet=50,
-            bidirectional = True,
-            trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
-            train_on="train",
-            test_on="valid",
-            trainregions = ["HOLL_2018_MT_pilot"],
-            testregions = ["HOLL_2018_MT_pilot"],
-            num_layers=hp.choice("num_layers", [1, 2, 3, 4, 5, 6, 7]),
-            hidden_dims=hp.choice("hidden_dims", [2**4, 2**5, 2**6, 2**7, 2**8]),
-            dropout=hp.uniform("dropout", 0, 1),
-            weight_decay=hp.loguniform("weight_decay", -4,-8),
-            learning_rate=hp.loguniform("learning_rate", -1,-5),
-            )
+    elif experiment == "transformer":
+        space =  dict(**BavarianCrops_parameters.__dict__,
+                      **transformer_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    else:
+        raise ValueError("did not recognize experiment "+args.experiment)
 
-        try:
-            analysis = tune.Analysis(os.path.join(args.local_dir, args.experiment))
-            top_runs = analysis.dataframe().sort_values(by="kappa", ascending=False).iloc[:3]
-            top_runs.columns = [col.replace("config:","") for col in top_runs.columns]
+def get_points_to_evaluate(path):
+    try:
+        analysis = tune.Analysis(path)
+        top_runs = analysis.dataframe().sort_values(by="kappa", ascending=False).iloc[:3]
+        top_runs.columns = [col.replace("config:", "") for col in top_runs.columns]
 
-            params = top_runs[["num_layers","dropout","weight_decay","learning_rate"]]
+        params = top_runs[["num_layers", "dropout", "weight_decay", "learning_rate"]]
 
-            points_to_evaluate = list(params.T.to_dict().values())
-        except ValueError as e:
-            print("could not extraction previous runs from "+os.path.join(args.local_dir, args.experiment))
-            points_to_evaluate = None
-            pass
-
-
-        return space, points_to_evaluate
-
-    if experiment == "transformer":
-
-        return dict(
-            epochs = 10,
-            model = "transformer",
-            dataset = "BavarianCrops",
-            trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
-            testids=None,
-            classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
-            hidden_dims = tune.grid_search([2**7,2**8,2**6]),
-            n_heads = tune.grid_search([2,4,6,8]),
-            n_layers = tune.grid_search([8,4,2,1]),
-            samplet=tune.grid_search([30,50,70]),
-            bidirectional = True,
-            dropout=tune.grid_search([.25,.50,.75]),
-            train_on="train",
-            test_on="valid",
-            trainregions = ["HOLL_2018_MT_pilot"],
-            testregions = ["HOLL_2018_MT_pilot"],
-            )
+        return list(params.T.to_dict().values())
+    except Exception:
+        print("could not extraction previous runs from " + os.path.join(args.local_dir, args.experiment))
+        return None
 
 def print_best(top, filename):
     """
@@ -134,7 +145,8 @@ def print_best(top, filename):
 class RayTrainer(ray.tune.Trainable):
     def _setup(self, config):
 
-        self.epochs = config["epochs"]
+        # one iteration is five training epochs, one test epoch
+        self.epochs = 5
 
         print(config)
 
@@ -154,9 +166,16 @@ class RayTrainer(ray.tune.Trainable):
             config.pop('model', None)
         #trainer = Trainer(self.model, self.traindataloader, self.validdataloader, **config)
 
-        optimizer = optim.Adam(
-            filter(lambda x: x.requires_grad, self.model.parameters()),
-            betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay, lr=args.learning_rate)
+        if args.experiment=="transformer":
+            optimizer = ScheduledOptim(
+                optim.Adam(
+                    filter(lambda x: x.requires_grad, self.model.parameters()),
+                    betas=(0.9, 0.98), eps=1e-09, weight_decay=args.weight_decay, lr=args.learning_rate),
+                self.model.d_model, args.warmup)
+        else:
+            optimizer = optim.Adam(
+                filter(lambda x: x.requires_grad, self.model.parameters()),
+                betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay, lr=args.learning_rate)
 
         self.trainer = Trainer(self.model, self.traindataloader, self.validdataloader, optimizer=optimizer, **config)
 
@@ -188,10 +207,16 @@ class RayTrainer(ray.tune.Trainable):
         self.model.load_state_dict(state_dict)
 
 if __name__=="__main__":
-    if not ray.is_initialized():
-        ray.init(include_webui=False)
+
+
+
 
     args = parse_args()
+
+    if args.redis_address is not None:
+        ray.init(redis_address=args.redis_address)
+    elif not ray.is_initialized():
+        ray.init(include_webui=False)
 
     config, points_to_evaluate = get_hyperparameter_search_space(args.experiment)
 
@@ -253,6 +278,7 @@ if __name__=="__main__":
         #scheduler=scheduler,
         verbose=True,)
     """
-    print("Best config is", analysis.get_best_config(metric="kappa"))
-    analysis.dataframe().to_csv("/tmp/result.csv")
+
+    #print("Best config is", analysis.get_best_config(metric="kappa"))
+    #analysis.dataframe().to_csv("/tmp/result.csv")
 

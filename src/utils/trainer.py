@@ -5,6 +5,8 @@ from utils.printer import Printer
 
 import sys
 sys.path.append("../models")
+sys.path.append("../models/transformer")
+sys.path.append("../models/transformer/TransformerEncoder")
 sys.path.append("models")
 sys.path.append("..")
 

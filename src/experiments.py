@@ -1,4 +1,14 @@
 import os
+from argparse import Namespace
+
+hyperparameters_rnn = Namespace(
+    num_layers=4,
+    hidden_dims=32,
+    learning_rate=0.010489,
+    dropout=0.710883,
+    weight_decay=0.000371
+)
+
 
 def experiments(args):
 
@@ -11,23 +21,32 @@ def experiments(args):
         args.model = "rnn"
         args.dataset = "GAFv2"
         args.features="optical"
-        args.num_layers = 3
-        args.hidden_dims = 128
+        args.num_layers = hyperparameters_rnn.num_layers
+        args.hidden_dims = hyperparameters_rnn.hidden_dims
+        args.learning_rate = hyperparameters_rnn.learning_rate
+        args.weight_decay = hyperparameters_rnn.weight_decay
+        args.dropout = hyperparameters_rnn.dropout
         args.bidirectional = True
 
     elif args.experiment == "tumgaf_gaf_rnn_radar":
         args.model = "rnn"
         args.dataset = "GAFv2"
-        args.num_layers = 3
-        args.hidden_dims = 128
+        args.num_layers = hyperparameters_rnn.num_layers
+        args.hidden_dims = hyperparameters_rnn.hidden_dims
+        args.learning_rate = hyperparameters_rnn.learning_rate
+        args.weight_decay = hyperparameters_rnn.weight_decay
+        args.dropout = hyperparameters_rnn.dropout
         args.bidirectional = True
         args.features="radar"
 
     elif args.experiment == "tumgaf_gaf_rnn_all":
         args.model = "rnn"
         args.dataset = "GAFv2"
-        args.num_layers = 3
-        args.hidden_dims = 128
+        args.num_layers = hyperparameters_rnn.num_layers
+        args.hidden_dims = hyperparameters_rnn.hidden_dims
+        args.learning_rate = hyperparameters_rnn.learning_rate
+        args.weight_decay = hyperparameters_rnn.weight_decay
+        args.dropout = hyperparameters_rnn.dropout
         args.bidirectional = True
         args.features="all"
 
@@ -45,19 +64,25 @@ def experiments(args):
         args.testregions = ["HOLL_2018_MT_pilot"]
         args.trainids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_trainids.csv"
         args.testids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_testids.csv"
-        args.test_on = "eval"
-        args.train_on = "trainvalid"
-        args.num_layers = 3
-        args.hidden_dims = 128
+        args.test_on = "test"
+        args.train_on = "train"
+        args.num_layers = hyperparameters_rnn.num_layers
+        args.hidden_dims = hyperparameters_rnn.hidden_dims
+        args.learning_rate = hyperparameters_rnn.learning_rate
+        args.weight_decay = hyperparameters_rnn.weight_decay
+        args.dropout = hyperparameters_rnn.dropout
         args.bidirectional = True
 
     elif args.experiment == "tumgaf_gaf_rnn":
         args.model = "rnn"
         args.dataset = "GAFv2"
-        args.num_layers = 3
-        args.hidden_dims = 128
+        args.num_layers = hyperparameters_rnn.num_layers
+        args.hidden_dims = hyperparameters_rnn.hidden_dims
+        args.learning_rate = hyperparameters_rnn.learning_rate
+        args.weight_decay = hyperparameters_rnn.weight_decay
+        args.dropout = hyperparameters_rnn.dropout
         args.bidirectional = True
-        args.features = "optical"
+        args.features = "all"
 
     elif args.experiment == "tumgaf_tum_msresnet":
         args.model = "msresnet"
@@ -69,8 +94,8 @@ def experiments(args):
         args.testregions = ["HOLL_2018_MT_pilot"]
         args.trainids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_trainids.csv"
         args.testids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_testids.csv"
-        args.test_on = "eval"
-        args.train_on = "trainvalid"
+        args.test_on = "test"
+        args.train_on = "train"
 
     elif args.experiment == "tumgaf_tum_tempcnn":
         args.model = "tempcnn"
@@ -82,18 +107,18 @@ def experiments(args):
         args.testregions = ["HOLL_2018_MT_pilot"]
         args.trainids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_trainids.csv"
         args.testids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_testids.csv"
-        args.test_on = "eval"
-        args.train_on = "trainvalid"
+        args.test_on = "test"
+        args.train_on = "train"
 
     elif args.experiment == "tumgaf_gaf_msresnet":
         args.model = "msresnet"
         args.dataset = "GAFv2"
-        args.features = "optical"
+        args.features = "all"
 
     elif args.experiment == "tumgaf_gaf_tempcnn":
         args.model = "tempcnn"
         args.dataset = "GAFv2"
-        args.features = "optical"
+        args.features = "all"
 
     elif args.experiment == "tumgaf_tum_transformer":
 
@@ -103,8 +128,8 @@ def experiments(args):
         args.testregions = ["HOLL_2018_MT_pilot"]
         args.trainids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_trainids.csv"
         args.testids = os.getenv("HOME") + "/data/BavarianCrops/ids/gaf_holl_testids.csv"
-        args.test_on = "eval"
-        args.train_on = "trainvalid"
+        args.test_on = "test"
+        args.train_on = "train"
 
         args.model = "transformer"
         args.hidden_dims = 256
@@ -114,7 +139,7 @@ def experiments(args):
 
     elif args.experiment == "tumgaf_gaf_transformer":
         args.dataset = "GAFv2"
-        args.features = "optical"
+        args.features = "all"
 
         args.model = "transformer"
         args.hidden_dims = 256

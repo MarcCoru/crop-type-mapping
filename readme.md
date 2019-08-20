@@ -18,3 +18,9 @@ for presentation see github.com/MarcCoru/early_classification.git
 ```angular2
 wget https://s3.eu-central-1.amazonaws.com/corupublic/early_rnn.zip
 ```
+
+## Docker
+
+```
+docker build -t crops .
+```

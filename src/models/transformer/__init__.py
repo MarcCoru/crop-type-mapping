@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.basename(os.getcwd()) + "/..")
+
 import transformer.Constants
 import transformer.Modules
 import transformer.Layers

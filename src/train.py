@@ -39,15 +39,11 @@ def parse_args():
     parser.add_argument(
         '-w', '--workers', type=int, default=4, help='number of CPU workers to load the next batch')
     parser.add_argument(
-        '-l', '--learning_rate', type=float, default=0.1, help='learning rate')
-    parser.add_argument(
         '--train_on', type=str, default="train", help="dataset partition to train. Choose from 'train', 'valid', "
                                                       "'trainvalid', 'eval' (default 'train')")
     parser.add_argument(
         '--test_on', type=str, default="valid",
         help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
-    parser.add_argument(
-        '--dropout', type=float, default=.2, help='dropout probability of the rnn layer')
     parser.add_argument(
         '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
                                                         'RNN layers for recurrent models and as number of convolutions'
@@ -140,13 +136,13 @@ def prepare_dataset(args):
                                                      batch_size=args.batchsize, num_workers=args.workers)
 
     elif args.dataset == "GAFv2":
-        traindataset = GAFDataset("/data/gaf/data", partition="train", features=args.features)
+        traindataset = GAFDataset("/data/gaf/data/test_train.h5", partition="train", features=args.features)
 
         traindataloader = torch.utils.data.DataLoader(dataset=traindataset,
                                                       sampler=RandomSampler(traindataset),
                                                       batch_size=args.batchsize, num_workers=args.workers)
 
-        testdataset = GAFDataset("/data/gaf/data", partition="test", features=args.features)
+        testdataset = GAFDataset("/data/gaf/data/test_train.h5", partition="test", features=args.features)
 
         testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
                                                      batch_size=args.batchsize, num_workers=args.workers)
@@ -164,6 +160,7 @@ def train(args):
     classname = traindataloader.dataset.classname
     klassenname = traindataloader.dataset.klassenname
     args.seqlength = traindataloader.dataset.sequencelength
+    args.seqlength = args.samplet
     args.input_dims = traindataloader.dataset.ndims
 
     model = getModel(args)
