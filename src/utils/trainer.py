@@ -14,7 +14,7 @@ import os
 import numpy as np
 from models.ClassificationModel import ClassificationModel
 import torch.nn.functional as F
-from models.transformer.Optim import ScheduledOptim
+from utils.scheduled_optimizer import ScheduledOptim
 import copy
 
 CLASSIFICATION_PHASE_NAME="classification"
@@ -101,7 +101,7 @@ class Trainer():
             self.logger.log(stats, self.epoch)
             printer.print(stats, self.epoch, prefix="\n"+self.traindataloader.dataset.partition+": ")
 
-            if self.epoch % self.test_every_n_epochs == 0:
+            if self.epoch % self.test_every_n_epochs == 0 or self.epoch==1:
                 self.logger.set_mode("test")
                 stats = self.test_epoch(self.validdataloader)
                 self.logger.log(stats, self.epoch)

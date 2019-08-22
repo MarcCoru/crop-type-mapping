@@ -18,7 +18,7 @@ from models.rnn import RNN
 from utils.texparser import confusionmatrix2table, texconfmat
 from utils.logger import Logger
 from utils.visdomLogger import VisdomLogger
-from models.transformer.Optim import ScheduledOptim
+from utils.scheduled_optimizer import ScheduledOptim
 from models.multi_scale_resnet import MSResNet
 import torch.optim as optim
 from experiments import experiments
@@ -69,38 +69,25 @@ def parse_args():
 def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
-        root = os.getenv("HOME") + "/data/BavarianCrops"
+        root = "/data/BavarianCrops"
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()
         for region in args.testregions:
             test_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
+                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode)
             )
-
-        testdataset = ConcatDataset(test_dataset_list)
-
-        testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
-                                                     batch_size=args.batchsize, num_workers=args.workers)
-
 
         train_dataset_list = list()
         for region in args.trainregions:
             train_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, trainids=args.trainids, testids=args.testids)
+                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode)
             )
-
-        traindataset = ConcatDataset(train_dataset_list)
-        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=RandomSampler(traindataset),
-                                                      batch_size=args.batchsize, num_workers=args.workers)
-
-
 
     if args.dataset == "BreizhCrops":
         root = "/home/marc/projects/BreizhCrops/data"
-        partitioning_scheme="random"
 
         train_dataset_list = list()
         for region in args.trainregions:
@@ -108,9 +95,6 @@ def prepare_dataset(args):
                 CropsDataset(root=root, region=region, samplet=args.samplet)
             )
 
-        traindataset = ConcatDataset(train_dataset_list)
-        traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=SequentialSampler(traindataset),
-                                                      batch_size=args.batchsize, num_workers=args.workers)
         #ImbalancedDatasetSampler
         test_dataset_list = list()
         for region in args.testregions:
@@ -118,34 +102,32 @@ def prepare_dataset(args):
                 CropsDataset(root=root, region=region, samplet=args.samplet)
             )
 
-        testdataset = ConcatDataset(test_dataset_list)
-
-        testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
-                                                     batch_size=args.batchsize, num_workers=args.workers)
-
-
-    elif args.dataset == "GAFHDF5":
-        dataset_holl = HDF5Dataset(root=os.getenv("HOME") + "/data/gaf/holl_l2.h5", partition=args.train_on, samplet=args.samplet)
-
-        traindataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=ImbalancedDatasetSampler(dataset_holl),
-                                                      batch_size=args.batchsize, num_workers=args.workers)
-
-        dataset_holl = HDF5Dataset(root=os.getenv("HOME") + "/data/gaf/holl_l2.h5", partition=args.test_on, samplet=args.samplet)
-
-        testdataloader = torch.utils.data.DataLoader(dataset=dataset_holl, sampler=SequentialSampler(dataset_holl),
-                                                     batch_size=args.batchsize, num_workers=args.workers)
 
     elif args.dataset == "GAFv2":
-        traindataset = GAFDataset("/data/gaf/data/test_train.h5", partition="train", features=args.features)
+        root = "/data/gaf/data"
 
-        traindataloader = torch.utils.data.DataLoader(dataset=traindataset,
-                                                      sampler=RandomSampler(traindataset),
-                                                      batch_size=args.batchsize, num_workers=args.workers)
+        #ImbalancedDatasetSampler
+        test_dataset_list = list()
+        for region in args.testregions:
+            test_dataset_list.append(
+                GAFDataset(root, region=region, partition="test", classmapping=args.classmapping, features=args.features)
+            )
 
-        testdataset = GAFDataset("/data/gaf/data/test_train.h5", partition="test", features=args.features)
+        train_dataset_list = list()
+        for region in args.trainregions:
+            train_dataset_list.append(
+                GAFDataset(root, region=region, partition="train", classmapping=args.classmapping, features=args.features)
+            )
 
-        testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
-                                                     batch_size=args.batchsize, num_workers=args.workers)
+
+    traindataset = ConcatDataset(train_dataset_list)
+    traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=SequentialSampler(traindataset),
+                                                  batch_size=args.batchsize, num_workers=args.workers)
+
+    testdataset = ConcatDataset(test_dataset_list)
+
+    testdataloader = torch.utils.data.DataLoader(dataset=testdataset, sampler=SequentialSampler(testdataset),
+                                                 batch_size=args.batchsize, num_workers=args.workers)
 
     return traindataloader, testdataloader
 
@@ -172,16 +154,16 @@ def train(args):
     visdomenv = "{}_{}".format(args.experiment, args.dataset)
     visdomlogger = VisdomLogger(env=visdomenv)
 
-    if args.model in ["rnn", "msresnet", "transformer"]:
+    if args.model in ["transformer"]:
         optimizer = ScheduledOptim(
             optim.Adam(
                 filter(lambda x: x.requires_grad, model.parameters()),
-                betas=(0.9, 0.98), eps=1e-09, weight_decay=0),
-            model.d_model, 500)
-    elif args.model in ["tempcnn"]:
+                betas=(0.9, 0.98), eps=1e-09, weight_decay=args.weight_decay),
+            model.d_model, args.warmup)
+    elif args.model in ["rnn", "msresnet","tempcnn"]:
         optimizer = optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
-            betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-6, lr=0.001)
+            betas=(0.9, 0.999), eps=1e-08, weight_decay=args.weight_decay, lr=args.learning_rate)
     else:
         raise ValueError(args.model + "no valid model. either 'rnn', 'msresnet', 'transformer', 'tempcnn'")
 
@@ -242,7 +224,6 @@ def getModel(args):
             d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=d_inner,
             n_layers=n_layers, n_head=n_heads, d_k=hidden_dims//n_heads, d_v=hidden_dims//n_heads,
             dropout=dropout, nclasses=args.nclasses)
-        pass
 
     elif args.model == "WaveNet":
 

@@ -34,6 +34,10 @@ class TransformerEncoder(ClassificationModel):
 
         self.outlinear = nn.Linear(d_model, nclasses, bias=False)
 
+        self.tempmaxpool = nn.MaxPool1d(len_max_seq)
+
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+
     def _logits(self, x):
         # b,d,t - > b,t,d
         x = x.transpose(1,2)
@@ -55,7 +59,9 @@ class TransformerEncoder(ClassificationModel):
 
         enc_output = self.outlayernorm(enc_output)
 
-        logits = self.outlinear(enc_output)[:,-1,:]
+        enc_output = self.tempmaxpool(enc_output.transpose(1, 2)).squeeze(-1)
+
+        logits = self.outlinear(enc_output)
 
         return logits, None, None, None
 
@@ -63,7 +69,7 @@ class TransformerEncoder(ClassificationModel):
 
         logits, *_ = self._logits(x)
 
-        logprobabilities = F.log_softmax(logits, dim=-1)
+        logprobabilities = self.logsoftmax(logits)
 
         return logprobabilities, None, None, None
 

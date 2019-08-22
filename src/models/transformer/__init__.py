@@ -1,6 +1,5 @@
 import sys
 import os
-sys.path.append(os.path.basename(os.getcwd()) + "/..")
 
 import transformer.Constants
 import transformer.Modules
@@ -9,9 +8,8 @@ import transformer.SubLayers
 import transformer.Models
 import transformer.Translator
 import transformer.Beam
-import transformer.Optim
 
 __all__ = [
     transformer.Constants, transformer.Modules, transformer.Layers,
-    transformer.SubLayers, transformer.Models, transformer.Optim,
+    transformer.SubLayers, transformer.Models,
     transformer.Translator, transformer.Beam]

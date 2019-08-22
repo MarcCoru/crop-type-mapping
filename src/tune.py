@@ -1,5 +1,4 @@
 import sys
-sys.path.append("./models")
 
 import ray.tune as tune
 import argparse
@@ -18,7 +17,7 @@ from ray.tune.suggest.bayesopt import BayesOptSearch
 from ray.tune.suggest.hyperopt import HyperOptSearch
 from hyperopt import hp
 
-from models.transformer.Optim import ScheduledOptim
+from utils.scheduled_optimizer import ScheduledOptim
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -37,6 +36,7 @@ def parse_args():
     parser.add_argument(
         '-g', '--gpu', type=float, default=.2,
         help='number of GPUs allocated per trial run (can be float for multiple runs sharing one GPU, default 0.25)')
+    parser.add_argument('--resume', action='store_true')
     parser.add_argument(
         '-r', '--local_dir', type=str, default=os.path.join(os.environ["HOME"],"ray_results"),
         help='ray local dir. defaults to $HOME/ray_results')
@@ -45,22 +45,20 @@ def parse_args():
 
 BavarianCrops_parameters = Namespace(
     dataset = "BavarianCrops",
-    testids = None,
-    classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
+    classmapping = "/data/BavarianCrops/classmapping.csv.gaf.v3",
     samplet=50,
-    trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
+    mode="trainvalid",
     train_on="train",
     test_on="valid",
-    trainregions = ["HOLL_2018_MT_pilot"],
-    testregions = ["HOLL_2018_MT_pilot"],
+    trainregions = ["holl", "nowa", "krum"],
+    testregions = ["holl", "nowa", "krum"],
 )
 
 GAF_parameters = Namespace(
     dataset = "GAFv2",
-    testids = None,
-    classmapping = os.getenv("HOME") + "/data/BavarianCrops/classmapping.csv.gaf.v2",
-    samplet=50,
-    trainids=os.getenv("HOME") + "/data/BavarianCrops/ids/random/holl_2018_mt_pilot_train.txt",
+    trainregions = ["holl", "krum", "nowa"],
+    testregions = ["holl", "krum", "nowa"],
+    classmapping = "/data/BavarianCrops/classmapping.csv.gaf.v3",
     train_on="train",
     test_on="valid"
 )
@@ -70,9 +68,25 @@ rnn_parameters = Namespace(
     num_layers=hp.choice("num_layers", [1, 2, 3, 4, 5, 6, 7]),
     hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8]),
     dropout=hp.uniform("dropout", 0, 1),
-    weight_decay=hp.loguniform("weight_decay", -1, -8),
-    learning_rate=hp.loguniform("learning_rate", -1, -5),
+    weight_decay=hp.loguniform("weight_decay", -1, -12),
+    learning_rate=hp.loguniform("learning_rate", -1, -8),
     bidirectional=True,
+)
+
+msresnet_parameters = Namespace(
+    model="msresnet",
+    hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8]),
+    weight_decay=hp.loguniform("weight_decay", -1, -12),
+    learning_rate=hp.loguniform("learning_rate", -1, -8)
+)
+
+tempCNN_parameters = Namespace(
+    model="tempcnn",
+    kernel_size=hp.choice("kernel_size", [3,5,7]),
+    hidden_dims=hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8]),
+    dropout=hp.uniform("dropout", 0, 1),
+    weight_decay=hp.loguniform("weight_decay", -1, -12),
+    learning_rate=hp.loguniform("learning_rate", -1, -8)
 )
 
 transformer_parameters = Namespace(
@@ -80,8 +94,8 @@ transformer_parameters = Namespace(
     hidden_dims = hp.choice("hidden_dims", [2 ** 4, 2 ** 5, 2 ** 6, 2 ** 7, 2 ** 8]),
     n_heads = hp.choice("n_heads", [1,2,3,4,5,6,7,8]),
     n_layers = hp.choice("n_layers", [1, 2, 3, 4, 5, 6, 7, 8]),
-    weight_decay = hp.loguniform("weight_decay", -1, -8),
-    learning_rate = hp.loguniform("learning_rate", -1, -5),
+    weight_decay = hp.loguniform("weight_decay", -1, -12),
+    learning_rate = hp.loguniform("learning_rate", -1, -8),
     warmup = hp.choice("warmup", [1,10,100,1000]),
     dropout=hp.uniform("dropout", 0, 1),
 )
@@ -101,6 +115,14 @@ def get_hyperparameter_search_space(experiment):
     elif experiment == "transformer":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **transformer_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    elif experiment == "tempcnn":
+        space =  dict(**BavarianCrops_parameters.__dict__,
+                      **tempCNN_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    elif experiment == "msresnet":
+        space =  dict(**BavarianCrops_parameters.__dict__,
+                      **msresnet_parameters.__dict__)
         return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
     else:
         raise ValueError("did not recognize experiment "+args.experiment)
@@ -249,7 +271,7 @@ if __name__=="__main__":
         scheduler=scheduler,
         verbose=True,
         reuse_actors=True,
-        resume=True,
+        resume=args.resume,
         checkpoint_at_end=True,
         global_checkpoint_period=360,
         checkpoint_score_attr="kappa",

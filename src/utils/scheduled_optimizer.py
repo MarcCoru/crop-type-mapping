@@ -1,6 +1,10 @@
 '''A wrapper class for optimizer '''
 import numpy as np
 
+"""
+The Scheduled Optimizer from the Transformer paper
+"""
+
 class ScheduledOptim():
     '''A simple wrapper class for learning rate scheduling'''
 

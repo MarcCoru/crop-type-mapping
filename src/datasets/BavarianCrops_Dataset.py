@@ -15,7 +15,9 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, partition, classmapping, trainids, validids=None, testids=None, region=None, samplet=70, cache=True, seed=0, validfraction=0.1):
+    def __init__(self, root, partition, classmapping, mode="trainvalid", region=None, samplet=70, cache=True, seed=0, validfraction=0.1):
+        assert mode in ["trainvalid", "traintest"]
+
         self.seed = seed
         self.validfraction = validfraction
 
@@ -26,8 +28,12 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         self.root = root
 
-        self.trainids = trainids
-        self.testids = testids
+        if mode == "traintest":
+            self.trainids = os.path.join(self.root, "ids", "random", region+"_train.txt")
+            self.testids = os.path.join(self.root, "ids", "random", region+"_test.txt")
+        elif mode == "trainvalid":
+            self.trainids = os.path.join(self.root, "ids", "random", region+"_train.txt")
+            self.testids = None
 
         self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
         self.mapping = self.mapping.set_index("nutzcode")
@@ -63,6 +69,11 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
 
         print("loaded {} samples".format(len(self.ids)))
         #print("class frequencies " + ", ".join(["{c}:{h}".format(h=h, c=c) for h, c in zip(self.hist, self.classes)]))
+
+        print(self)
+
+    def __str__(self):
+        return "Dataset {}. region {}. partition {}. X:{}, y:{} with {} classes".format(self.root, self.region, self.partition,str(len(self.X)) +"x"+ str(self.X[0].shape), self.y.shape, self.nclasses)
 
     def read_ids(self):
         assert isinstance(self.seed, int)

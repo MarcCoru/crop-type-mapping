@@ -26,11 +26,14 @@ AGGREGATION_METHODS = ["mean", "median", "std", "p05", "p95"]
 
 class GAFDataset(torch.utils.data.Dataset):
 
-    def __init__(self, path, partition="train", region=None, cache="/tmp", overwrite_cache=False, features="all"):
+    def __init__(self, path, region, partition, classmapping, cache="/tmp", overwrite_cache=True, features="all"):
+        assert region in ["holl","nowa","krum"]
 
-        self.cache = cache
-        self.hdf5_path = path
+
+        self.hdf5_path = os.path.join(path,"test_train_{}.h5".format(region))
+        self.region = region
         self.partition = partition
+        self.cache = os.path.join(cache,region)
 
         if not self.cache_exists() or overwrite_cache:
             self.save_cache()
@@ -67,34 +70,37 @@ class GAFDataset(torch.utils.data.Dataset):
 
             mask = np.isin(gafids, region_ids)
 
-            raise NotImplementedError("Selection of region not implemented since it only contains HOLL data anyway...")
+            self.X = self.X[mask]
+            self.y = self.y[mask]
+            self.meta = self.meta[mask]
 
         self.mean = self.X.mean(0).mean(0)
         self.std = self.X.std(0).std(0)
 
         self.classes = np.unique(self.y)
 
-        self.classmapping = dict(zip(self.classes, np.arange(len(self.classes))))
-
-        self.nclasses = len(self.classes)
-
-        self.classname = self.klassenname = [self.meta[self.meta[:, 0] == classid][0][1] for classid in self.classes]
-
-        self.write_classmapping_csv()
+        self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
+        self.mapping = self.mapping.set_index("nutzcode")
+        self.classes = self.mapping["id"].unique()
+        self.classname = self.mapping.groupby("id").first().classname.values
+        self.klassenname = self.mapping.groupby("id").first().klassenname.values
 
         self.nclasses = len(self.classes)
         self.N, self.sequencelength, self.ndims = self.X.shape
+        self.sequencelengths = None
 
         self.hist,_ = np.histogram(self.y, bins=self.nclasses)
         self.classweights = 1 / self.hist
 
-    def write_classmapping_csv(self):
-        print("writing classmapping.csv to " + os.path.join(self.cache, "classmapping.csv"))
-        with open(os.path.join(self.cache, "classmapping.csv"),'w') as f:
-            print(",id,nutzcode,classname,klassenname,note",file=f)
-            for nutzcode, id in self.classmapping.items():
-                print('{},{},{},"{}","{}","{}"'.format(id, id, nutzcode, self.classname[id], self.classname[id], self.classname[id]),file=f)
 
+        for y in np.unique(self.y):
+            try:
+                self.mapping.loc[self.mapping.gafcode == y].id.iloc[0]
+            except:
+                pass
+
+
+        print(self)
 
     def __len__(self):
         return self.N
@@ -104,7 +110,8 @@ class GAFDataset(torch.utils.data.Dataset):
         X = self.X[idx]
         y = self.y[idx]
 
-        y = self.classmapping[y]
+        y = self.mapping.loc[self.mapping.gafcode == y].id.iloc[0]
+
 
         y = np.repeat(y,self.sequencelength)
         X -= self.mean
@@ -115,9 +122,14 @@ class GAFDataset(torch.utils.data.Dataset):
 
         return X, y, int(self.meta[idx][2])
 
+    def applyclassmapping(self, nutzcodes):
+        """uses a mapping table to replace nutzcodes (e.g. 451, 411) with class ids"""
+        return np.array([self.mapping.loc[nutzcode]["id"] for nutzcode in nutzcodes])
 
     def save_cache(self):
         print("saving npy arrays to " + self.cache)
+
+        os.makedirs(self.cache, exist_ok=True)
 
         trainset, testset, categories = load_raw_dataset(self.hdf5_path)
 
@@ -143,6 +155,9 @@ class GAFDataset(torch.utils.data.Dataset):
         g = os.path.exists(os.path.join(self.cache, "trainids.csv"))
         h = os.path.exists(os.path.join(self.cache, "testids.csv"))
         return a and b and c and d and e and f and g and h
+
+    def __str__(self):
+        return "Dataset {}. region {}. partition {}. X:{}, y:{} with {} classes".format(self.hdf5_path, self.region, self.partition,self.X.shape, self.y.shape, self.nclasses)
 
 def load_raw_dataset(path='./test_train.h5'):
     testset, trainset = load_dataset(path=path)
@@ -189,18 +204,11 @@ def get_data(trainset, testset, band, categories, type="raw"):
     return Xtrain, ytrain, Xtest, ytest
 
 def load_dataset(path='./test_train.h5'):
-    # cache datasets -> faster loading
-    if not os.path.exists("/tmp/testdataset.csv") or not os.path.exists("/tmp/traindataset.csv"):
-        hdf = pd.HDFStore(path, 'r')
-        testset = hdf['test_data']
-        trainset = hdf['train_data']
-        hdf.close()
 
-        testset.to_csv("/tmp/testdataset.csv")
-        trainset.to_csv("/tmp/traindataset.csv")
-    else:
-        testset = pd.read_csv("/tmp/testdataset.csv")
-        trainset = pd.read_csv("/tmp/traindataset.csv")
+    hdf = pd.HDFStore(path, 'r')
+    testset = hdf['test_data']
+    trainset = hdf['train_data']
+    hdf.close()
 
     return testset, trainset
 
