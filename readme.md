@@ -1,26 +1,14 @@
-End-to-end Learning for Early Classification of Time Series (ELECTS)
+Crop Type Mapping
 ===
 
-### Paper
+A respitory for classification of crop types using Satellite Time Series
 
-https://arxiv.org/abs/1901.10681
+Currently four models are implemented
 
-<img width=200px src="docs/conv1d.png"/>
+* Recurrent Neural Net (LSTM) `src/models/rnn.py`
+* Transformer `src/models/transformerEncoder.py
+* TempCNN (Pelleter et al., 2019) `src/models/tempcnn.py`
+* Multi-scale ResNet `src/models/msresnet.py`
 
-### Doc repositories
-
-for paper see https://github.com/MarcCoru/ICML19
-
-for presentation see github.com/MarcCoru/early_classification.git
-
-### Download data
-
-```angular2
-wget https://s3.eu-central-1.amazonaws.com/corupublic/early_rnn.zip
-```
-
-## Docker
-
-```
-docker build -t crops .
-```
+When exploring this repository, start with `src/train.py`.
+This loads the `dataloader`
