@@ -15,7 +15,7 @@ from models.wavenet_model import WaveNetModel
 from torch.utils.data.sampler import RandomSampler, SequentialSampler, BatchSampler, WeightedRandomSampler
 from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
 from models.rnn import RNN
-from utils.texparser import confusionmatrix2table, texconfmat
+from utils.texparser import parse_run
 from utils.logger import Logger
 from utils.visdomLogger import VisdomLogger
 from utils.scheduled_optimizer import ScheduledOptim
@@ -50,6 +50,8 @@ def parse_args():
                                                         'for convolutional models...')
     parser.add_argument('--overwrite', action='store_true',
                         help="Overwrite automatic snapshots if they exist")
+    parser.add_argument('--no-visdom', action='store_true',
+                        help="no_visdom")
     parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
@@ -121,7 +123,7 @@ def prepare_dataset(args):
 
 
     traindataset = ConcatDataset(train_dataset_list)
-    traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=SequentialSampler(traindataset),
+    traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=RandomSampler(traindataset),
                                                   batch_size=args.batchsize, num_workers=args.workers)
 
     testdataset = ConcatDataset(test_dataset_list)
@@ -142,7 +144,7 @@ def train(args):
     classname = traindataloader.dataset.classname
     klassenname = traindataloader.dataset.klassenname
     args.seqlength = traindataloader.dataset.sequencelength
-    args.seqlength = args.samplet
+    #args.seqlength = args.samplet
     args.input_dims = traindataloader.dataset.ndims
 
     model = getModel(args)
@@ -172,7 +174,7 @@ def train(args):
         learning_rate=args.learning_rate,
         show_n_samples=args.show_n_samples,
         store=store,
-        visdomlogger=visdomlogger,
+        visdomlogger=visdomlogger if not args.no_visdom else None,
         overwrite=args.overwrite,
         checkpoint_every_n_epochs=args.checkpoint_every_n_epochs,
         test_every_n_epochs=args.test_every_n_epochs,
@@ -186,11 +188,12 @@ def train(args):
     # stores all stored values in the rootpath of the logger
     logger.save()
 
-    pth = store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs)
-    confusionmatrix2table(pth,
-                          classnames=klassenname,
-                          outfile=store+"/npy/table.tex")
-    texconfmat(pth)
+    #pth = store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs)
+    parse_run(store, args.classmapping, outdir=store)
+    #confusionmatrix2table(pth,
+    #                      classnames=klassenname,
+    #                      outfile=store+"/npy/table.tex")
+    #texconfmat(pth)
     #accuracy2table(store+"/npy/confusion_matrix_{epoch}.npy".format(epoch = args.epochs), classnames=klassenname)
 
 
@@ -209,7 +212,7 @@ def getModel(args):
         model = MSResNet(input_channel=args.input_dims, layers=[1, 1, 1, 1], num_classes=args.nclasses)
 
     if args.model == "tempcnn":
-        model = TempCNN(input_dim=args.input_dims, nclasses=args.nclasses, sequence_length=args.seqlength)
+        model = TempCNN(input_dim=args.input_dims, nclasses=args.nclasses, sequence_length=args.samplet)
 
     elif args.model == "transformer":
 
@@ -244,6 +247,9 @@ def getModel(args):
 
     if torch.cuda.is_available():
         model = model.cuda()
+
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    print("initialized {} model ({} parameters)".format(args.model, pytorch_total_params))
 
     return model
 

@@ -49,12 +49,17 @@ class GAFDataset(torch.utils.data.Dataset):
         else:
             raise ValueError("wrong partition, either 'train' or 'test'")
 
-        pass
+        # normalize optical bands
+        self.X[:,:,:14] *= 1e-4
+        self.X[:, :, 15] *= 1e-3
+        self.X[:, :, 17] *= 1e-2
+
         assert features in ["all", "optical", "radar"]
         if features=="optical":
             mask = np.isin(BANDS, OPTICAL_BANDS)
             print("features='optical': selecting only {} optical features from all {} features".format(len(OPTICAL_BANDS),len(BANDS)))
             self.X = self.X[:, :, mask]
+
         if features=="radar":
             mask = np.isin(BANDS, RADAR_BANDS)
             print("features='radar': selecting only {} optical features from all {} features".format(len(RADAR_BANDS),
@@ -74,8 +79,8 @@ class GAFDataset(torch.utils.data.Dataset):
             self.y = self.y[mask]
             self.meta = self.meta[mask]
 
-        self.mean = self.X.mean(0).mean(0)
-        self.std = self.X.std(0).std(0)
+        #self.mean = self.X.mean(0).mean(0)
+        #self.std = self.X.std(0).std(0)
 
         self.classes = np.unique(self.y)
 
@@ -114,8 +119,8 @@ class GAFDataset(torch.utils.data.Dataset):
 
 
         y = np.repeat(y,self.sequencelength)
-        X -= self.mean
-        X /= self.std
+        #X -= self.mean
+        #X /= self.std
 
         X = torch.from_numpy(X).type(torch.FloatTensor)
         y = torch.from_numpy(y).type(torch.LongTensor)
@@ -132,6 +137,7 @@ class GAFDataset(torch.utils.data.Dataset):
         os.makedirs(self.cache, exist_ok=True)
 
         trainset, testset, categories = load_raw_dataset(self.hdf5_path)
+        self.trainset, self.testset, self.categories = trainset, testset, categories
 
         Xtrain, Xtest, ytrain, ytest, testmeta, trainmeta = stack(trainset, testset, categories)
 
@@ -287,12 +293,18 @@ def plot(trainset, testset, categories):
 
 if __name__=="__main__":
 
-    ds = GAFDataset("/data/gaf/data/","train")
+    ds = GAFDataset("/data/gaf/data/", partition="train", region="holl", classmapping="/data/BavarianCrops/classmapping.csv.gaf.v2")
+
     ds[0]
 
-    trainset, testset, categories = load_raw_dataset(path='./test_train.h5')
+    trainset, testset, categories = load_raw_dataset(path='/home/marc/projects/crop-type-mapping/data/gaf_hdf5/test_train.h5')
     plotfig, legendfig = plot(trainset, testset, categories)
-    plotfig.savefig("/tmp/plot.png", dpi=300)
-    legendfig.savefig("/tmp/legend.png", dpi=300)
+    plotfig.savefig("/tmp/plot2.png", dpi=300)
+    legendfig.savefig("/tmp/legend2.png", dpi=300)
+
+    trainset, testset, categories = ds.trainset, ds.testset, ds.categories
+    plotfig, legendfig = plot(trainset, testset, categories)
+    plotfig.savefig("/tmp/plot3.png", dpi=300)
+    legendfig.savefig("/tmp/legend3.png", dpi=300)
 
     plt.show()

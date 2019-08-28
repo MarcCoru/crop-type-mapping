@@ -85,48 +85,54 @@ class VisdomLogger():
     #@run_async
     def confusion_matrix(self, cm, title="Confusion Matrix", norm=None, logscale=None):
         if self.connected:
-            #plt.clf()
-            if logscale is not None:
-                cm = np.log10(cm, where=cm>0)
-                title += " log10"
 
-            if norm is not None:
-                cm /= np.expand_dims(cm.sum(norm),axis=norm)
-                cm[np.isnan(cm)] = 0
-                cm[np.isinf(cm)] = 0
-                vmin = 0
-                vmax = 1
-            else:
-                vmin = None
-                vmax = None
+            try:
+                #plt.clf()
+                if logscale is not None:
+                    cm = np.log10(cm, where=cm>0)
+                    title += " log10"
 
-            name=title
+                if norm is not None:
+                    cm /= np.expand_dims(cm.sum(norm),axis=norm)
+                    cm[np.isnan(cm)] = 0
+                    cm[np.isinf(cm)] = 0
+                    vmin = 0
+                    vmax = 1
+                else:
+                    vmin = None
+                    vmax = None
 
-            figsize = (11, 9)
-            if cm.shape[0] > 15 and cm.shape[0] < 30:
+                name=title
 
-                annot = True
-                annot_kws={"size": 6}
-            elif cm.shape[0] <= 15:
-                annot = True
-                annot_kws={"size": 11}
-            elif cm.shape[0] >= 30:
-                annot=False
-                annot_kws = dict()
+                figsize = (11, 9)
+                if cm.shape[0] > 15 and cm.shape[0] < 30:
+
+                    annot = True
+                    annot_kws={"size": 6}
+                elif cm.shape[0] <= 15:
+                    annot = True
+                    annot_kws={"size": 11}
+                elif cm.shape[0] >= 30:
+                    annot=False
+                    annot_kws = dict()
 
 
-            fig,ax = plt.subplots(figsize=figsize)
+                fig,ax = plt.subplots(figsize=figsize)
 
-            ax = sn.heatmap(cm, annot=annot, annot_kws=annot_kws, vmin=vmin, vmax=vmax, ax=ax, cmap="Blues")  # font size
-            ax.set(xlabel='ground truth', ylabel='predicted', title=title)
-            #plt.tight_layout()
-            opts = dict(
-                resizeable=False
-            )
+                ax = sn.heatmap(cm, annot=annot, annot_kws=annot_kws, vmin=vmin, vmax=vmax, ax=ax, cmap="Blues")  # font size
+                ax.set(xlabel='ground truth', ylabel='predicted', title=title)
+                #plt.tight_layout()
+                opts = dict(
+                    resizeable=False
+                )
 
-            self.viz.matplot(fig, win=name, opts=opts)
+                self.viz.matplot(fig, win=name, opts=opts)
 
-            fig.clf()
+                fig.clf()
+                plt.clf()
+                plt.cla()
+            except Exception as e:
+                print("could not produce confmat: exception "+ str(e))
 
     def plot_class_p(self,X):
         if self.connected:

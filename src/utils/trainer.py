@@ -63,6 +63,8 @@ class Trainer():
 
         if visdomlogger is not None:
             self.visdom = visdomlogger
+        else:
+            self.visdom = None
 
         # only save checkpoint if not previously resumed from it
         self.resumed_run = False
@@ -106,9 +108,11 @@ class Trainer():
                 stats = self.test_epoch(self.validdataloader)
                 self.logger.log(stats, self.epoch)
                 printer.print(stats, self.epoch, prefix="\n"+self.validdataloader.dataset.partition+": ")
-                self.visdom_log_test_run(stats)
+                if self.visdom is not None:
+                    self.visdom_log_test_run(stats)
 
-            self.visdom.plot_epochs(self.logger.get_data())
+            if self.visdom is not None:
+                self.visdom.plot_epochs(self.logger.get_data())
 
             if self.epoch % self.checkpoint_every_n_epochs == 0:
                 self.snapshot(self.get_model_name())
