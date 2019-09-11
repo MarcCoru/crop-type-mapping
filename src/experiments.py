@@ -111,7 +111,7 @@ def experiments(args):
         args.features="optical"
 
     elif args.experiment == "tumgaf_gaf_tempcnn_optical":
-        args = merge([args, GAF_dataset, hyperparameters_tempcnn])
+        args = merge([args, GAF_dataset, hyperparameters_tempCNN])
         args.features="optical"
 
     elif args.experiment == "tumgaf_gaf_transformer_optical":

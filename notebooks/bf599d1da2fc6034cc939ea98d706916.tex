@@ -1,0 +1,19 @@
+\documentclass[tikz]{standalone}
+\usepackage{pgfplots}
+\usepackage{catchfile}
+
+\begin{filecontents*}{data.csv}
+a,b,c,d
+1,4,5,1
+2,3,1,5
+3,5,6,1
+4,1,4,9
+\end{filecontents*}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}
+\addplot table [x=a, y=c, col sep=comma] {data.csv};
+\end{axis}
+\end{tikzpicture}
+\end{document}

@@ -22,7 +22,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.validfraction = validfraction
 
         # ensure that different seeds are set per partition
-        seed = sum([ord(ch) for ch in partition])
+        seed += sum([ord(ch) for ch in partition])
         np.random.seed(seed)
         torch.random.manual_seed(seed)
 

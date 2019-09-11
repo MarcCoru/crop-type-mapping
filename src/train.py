@@ -1,6 +1,7 @@
 import sys
 sys.path.append("./models")
 
+import numpy as np
 import torch
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.CropsDataset import CropsDataset
@@ -61,7 +62,7 @@ def parse_args():
     parser.add_argument(
         '--checkpoint_every_n_epochs', type=int, default=5, help='save checkpoints during training')
     parser.add_argument(
-        '--seed', type=int, default=None, help='seed for batching and weight initialization')
+        '--seed', type=int, default=0, help='seed for batching and weight initialization')
     parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     args, _ = parser.parse_known_args()
@@ -78,14 +79,14 @@ def prepare_dataset(args):
         for region in args.testregions:
             test_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode)
+                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode, seed=args.seed)
             )
 
         train_dataset_list = list()
         for region in args.trainregions:
             train_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode)
+                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode, seed=args.seed)
             )
 
     if args.dataset == "BreizhCrops":
@@ -121,6 +122,9 @@ def prepare_dataset(args):
                 GAFDataset(root, region=region, partition="train", classmapping=args.classmapping, features=args.features)
             )
 
+    print("setting random seed to "+str(args.seed))
+    np.random.seed(args.seed)
+    torch.random.manual_seed(args.seed)
 
     traindataset = ConcatDataset(train_dataset_list)
     traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=RandomSampler(traindataset),

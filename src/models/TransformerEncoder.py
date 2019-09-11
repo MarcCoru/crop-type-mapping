@@ -34,7 +34,7 @@ class TransformerEncoder(ClassificationModel):
 
         self.outlinear = nn.Linear(d_model, nclasses, bias=False)
 
-        self.tempmaxpool = nn.MaxPool1d(len_max_seq)
+        self.tempmaxpool = nn.MaxPool1d(int(len_max_seq))
 
         self.logsoftmax = nn.LogSoftmax(dim=-1)
 
