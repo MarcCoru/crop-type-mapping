@@ -4,6 +4,7 @@ sys.path.append("./models")
 import numpy as np
 import torch
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
+from datasets.VNRiceDataset import VNRiceDataset
 from datasets.CropsDataset import CropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
 from models.TransformerEncoder import TransformerEncoder
@@ -88,6 +89,12 @@ def prepare_dataset(args):
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
                                             classmapping=args.classmapping, samplet=args.samplet, mode=args.mode, seed=args.seed)
             )
+
+    if args.dataset == "VNRice":
+        train_dataset_list=[VNRiceDataset(root=args.root, partition=args.train_on, samplet=args.samplet, mode=args.mode, seed=args.seed)]
+
+        test_dataset_list=[VNRiceDataset(root=args.root, partition=args.test_on, samplet=args.samplet, mode=args.mode, seed=args.seed)]
+
 
     if args.dataset == "BreizhCrops":
         root = "/home/marc/projects/BreizhCrops/data"

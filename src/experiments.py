@@ -49,6 +49,15 @@ TUM_dataset = Namespace(
     samplet = 70
 )
 
+VNRice_dataset = Namespace(
+    dataset = "VNRice",
+    root="/data/vn_rice",
+    mode="traintest",
+    test_on = "test",
+    train_on = "train",
+    samplet = 50
+)
+
 GAF_dataset = Namespace(
     dataset = "GAFv2",
     trainregions = ["holl"],
@@ -66,20 +75,23 @@ def experiments(args):
 
     """Experiment Modalities"""
     if args.experiment == "tumgaf_gaf_transformer_optical":
-        args = merge([args, GAF_dataset, hyperparameters_rnn])
+        args = merge([args, GAF_dataset, hyperparameters_transformer])
         args.features="optical"
 
     elif args.experiment == "tumgaf_gaf_transformer_radar":
-        args = merge([args, GAF_dataset, hyperparameters_rnn])
+        args = merge([args, GAF_dataset, hyperparameters_transformer])
         args.features="radar"
 
     elif args.experiment == "tumgaf_gaf_transformer_all":
-        args = merge([args, GAF_dataset, hyperparameters_rnn])
+        args = merge([args, GAF_dataset, hyperparameters_transformer])
         args.features="all"
 
     elif args.experiment == "tumgaf_gaf_tempcnn_all":
         args = merge([args, GAF_dataset])
         args.model = "tempcnn"
+
+    elif args.experiment == "vnrice_rnn":
+        args = merge([args, VNRice_dataset, hyperparameters_rnn])
 
         """Models and Datasets"""
     elif args.experiment == "tumgaf_tum_rnn":
