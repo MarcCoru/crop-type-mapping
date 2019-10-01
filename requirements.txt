@@ -8,3 +8,6 @@ visdom
 ray
 psutil
 tqdm
+tensorflow
+tables
+setproctitle
