@@ -30,7 +30,9 @@ def parse_args():
     parser.add_argument(
         '-c', '--cpu', type=int, default=2, help='number of CPUs allocated per trial run (default 2)')
     parser.add_argument(
-        '-w', '--workers', type=int, default=2, help='cpu workers')
+        '-w', '--workers', type=int, default=0, help='cpu workers')
+    parser.add_argument(
+        '-m', '--max-concurrent', type=int, default=4, help='max concurrent runs')
     parser.add_argument(
         '--seed', type=int, default=None, help='random seed defaults to None')
     parser.add_argument(
@@ -106,7 +108,7 @@ transformer_parameters = Namespace(
     dropout=hp.uniform("dropout", 0, 1),
 )
 
-def get_hyperparameter_search_space(experiment):
+def get_hyperparameter_search_space(experiment, args):
     """
     simple state function to hold the parameter search space definitions for experiments
 
@@ -116,40 +118,40 @@ def get_hyperparameter_search_space(experiment):
     if experiment == "rnn_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **rnn_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
 
     elif experiment == "transformer_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **transformer_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     elif experiment == "tempcnn_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **tempCNN_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     elif experiment == "msresnet_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **msresnet_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     if experiment == "rnn_gaf":
         space =  dict(**GAF_parameters.__dict__,
                       **rnn_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     elif experiment == "transformer_gaf":
         space =  dict(**GAF_parameters.__dict__,
                       **transformer_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     elif experiment == "tempcnn_gaf":
         space =  dict(**GAF_parameters.__dict__,
                       **tempCNN_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     elif experiment == "msresnet_gaf":
         space =  dict(**GAF_parameters.__dict__,
                       **msresnet_parameters.__dict__)
-        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment), args)
     else:
         raise ValueError("did not recognize experiment "+args.experiment)
 
-def get_points_to_evaluate(path):
+def get_points_to_evaluate(path, args):
     try:
         analysis = tune.Analysis(path)
         top_runs = analysis.dataframe().sort_values(by="kappa", ascending=False).iloc[:3]
@@ -250,16 +252,29 @@ class RayTrainer(ray.tune.Trainable):
         state_dict = torch.load(path, map_location="cpu")
         self.model.load_state_dict(state_dict)
 
-if __name__=="__main__":
-
+def main():
     args = parse_args()
+
+    try:
+        nruns = ray.tune.Analysis(os.path.join(args.local_dir, args.experiment)).dataframe().shape[0]
+        resume=False
+        todo_runs = RAY_NUM_SAMPLES - nruns
+        print(f"{nruns} found in {os.path.join(args.local_dir, args.experiment)} starting remaining {todo_runs}")
+        if todo_runs <= 0:
+            print(f"finished all {TUNE_RUNS} runs. Increase TUNE_RUNS in databases.py if necessary. skipping tuning")
+            return
+
+    except ValueError as e:
+        print(f"could not find any runs in {os.path.join(args.local_dir, args.experiment)}")
+        resume=False
+        todo_runs = RAY_NUM_SAMPLES
 
     if args.redis_address is not None:
         ray.init(redis_address=args.redis_address)
     elif not ray.is_initialized():
         ray.init(include_webui=False)
 
-    config, points_to_evaluate = get_hyperparameter_search_space(args.experiment)
+    config, points_to_evaluate = get_hyperparameter_search_space(args.experiment, args)
 
     args_dict = vars(args)
     config = {**config, **args_dict}
@@ -267,10 +282,11 @@ if __name__=="__main__":
 
     algo = HyperOptSearch(
         config,
-        max_concurrent=4,
+        max_concurrent=args.max_concurrent,
         metric="kappa",
         mode="max",
-        points_to_evaluate=points_to_evaluate
+        points_to_evaluate=points_to_evaluate,
+        n_initial_points=args.max_concurrent
     )
 
 
@@ -284,17 +300,17 @@ if __name__=="__main__":
         RayTrainer,
         config=config,
         name=args.experiment,
-        num_samples=RAY_NUM_SAMPLES,
+        num_samples=todo_runs,
         local_dir=args.local_dir,
         search_alg=algo,
         scheduler=scheduler,
         verbose=True,
-        reuse_actors=True,
-        resume=args.resume,
-        checkpoint_at_end=True,
-        global_checkpoint_period=360,
+        reuse_actors=False,
+        resume=resume,
+        checkpoint_at_end=False,
+        global_checkpoint_period=9999,
         checkpoint_score_attr="kappa",
-        keep_checkpoints_num=2,
+        keep_checkpoints_num=0,
         resources_per_trial=dict(cpu=args.cpu, gpu=args.gpu))
 
     """
@@ -322,4 +338,7 @@ if __name__=="__main__":
 
     #print("Best config is", analysis.get_best_config(metric="kappa"))
     #analysis.dataframe().to_csv("/tmp/result.csv")
+
+if __name__=="__main__":
+    main()
 
