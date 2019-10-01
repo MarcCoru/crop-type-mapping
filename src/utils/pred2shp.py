@@ -37,6 +37,7 @@ klassenname = mapping.groupby("id").first().klassenname.values
 
 #code2id = dict(zip(nutzcodes,classes))
 onehot = np.eye(len(classes)).astype(bool)
+print(len(classes))
 
 os.makedirs(os.path.dirname(outshp),exist_ok=True)
 
@@ -50,6 +51,7 @@ probas_df["pred"] = probas.argsort()[:,-1]
 assert (probas.argsort()[:,-1] == probas.argmax(1)).all()
 probas_df["pred2nd"] = probas.argsort()[:,-2]
 
+print(onehot[probas_df["pred2nd"].values])
 probas_df["prob2nd"] = probas[onehot[probas_df["pred2nd"].values]]
 probas_df["maxprob"] = probas[onehot[probas_df["pred"].values]]
 

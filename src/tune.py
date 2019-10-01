@@ -1,5 +1,3 @@
-import sys
-
 import ray.tune as tune
 import argparse
 import datetime
@@ -9,11 +7,13 @@ from utils.trainer import Trainer
 import ray.tune
 from argparse import Namespace
 import torch.optim as optim
+import numpy as np
 
 from train import prepare_dataset, getModel
 
-from ray.tune.schedulers import AsyncHyperBandScheduler, ASHAScheduler
-from ray.tune.suggest.bayesopt import BayesOptSearch
+from config import HYPERBAND_BRACKETS, HYPERBAND_GRACE_PERIOD, RAY_EPOCHS, HYPERBAND_REDUCTION_FACTOR, CLASSMAPPING, RAY_NUM_SAMPLES, RAY_TEST_EVERY
+
+from ray.tune.schedulers import AsyncHyperBandScheduler
 from ray.tune.suggest.hyperopt import HyperOptSearch
 from hyperopt import hp
 
@@ -32,6 +32,8 @@ def parse_args():
     parser.add_argument(
         '-w', '--workers', type=int, default=2, help='cpu workers')
     parser.add_argument(
+        '--seed', type=int, default=None, help='random seed defaults to None')
+    parser.add_argument(
         '--redis-address', type=str, default=None, help='address of ray tune head node: e.g. "localhost:6379"')
     parser.add_argument(
         '-g', '--gpu', type=float, default=.2,
@@ -45,9 +47,9 @@ def parse_args():
 
 BavarianCrops_parameters = Namespace(
     dataset = "BavarianCrops",
-    classmapping = "/data/BavarianCrops/classmapping.csv.gaf.v3",
-    samplet=50,
-    mode="trainvalid",
+    classmapping = CLASSMAPPING,
+    samplet=70,
+    scheme="blocks",
     train_on="train",
     test_on="valid",
     trainregions = ["holl", "nowa", "krum"],
@@ -58,7 +60,11 @@ GAF_parameters = Namespace(
     dataset = "GAFv2",
     trainregions = ["holl", "krum", "nowa"],
     testregions = ["holl", "krum", "nowa"],
-    classmapping = "/data/BavarianCrops/classmapping.csv.gaf.v3",
+    classmapping = CLASSMAPPING,
+    scheme="blocks",
+    features="optical",
+    samplet=23,
+    overwrite_cache=True,
     train_on="train",
     test_on="valid"
 )
@@ -107,21 +113,37 @@ def get_hyperparameter_search_space(experiment):
     :param experiment: experiment name
     :return: ray config dictionary
     """
-    if experiment == "rnn":
+    if experiment == "rnn_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **rnn_parameters.__dict__)
         return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
 
-    elif experiment == "transformer":
+    elif experiment == "transformer_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **transformer_parameters.__dict__)
         return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
-    elif experiment == "tempcnn":
+    elif experiment == "tempcnn_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
                       **tempCNN_parameters.__dict__)
         return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
-    elif experiment == "msresnet":
+    elif experiment == "msresnet_tum":
         space =  dict(**BavarianCrops_parameters.__dict__,
+                      **msresnet_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    if experiment == "rnn_gaf":
+        space =  dict(**GAF_parameters.__dict__,
+                      **rnn_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    elif experiment == "transformer_gaf":
+        space =  dict(**GAF_parameters.__dict__,
+                      **transformer_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    elif experiment == "tempcnn_gaf":
+        space =  dict(**GAF_parameters.__dict__,
+                      **tempCNN_parameters.__dict__)
+        return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
+    elif experiment == "msresnet_gaf":
+        space =  dict(**GAF_parameters.__dict__,
                       **msresnet_parameters.__dict__)
         return space, get_points_to_evaluate(os.path.join(args.local_dir, args.experiment))
     else:
@@ -168,7 +190,7 @@ class RayTrainer(ray.tune.Trainable):
     def _setup(self, config):
 
         # one iteration is five training epochs, one test epoch
-        self.epochs = 5
+        self.epochs = RAY_TEST_EVERY
 
         print(config)
 
@@ -230,9 +252,6 @@ class RayTrainer(ray.tune.Trainable):
 
 if __name__=="__main__":
 
-
-
-
     args = parse_args()
 
     if args.redis_address is not None:
@@ -255,17 +274,17 @@ if __name__=="__main__":
     )
 
 
-    scheduler = AsyncHyperBandScheduler(metric="kappa", mode="max",max_t=60,
-        grace_period=2,
-        reduction_factor=3,
-        brackets=4)
+    scheduler = AsyncHyperBandScheduler(metric="kappa", mode="max",max_t=RAY_EPOCHS//RAY_TEST_EVERY,
+        grace_period=HYPERBAND_GRACE_PERIOD,
+        reduction_factor=HYPERBAND_REDUCTION_FACTOR,
+        brackets=HYPERBAND_BRACKETS)
 
 
     analysis = tune.run(
         RayTrainer,
         config=config,
         name=args.experiment,
-        num_samples=300,
+        num_samples=RAY_NUM_SAMPLES,
         local_dir=args.local_dir,
         search_alg=algo,
         scheduler=scheduler,
@@ -275,7 +294,7 @@ if __name__=="__main__":
         checkpoint_at_end=True,
         global_checkpoint_period=360,
         checkpoint_score_attr="kappa",
-        keep_checkpoints_num=5,
+        keep_checkpoints_num=2,
         resources_per_trial=dict(cpu=args.cpu, gpu=args.gpu))
 
     """

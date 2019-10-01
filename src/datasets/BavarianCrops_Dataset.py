@@ -15,25 +15,38 @@ PADDING_VALUE = -1
 
 class BavarianCropsDataset(torch.utils.data.Dataset):
 
-    def __init__(self, root, partition, classmapping, mode="trainvalid", region=None, samplet=70, cache=True, seed=0, validfraction=0.1):
-        assert mode in ["trainvalid", "traintest"]
+    def __init__(self, root, partition, classmapping, mode=None, scheme="random", region=None, samplet=70, cache=True, seed=0, validfraction=0.1):
+        assert (mode in ["trainvalid", "traintest"] and scheme=="random") or (mode is None and scheme=="blocks") # <- if scheme random mode is required, else None
+        assert scheme in ["random","blocks"]
+        assert partition in ["train","test","trainvalid","valid"]
 
         self.seed = seed
         self.validfraction = validfraction
+        self.scheme = scheme
 
         # ensure that different seeds are set per partition
         seed += sum([ord(ch) for ch in partition])
         np.random.seed(seed)
         torch.random.manual_seed(seed)
+        self.mode = mode
 
         self.root = root
 
-        if mode == "traintest":
-            self.trainids = os.path.join(self.root, "ids", "random", region+"_train.txt")
-            self.testids = os.path.join(self.root, "ids", "random", region+"_test.txt")
-        elif mode == "trainvalid":
-            self.trainids = os.path.join(self.root, "ids", "random", region+"_train.txt")
-            self.testids = None
+        if scheme=="random":
+            if mode == "traintest":
+                self.trainids = os.path.join(self.root, "ids", "random", region+"_train.txt")
+                self.testids = os.path.join(self.root, "ids", "random", region+"_test.txt")
+            elif mode == "trainvalid":
+                self.trainids = os.path.join(self.root, "ids", "random", region+"_train.txt")
+                self.testids = None
+
+            self.read_ids = self.read_ids_random
+        elif scheme=="blocks":
+            self.trainids = os.path.join(self.root, "ids", "blocks", region+"_train.txt")
+            self.testids = os.path.join(self.root, "ids", "blocks", region+"_test.txt")
+            self.validids = os.path.join(self.root, "ids", "blocks", region + "_valid.txt")
+
+            self.read_ids = self.read_ids_blocks
 
         self.mapping = pd.read_csv(classmapping, index_col=0).sort_values(by="id")
         self.mapping = self.mapping.set_index("nutzcode")
@@ -51,7 +64,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         #self.csvfiles = [ for f in os.listdir(root)]
         print("Initializing BavarianCropsDataset {} partition in {}".format(self.partition, self.region))
 
-        self.cache = os.path.join(self.root,"npy",os.path.basename(classmapping),region, partition)
+        self.cache = os.path.join(self.root,"npy",os.path.basename(classmapping), scheme,region, partition)
 
         print("read {} classes".format(self.nclasses))
 
@@ -75,7 +88,7 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
     def __str__(self):
         return "Dataset {}. region {}. partition {}. X:{}, y:{} with {} classes".format(self.root, self.region, self.partition,str(len(self.X)) +"x"+ str(self.X[0].shape), self.y.shape, self.nclasses)
 
-    def read_ids(self):
+    def read_ids_random(self):
         assert isinstance(self.seed, int)
         assert isinstance(self.validfraction, float)
         assert self.partition in ["train", "valid", "test"]
@@ -122,6 +135,29 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
                 with open(self.trainids, "r") as f:
                     train_ids = [int(id) for id in f.readlines()]
                 return train_ids
+
+    def read_ids_blocks(self):
+        assert self.partition in ["train", "valid", "test", "trainvalid"]
+        assert os.path.exists(self.validids)
+        assert os.path.exists(self.testids)
+        assert os.path.exists(self.trainids)
+        assert self.scheme == "blocks"
+        assert self.mode is None
+
+        def read(filename):
+            with open(filename, "r") as f:
+                ids = [int(id) for id in f.readlines()]
+            return ids
+
+        if self.partition == "train":
+            ids = read(self.trainids)
+        elif self.partition == "valid":
+            ids = read(self.validids)
+        elif self.partition == "test":
+            ids = read(self.testids)
+        elif self.partition == "trainvalid":
+            ids = read(self.trainids) + read(self.validids)
+        return ids
 
     def cache_dataset(self):
         """
@@ -289,47 +325,32 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         return X, y, self.ids[idx]
 
 if __name__=="__main__":
-    root = "/home/marc/data/BavarianCrops"
+    root = "/data/BavarianCrops"
+    classmapping = "/data/BavarianCrops/classmapping.isprs.csv"
+    train = BavarianCropsDataset(root="/data/BavarianCrops",
+                         region="holl",
+                         partition="train",
+                         scheme="blocks",
+                         classmapping = classmapping,
+                         samplet=50)
 
-    region = "HOLL_2018_MT_pilot"
-    classmapping = "/home/marc/data/BavarianCrops/classmapping.csv.holl"
+    test = BavarianCropsDataset(root="/data/BavarianCrops",
+                         region="holl",
+                         partition="test",
+                         scheme="blocks",
+                         classmapping = classmapping,
+                         samplet=50)
 
-    train = BavarianCropsDataset(root=root, region=region, partition="train", nsamples=None,
-                                        classmapping=classmapping)
+    train = BavarianCropsDataset(root="/data/BavarianCrops",
+                         region="holl",
+                         partition="valid",
+                         scheme="blocks",
+                         classmapping = classmapping,
+                         samplet=50)
 
-    valid = BavarianCropsDataset(root=root, region=region, partition="valid", nsamples=None,
-                                 classmapping=classmapping)
-
-    eval = BavarianCropsDataset(root=root, region=region, partition="eval", nsamples=None,
-                                 classmapping=classmapping)
-
-    train_hist,_ = np.histogram(train.y, bins=train.nclasses)
-    valid_hist,_ = np.histogram(valid.y, bins=valid.nclasses)
-    eval_hist,_ = np.histogram(eval.y, bins=eval.nclasses)
-
-    stacked = np.stack([train_hist, valid_hist, eval_hist])
-    #np.savetxt('/home/marc/projects/EV2019/images/partition_histograms.csv', stacked, delimiter=',')
-
-    classnames = ["meadows","summer barley","corn","winter wheat","winter barley","clover","winter triticale"]
-    hist = train_hist
-
-    def print_data(hist, classnames):
-        hist = hist.astype(float) / hist.sum() * 100
-        for cl in range(hist.shape[0]):
-            print("({}, {})".format(classnames[cl], (hist[cl])))
-
-    print("train")
-    print_data(train_hist, classnames)
-    print()
-    print("valid")
-    print_data(valid_hist, classnames)
-    print()
-    print("eval")
-    print_data(eval_hist, classnames)
-
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    sns.barplot(data=train_hist)
-
-    pass
+    trainvalid = BavarianCropsDataset(root="/data/BavarianCrops",
+                         region="holl",
+                         partition="trainvalid",
+                         scheme="blocks",
+                         classmapping = classmapping,
+                         samplet=50,)

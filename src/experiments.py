@@ -1,5 +1,6 @@
-import os
 from argparse import Namespace
+
+from config import CLASSMAPPING
 
 hyperparameters_rnn = Namespace(
     model="rnn",
@@ -29,7 +30,7 @@ hyperparameters_msresnet = Namespace(
     learning_rate=0.000657
 )
 
-hyperparameters_tempCNN = Namespace(
+hyperparameters_tempcnn = Namespace(
     model="tempcnn",
     kernel_size=5,
     hidden_dims=64,
@@ -40,14 +41,15 @@ hyperparameters_tempCNN = Namespace(
 
 TUM_dataset = Namespace(
     dataset = "BavarianCrops",
-    classmapping = "/data/BavarianCrops/classmapping.csv.gaf.v2",
-    trainregions = ["holl"],
-    testregions = ["holl"],
-    mode="traintest",
+    classmapping = CLASSMAPPING,
+    trainregions = ["holl","nowa","krum"],
+    testregions = ["holl","nowa","krum"],
+    scheme="blocks",
     test_on = "test",
-    train_on = "train",
+    train_on = "trainvalid",
     samplet = 70
 )
+
 
 VNRice_dataset = Namespace(
     dataset = "VNRice",
@@ -60,10 +62,11 @@ VNRice_dataset = Namespace(
 
 GAF_dataset = Namespace(
     dataset = "GAFv2",
-    trainregions = ["holl"],
-    testregions = ["holl"],
-    classmapping = "/data/BavarianCrops/classmapping.csv.gaf.v2",
-    features = "all",
+    trainregions = ["holl","nowa","krum"],
+    testregions = ["holl","nowa","krum"],
+    classmapping = CLASSMAPPING,
+    features = "optical",
+    scheme="blocks",
     test_on="test",
     train_on="train",
     samplet = 23
@@ -73,7 +76,27 @@ def experiments(args):
 
     merge([args, TUM_dataset, hyperparameters_transformer])
 
-    """Experiment Modalities"""
+    if args.experiment == "isprs_gaf_transformer":
+        return merge([args, GAF_dataset, hyperparameters_transformer])
+    if args.experiment == "isprs_tum_transformer":
+        return merge([args, TUM_dataset, hyperparameters_transformer])
+    if args.experiment == "isprs_gaf_msresnet":
+        return merge([args, GAF_dataset, hyperparameters_msresnet])
+    if args.experiment == "isprs_tum_msresnet":
+        return merge([args, TUM_dataset, hyperparameters_msresnet])
+    if args.experiment == "isprs_gaf_rnn":
+        return merge([args, GAF_dataset, hyperparameters_rnn])
+    if args.experiment == "isprs_tum_rnn":
+        return merge([args, TUM_dataset, hyperparameters_rnn])
+    if args.experiment == "isprs_gaf_tempcnn":
+        return merge([args, GAF_dataset, hyperparameters_tempcnn])
+    if args.experiment == "isprs_tum_tempcnn":
+        return merge([args, TUM_dataset, hyperparameters_tempcnn])
+    else:
+        raise ValueError("Wrong experiment name!")
+
+    """Experiment Modalities
+    # checkout 83d998dc30abc83f5ca0316aea5baff5133846ba
     if args.experiment == "tumgaf_gaf_transformer_optical":
         args = merge([args, GAF_dataset, hyperparameters_transformer])
         args.features="optical"
@@ -93,7 +116,6 @@ def experiments(args):
     elif args.experiment == "vnrice_rnn":
         args = merge([args, VNRice_dataset, hyperparameters_rnn])
 
-        """Models and Datasets"""
     elif args.experiment == "tumgaf_tum_rnn":
         args = merge([args, TUM_dataset, hyperparameters_rnn])
 
@@ -115,6 +137,18 @@ def experiments(args):
     elif args.experiment == "tumgaf_tum_transformer":
         args = merge([args, TUM_dataset, hyperparameters_transformer])
 
+    elif args.experiment == "tumgaf_gafall_transformer":
+        args = merge([args, GAF_dataset_allregions, hyperparameters_transformer])
+
+    elif args.experiment == "tumgaf_gafall_msresnet":
+        args = merge([args, GAF_dataset_allregions, hyperparameters_msresnet])
+
+    elif args.experiment == "tumgaf_gafall_rnn":
+        args = merge([args, GAF_dataset_allregions, hyperparameters_rnn])
+
+    elif args.experiment == "tumgaf_gafall_tempcnn":
+        args = merge([args, GAF_dataset_allregions, hyperparameters_tempcnn])
+
     elif args.experiment == "tumgaf_gaf_transformer":
         args = merge([args, GAF_dataset, hyperparameters_transformer])
 
@@ -133,11 +167,7 @@ def experiments(args):
     elif args.experiment == "tumgaf_gaf_msresnet_optical":
         args = merge([args, GAF_dataset, hyperparameters_msresnet])
         args.features="optical"
-
-    else:
-        raise ValueError("Wrong experiment name!")
-
-    return args
+    """
 
 
 def merge(namespaces):

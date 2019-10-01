@@ -153,6 +153,8 @@ class VisdomLogger():
             )
 
             self.viz.matplot(plt, win=name, opts=opts)
+            plt.clf()
+            plt.cla()
 
     def plot_boxplot(self, labels, t_stops, tmin=None, tmax=None):
 
@@ -178,6 +180,9 @@ class VisdomLogger():
             )
 
             self.viz.matplot(plt, win=name, opts=opts)
+
+            plt.clf()
+            plt.cla()
 
 
         pass

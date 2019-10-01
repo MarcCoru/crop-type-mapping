@@ -9,7 +9,7 @@ from datasets.CropsDataset import CropsDataset
 from datasets.HDF5Dataset import HDF5Dataset
 from models.TransformerEncoder import TransformerEncoder
 from datasets.ConcatDataset import ConcatDataset
-from datasets.GAF import GAFDataset
+from datasets.GAFDataset import GAFDataset
 import argparse
 from utils.trainer import Trainer
 import os
@@ -63,7 +63,7 @@ def parse_args():
     parser.add_argument(
         '--checkpoint_every_n_epochs', type=int, default=5, help='save checkpoints during training')
     parser.add_argument(
-        '--seed', type=int, default=0, help='seed for batching and weight initialization')
+        '--seed', type=int, default=None, help='seed for batching and weight initialization')
     parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     args, _ = parser.parse_known_args()
@@ -80,21 +80,20 @@ def prepare_dataset(args):
         for region in args.testregions:
             test_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode, seed=args.seed)
+                                            classmapping=args.classmapping, samplet=args.samplet, scheme=args.scheme, seed=args.seed)
             )
 
         train_dataset_list = list()
         for region in args.trainregions:
             train_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, mode=args.mode, seed=args.seed)
+                                            classmapping=args.classmapping, samplet=args.samplet, scheme=args.scheme, seed=args.seed)
             )
 
     if args.dataset == "VNRice":
         train_dataset_list=[VNRiceDataset(root=args.root, partition=args.train_on, samplet=args.samplet, mode=args.mode, seed=args.seed)]
 
         test_dataset_list=[VNRiceDataset(root=args.root, partition=args.test_on, samplet=args.samplet, mode=args.mode, seed=args.seed)]
-
 
     if args.dataset == "BreizhCrops":
         root = "/home/marc/projects/BreizhCrops/data"
@@ -112,26 +111,26 @@ def prepare_dataset(args):
                 CropsDataset(root=root, region=region, samplet=args.samplet)
             )
 
-
     elif args.dataset == "GAFv2":
-        root = "/data/gaf/data"
+        root = "/data/GAFdataset"
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()
         for region in args.testregions:
             test_dataset_list.append(
-                GAFDataset(root, region=region, partition="test", classmapping=args.classmapping, features=args.features)
+                GAFDataset(root, region=region, partition="test", scheme=args.scheme, classmapping=args.classmapping, features=args.features)
             )
 
         train_dataset_list = list()
         for region in args.trainregions:
             train_dataset_list.append(
-                GAFDataset(root, region=region, partition="train", classmapping=args.classmapping, features=args.features)
+                GAFDataset(root, region=region, partition="train", scheme=args.scheme, classmapping=args.classmapping, features=args.features)
             )
 
     print("setting random seed to "+str(args.seed))
     np.random.seed(args.seed)
-    torch.random.manual_seed(args.seed)
+    if args.seed is not None:
+        torch.random.manual_seed(args.seed)
 
     traindataset = ConcatDataset(train_dataset_list)
     traindataloader = torch.utils.data.DataLoader(dataset=traindataset, sampler=RandomSampler(traindataset),
@@ -230,7 +229,7 @@ def getModel(args):
         hidden_dims = args.hidden_dims # 256
         n_heads = args.n_heads # 8
         n_layers = args.n_layers # 6
-        len_max_seq = args.seqlength
+        len_max_seq = args.samplet
         dropout = args.dropout
         d_inner = hidden_dims*4
 

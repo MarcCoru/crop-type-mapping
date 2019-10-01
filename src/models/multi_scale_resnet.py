@@ -266,7 +266,7 @@ class MSResNet(ClassificationModel):
         return out1, out
 
     def forward(self, x0):
-        _, logits = self._logits(x0)
+        logits, _ = self._logits(x0)
 
         logprobabilities = Functional.log_softmax(logits, dim=-1)
 

@@ -12,3 +12,7 @@ Currently four models are implemented
 
 When exploring this repository, start with `src/train.py`.
 This loads the `dataloader`
+
+acknowledgement
+
+https://github.com/jadore801120/attention-is-all-you-need-pytorch

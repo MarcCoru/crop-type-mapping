@@ -1,6 +1,6 @@
 import torch
 from utils.classmetric import ClassMetric
-
+from sklearn.metrics import roc_auc_score, auc
 from utils.printer import Printer
 
 import sys
@@ -49,6 +49,10 @@ class Trainer():
         self.show_n_samples = show_n_samples
         self.model = model
         self.checkpoint_every_n_epochs = checkpoint_every_n_epochs
+        self.early_stopping_smooth_period = 10
+        self.early_stopping_patience = 5
+        self.not_improved_epochs=0
+        self.early_stopping_metric="kappa"
 
         if optimizer is None:
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -114,12 +118,38 @@ class Trainer():
             if self.visdom is not None:
                 self.visdom.plot_epochs(self.logger.get_data())
 
-            if self.epoch % self.checkpoint_every_n_epochs == 0:
+            if self.checkpoint_every_n_epochs % self. epoch==0:
+                print("Saving model to {}".format(self.get_model_name()))
                 self.snapshot(self.get_model_name())
                 print("Saving log to {}".format(self.get_log_name()))
                 self.logger.get_data().to_csv(self.get_log_name())
 
+            if self.check_for_early_stopping(smooth_period=self.early_stopping_smooth_period):
+                print()
+                print(f"Model did not improve in the last {self.early_stopping_grace_period} epochs. stopping training...")
+                print("Saving model to {}".format(self.get_model_name()))
+                self.snapshot(self.get_model_name())
+                print("Saving log to {}".format(self.get_log_name()))
+                self.logger.get_data().to_csv(self.get_log_name())
+                break
+
         return self.logger
+
+    def check_for_early_stopping(self,smooth_period):
+        log = self.logger.get_data()
+        log = log.loc[log["mode"] == "test"]
+
+        early_stopping_condition = log[self.early_stopping_metric].diff()[-smooth_period:].mean() < 0 and self.epoch > smooth_period
+
+        if early_stopping_condition:
+            self.not_improved_epochs += 1
+            print()
+            print(f"model did not improve: {self.not_improved_epochs} of {self.early_stopping_patience} until early stopping...")
+            return self.not_improved_epochs >= self.early_stopping_patience
+        else:
+            self.not_improved_epochs = 0
+            return False
+
 
     def new_epoch(self):
         self.epoch += 1
@@ -135,7 +165,7 @@ class Trainer():
         if np.array(["class_" in k for k in stats.keys()]).any():
             self.visdom.plot_class_accuracies(stats)
 
-        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=None, title="Confusion Matrix", logscale=True)
+        self.visdom.confusion_matrix(stats["confusion_matrix"], norm=None, title="Confusion Matrix", logscale=None)
         self.visdom.confusion_matrix(stats["confusion_matrix"], norm=0, title="Recall")
         self.visdom.confusion_matrix(stats["confusion_matrix"], norm=1, title="Precision")
         legend = ["class {}".format(c) for c in range(self.nclasses)]

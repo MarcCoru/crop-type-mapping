@@ -26,28 +26,30 @@ AGGREGATION_METHODS = ["mean", "median", "std", "p05", "p95"]
 
 class GAFDataset(torch.utils.data.Dataset):
 
-    def __init__(self, path, region, partition, classmapping, cache="/tmp", overwrite_cache=True, features="all"):
+    def __init__(self, path, region, partition, classmapping, scheme="random", overwrite_cache=True, features="all"):
         assert region in ["holl","nowa","krum"]
+        assert scheme in ["random", "blocks"]
+        assert region in ["holl","nowa","krum"]
+        assert partition in ["train", "test", "valid","trainvalid"]
 
+        self.path = path
+
+        self.cache = os.path.join(path,"npy",region)
 
         self.hdf5_path = os.path.join(path,"test_train_{}.h5".format(region))
         self.region = region
         self.partition = partition
-        self.cache = os.path.join(cache,region)
 
+        self.X,self.y,self.meta = self.load_data()
+
+        """
         if not self.cache_exists() or overwrite_cache:
             self.save_cache()
 
-        if partition == "train":
-            self.X = np.load(os.path.join(self.cache, "Xtrain.npy"))
-            self.y = np.load(os.path.join(self.cache, "ytrain.npy"))
-            self.meta = np.load(os.path.join(self.cache, "trainmeta.npy"),allow_pickle=True)
-        elif partition == "test":
-            self.X = np.load(os.path.join(self.cache, "Xtest.npy"))
-            self.y = np.load(os.path.join(self.cache, "ytest.npy"))
-            self.meta = np.load(os.path.join(self.cache, "testmeta.npy"),allow_pickle=True)
-        else:
-            raise ValueError("wrong partition, either 'train' or 'test'")
+        self.X = np.load(os.path.join(self.cache, "X.npy"))
+        self.y = np.load(os.path.join(self.cache, "y.npy"))
+        self.meta = np.load(os.path.join(self.cache, "meta.npy"),allow_pickle=True)
+        """
 
         # normalize optical bands
         self.X[:,:,:14] *= 1e-4
@@ -57,27 +59,45 @@ class GAFDataset(torch.utils.data.Dataset):
         assert features in ["all", "optical", "radar"]
         if features=="optical":
             mask = np.isin(BANDS, OPTICAL_BANDS)
-            print("features='optical': selecting only {} optical features from all {} features".format(len(OPTICAL_BANDS),len(BANDS)))
+            print("features='optical': selecting {} optical features from all {} features".format(len(OPTICAL_BANDS),len(BANDS)))
             self.X = self.X[:, :, mask]
 
         if features=="radar":
             mask = np.isin(BANDS, RADAR_BANDS)
-            print("features='radar': selecting only {} optical features from all {} features".format(len(RADAR_BANDS),
+            print("features='radar': selecting {} optical features from all {} features".format(len(RADAR_BANDS),
                                                                                                      len(BANDS)))
             self.X = self.X[:,:,mask]
 
-        if region in ["holl","nowa","krum"]:
-            ids_file = os.path.join(path, "{}_ids.txt".format(region))
-            with open(ids_file,'r') as f:
-                region_ids = [int(id.rstrip("\n")) for id in f.readlines()]
+        def read(filename):
+            with open(filename,'r') as f:
+                ids = [int(id.rstrip("\n")) for id in f.readlines()]
+            return ids
 
-            gafids = self.meta[:,2].astype(int)
+        gafids = self.meta[:, 2].astype(int)
 
-            mask = np.isin(gafids, region_ids)
+        if scheme=="random":
+            if partition not in ["train","test"]:
+                raise ValueError("scheme=random only allows partitions in 'train','test'")
+            ids_file = os.path.join(path,"ids","random", f"{region}_{partition}.txt")
+            ids = read(ids_file)
 
-            self.X = self.X[mask]
-            self.y = self.y[mask]
-            self.meta = self.meta[mask]
+        elif scheme=="blocks":
+            if partition in ["train","test","valid"]:
+                ids_file = os.path.join(path, "ids",scheme, f"{region}_{partition}.txt")
+                assert os.path.exists(ids_file)
+                ids = read(ids_file)
+            elif partition=="trainvalid":
+                train_ids_file = os.path.join(path, "ids",scheme, f"{region}_train.txt")
+                valid_ids_file = os.path.join(path, "ids", scheme, f"{region}_valid.txt")
+                assert os.path.exists(train_ids_file)
+                assert os.path.exists(valid_ids_file)
+                ids = read(train_ids_file) + read(valid_ids_file)
+
+        mask = np.isin(gafids, ids)
+
+        self.X = self.X[mask]
+        self.y = self.y[mask]
+        self.meta = self.meta[mask]
 
         #self.mean = self.X.mean(0).mean(0)
         #self.std = self.X.std(0).std(0)
@@ -91,19 +111,26 @@ class GAFDataset(torch.utils.data.Dataset):
         self.klassenname = self.mapping.groupby("id").first().klassenname.values
 
         self.nclasses = len(self.classes)
-        self.N, self.sequencelength, self.ndims = self.X.shape
         self.sequencelengths = None
 
         self.hist,_ = np.histogram(self.y, bins=self.nclasses)
         self.classweights = 1 / self.hist
 
-
+        delete_idxs = np.zeros(self.y.shape, dtype=bool)
+        delete_classes = list()
         for y in np.unique(self.y):
-            try:
-                self.mapping.loc[self.mapping.gafcode == y].id.iloc[0]
-            except:
-                pass
+            if len(self.mapping.loc[self.mapping.gafcode == y])==0:
+                delete_idxs += (self.y == y)
+                delete_classes.append(y)
 
+        if delete_idxs.sum() > 0:
+            print(f"gaf classes {delete_classes} not in classmapping {classmapping}. ignoring {delete_idxs.sum()} "
+                  f"examples ({(delete_idxs.sum() / len(self.y)) * 100:.2f}% of dataset)")
+            self.X = self.X[~delete_idxs]
+            self.y = self.y[~delete_idxs]
+            self.meta = self.meta[~delete_idxs]
+
+        self.N, self.sequencelength, self.ndims = self.X.shape
 
         print(self)
 
@@ -116,7 +143,6 @@ class GAFDataset(torch.utils.data.Dataset):
         y = self.y[idx]
 
         y = self.mapping.loc[self.mapping.gafcode == y].id.iloc[0]
-
 
         y = np.repeat(y,self.sequencelength)
         #X -= self.mean
@@ -131,7 +157,7 @@ class GAFDataset(torch.utils.data.Dataset):
         """uses a mapping table to replace nutzcodes (e.g. 451, 411) with class ids"""
         return np.array([self.mapping.loc[nutzcode]["id"] for nutzcode in nutzcodes])
 
-    def save_cache(self):
+    def load_data(self):
         print("saving npy arrays to " + self.cache)
 
         os.makedirs(self.cache, exist_ok=True)
@@ -141,6 +167,22 @@ class GAFDataset(torch.utils.data.Dataset):
 
         Xtrain, Xtest, ytrain, ytest, testmeta, trainmeta = stack(trainset, testset, categories)
 
+        #trainids = trainmeta[:, 2].astype(int)
+        #testids = testmeta[:, 2].astype(int)
+
+        #np.savetxt("/tmp/train.txt", trainids, fmt="%.0f")
+
+        X = np.vstack([Xtrain, Xtest])
+        y = np.hstack([ytrain, ytest])
+        meta = np.vstack([trainmeta, testmeta])
+
+        return X,y,meta
+
+        #np.save(os.path.join(self.cache, "X.npy"), X)
+        #np.save(os.path.join(self.cache, "y.npy"), y)
+        #np.save(os.path.join(self.cache, "meta.npy"), meta, allow_pickle=True)
+
+        """
         print("saving data to " + self.cache)
         np.save(os.path.join(self.cache, "Xtrain.npy"), Xtrain)
         np.save(os.path.join(self.cache, "Xtest.npy"), Xtest)
@@ -150,8 +192,14 @@ class GAFDataset(torch.utils.data.Dataset):
         np.save(os.path.join(self.cache, "trainmeta.npy"), trainmeta, allow_pickle=True)
         np.savetxt(os.path.join(self.cache, "trainids.csv"), trainmeta[:, 2].astype(int), fmt="%d")
         np.savetxt(os.path.join(self.cache, "testids.csv"), testmeta[:, 2].astype(int), fmt="%d")
+        """
 
     def cache_exists(self):
+        a = os.path.exists(os.path.join(self.cache, "X.npy"))
+        b = os.path.exists(os.path.join(self.cache, "y.npy"))
+        c = os.path.exists(os.path.join(self.cache, "meta.npy"))
+        return a and b and c
+        """
         a = os.path.exists(os.path.join(self.cache, "Xtrain.npy"))
         b = os.path.exists(os.path.join(self.cache, "Xtest.npy"))
         c = os.path.exists(os.path.join(self.cache, "ytrain.npy"))
@@ -161,6 +209,7 @@ class GAFDataset(torch.utils.data.Dataset):
         g = os.path.exists(os.path.join(self.cache, "trainids.csv"))
         h = os.path.exists(os.path.join(self.cache, "testids.csv"))
         return a and b and c and d and e and f and g and h
+        """
 
     def __str__(self):
         return "Dataset {}. region {}. partition {}. X:{}, y:{} with {} classes".format(self.hdf5_path, self.region, self.partition,self.X.shape, self.y.shape, self.nclasses)
@@ -293,18 +342,10 @@ def plot(trainset, testset, categories):
 
 if __name__=="__main__":
 
-    ds = GAFDataset("/data/gaf/data/", partition="train", region="holl", classmapping="/data/BavarianCrops/classmapping.csv.gaf.v2")
+    for region in ["holl","krum","nowa"]:
+        for partition in ["train","valid","test","trainvalid"]:
+            train = GAFDataset("/data/GAFdataset", partition=partition, scheme="blocks", region=region, classmapping="/data/GAFdataset/classmapping.isprs.csv")
 
-    ds[0]
-
-    trainset, testset, categories = load_raw_dataset(path='/home/marc/projects/crop-type-mapping/data/gaf_hdf5/test_train.h5')
-    plotfig, legendfig = plot(trainset, testset, categories)
-    plotfig.savefig("/tmp/plot2.png", dpi=300)
-    legendfig.savefig("/tmp/legend2.png", dpi=300)
-
-    trainset, testset, categories = ds.trainset, ds.testset, ds.categories
-    plotfig, legendfig = plot(trainset, testset, categories)
-    plotfig.savefig("/tmp/plot3.png", dpi=300)
-    legendfig.savefig("/tmp/legend3.png", dpi=300)
-
-    plt.show()
+    for region in ["holl","krum","nowa"]:
+        for partition in ["train","test"]:
+            train = GAFDataset("/data/GAFdataset", partition=partition, scheme="random", region=region, classmapping="/data/GAFdataset/classmapping.isprs.csv")

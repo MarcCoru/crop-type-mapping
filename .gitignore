@@ -1,6 +1,7 @@
 viz/png
 viz/csv
 data
+notebooks/*
 
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template
