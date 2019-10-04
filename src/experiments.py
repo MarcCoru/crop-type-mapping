@@ -50,6 +50,18 @@ TUM_dataset = Namespace(
     samplet = 70
 )
 
+TUM_dataset_random_split = Namespace(
+    dataset = "BavarianCrops",
+    classmapping = CLASSMAPPING,
+    trainregions = ["holl","nowa","krum"],
+    testregions = ["holl","nowa","krum"],
+    scheme="random",
+    mode="traintest",
+    test_on = "test",
+    train_on = "train",
+    samplet = 70
+)
+
 
 VNRice_dataset = Namespace(
     dataset = "VNRice",
@@ -72,28 +84,109 @@ GAF_dataset = Namespace(
     samplet = 23
 )
 
+GAF_dataset_random_split = Namespace(
+    dataset = "GAFv2",
+    trainregions = ["holl","nowa","krum"],
+    testregions = ["holl","nowa","krum"],
+    classmapping = CLASSMAPPING,
+    features = "optical",
+    scheme="random",
+    test_on="test",
+    train_on="train",
+    samplet = 23
+)
+
 def experiments(args):
 
     merge([args, TUM_dataset, hyperparameters_transformer])
 
     if args.experiment == "isprs_gaf_transformer":
         return merge([args, GAF_dataset, hyperparameters_transformer])
-    if args.experiment == "isprs_tum_transformer":
+    elif args.experiment == "isprs_tum_transformer":
         return merge([args, TUM_dataset, hyperparameters_transformer])
-    if args.experiment == "isprs_gaf_msresnet":
+    elif args.experiment == "isprs_gaf_msresnet":
         return merge([args, GAF_dataset, hyperparameters_msresnet])
-    if args.experiment == "isprs_tum_msresnet":
+    elif args.experiment == "isprs_tum_msresnet":
         return merge([args, TUM_dataset, hyperparameters_msresnet])
-    if args.experiment == "isprs_gaf_rnn":
+    elif args.experiment == "isprs_gaf_rnn":
         return merge([args, GAF_dataset, hyperparameters_rnn])
-    if args.experiment == "isprs_tum_rnn":
+    elif args.experiment == "isprs_tum_rnn":
         return merge([args, TUM_dataset, hyperparameters_rnn])
-    if args.experiment == "isprs_gaf_tempcnn":
+    elif args.experiment == "isprs_gaf_tempcnn":
         return merge([args, GAF_dataset, hyperparameters_tempcnn])
-    if args.experiment == "isprs_tum_tempcnn":
+    elif args.experiment == "isprs_tum_tempcnn":
         return merge([args, TUM_dataset, hyperparameters_tempcnn])
+
+
+    ### Model trained on different regions with block splot
+
+    elif args.experiment == "isprs_tumholl_transformer":
+        args = merge([args, TUM_dataset, hyperparameters_transformer])
+        args.trainregions = ["holl"]
+        args.testregions = ["holl"]
+        return args
+    elif args.experiment == "isprs_tumkrum_transformer":
+        args = merge([args, TUM_dataset, hyperparameters_transformer])
+        args.trainregions = ["krum"]
+        args.testregions = ["krum"]
+        return args
+    elif args.experiment == "isprs_tumnowa_transformer":
+        args = merge([args, TUM_dataset, hyperparameters_transformer])
+        args.trainregions = ["nowa"]
+        args.testregions = ["nowa"]
+        return args
+
+    elif args.experiment == "isprs_gafholl_transformer":
+        args = merge([args, GAF_dataset, hyperparameters_transformer])
+        args.trainregions = ["holl"]
+        args.testregions = ["holl"]
+        return args
+    elif args.experiment == "isprs_gafkrum_transformer":
+        args = merge([args, GAF_dataset, hyperparameters_transformer])
+        args.trainregions = ["krum"]
+        args.testregions = ["krum"]
+        return args
+    elif args.experiment == "isprs_gafnowa_transformer":
+        args = merge([args, GAF_dataset, hyperparameters_transformer])
+        args.trainregions = ["nowa"]
+        args.testregions = ["nowa"]
+        return args
+
+    ### Model trained on different regions with random split
+    elif args.experiment == "isprs_tumholl_transformer_randomsplit":
+        args = merge([args, TUM_dataset_random_split, hyperparameters_transformer])
+        args.trainregions = ["holl"]
+        args.testregions = ["holl"]
+        return args
+    elif args.experiment == "isprs_tumkrum_transformer_randomsplit":
+        args = merge([args, TUM_dataset_random_split, hyperparameters_transformer])
+        args.trainregions = ["krum"]
+        args.testregions = ["krum"]
+        return args
+    elif args.experiment == "isprs_tumnowa_transformer_randomsplit":
+        args = merge([args, TUM_dataset_random_split, hyperparameters_transformer])
+        args.trainregions = ["nowa"]
+        args.testregions = ["nowa"]
+        return args
+
+    elif args.experiment == "isprs_gafholl_transformer_randomsplit":
+        args = merge([args, GAF_dataset_random_split, hyperparameters_transformer])
+        args.trainregions = ["holl"]
+        args.testregions = ["holl"]
+        return args
+    elif args.experiment == "isprs_gafkrum_transformer_randomsplit":
+        args = merge([args, GAF_dataset_random_split, hyperparameters_transformer])
+        args.trainregions = ["krum"]
+        args.testregions = ["krum"]
+        return args
+    elif args.experiment == "isprs_gafnowa_transformer_randomsplit":
+        args = merge([args, GAF_dataset_random_split, hyperparameters_transformer])
+        args.trainregions = ["nowa"]
+        args.testregions = ["nowa"]
+        return args
     else:
-        raise ValueError("Wrong experiment name!")
+        raise ValueError(f"Wrong experiment name {args.experiment}!")
+
 
     """Experiment Modalities
     # checkout 83d998dc30abc83f5ca0316aea5baff5133846ba

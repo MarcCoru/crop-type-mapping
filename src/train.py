@@ -80,20 +80,24 @@ def prepare_dataset(args):
         for region in args.testregions:
             test_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.test_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, scheme=args.scheme, seed=args.seed)
+                                            classmapping=args.classmapping, samplet=args.samplet,
+                                     scheme=args.scheme,mode=args.mode, seed=args.seed)
             )
 
         train_dataset_list = list()
         for region in args.trainregions:
             train_dataset_list.append(
                 BavarianCropsDataset(root=root, region=region, partition=args.train_on,
-                                            classmapping=args.classmapping, samplet=args.samplet, scheme=args.scheme, seed=args.seed)
+                                            classmapping=args.classmapping, samplet=args.samplet,
+                                     scheme=args.scheme,mode=args.mode, seed=args.seed)
             )
 
     if args.dataset == "VNRice":
-        train_dataset_list=[VNRiceDataset(root=args.root, partition=args.train_on, samplet=args.samplet, mode=args.mode, seed=args.seed)]
+        train_dataset_list=[VNRiceDataset(root=args.root, partition=args.train_on, samplet=args.samplet,
+                                          mode=args.mode, seed=args.seed)]
 
-        test_dataset_list=[VNRiceDataset(root=args.root, partition=args.test_on, samplet=args.samplet, mode=args.mode, seed=args.seed)]
+        test_dataset_list=[VNRiceDataset(root=args.root, partition=args.test_on, samplet=args.samplet,
+                                         mode=args.mode, seed=args.seed)]
 
     if args.dataset == "BreizhCrops":
         root = "/home/marc/projects/BreizhCrops/data"

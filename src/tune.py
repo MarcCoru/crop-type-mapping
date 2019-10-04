@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument(
         '-m', '--max-concurrent', type=int, default=4, help='max concurrent runs')
     parser.add_argument(
-        '--seed', type=int, default=None, help='random seed defaults to None')
+        '--seed', type=int, default=0, help='random seed defaults to 0')
     parser.add_argument(
         '--redis-address', type=str, default=None, help='address of ray tune head node: e.g. "localhost:6379"')
     parser.add_argument(
@@ -56,6 +56,7 @@ BavarianCrops_parameters = Namespace(
     test_on="valid",
     trainregions = ["holl", "nowa", "krum"],
     testregions = ["holl", "nowa", "krum"],
+    mode=None
 )
 
 GAF_parameters = Namespace(
@@ -68,7 +69,8 @@ GAF_parameters = Namespace(
     samplet=23,
     overwrite_cache=True,
     train_on="train",
-    test_on="valid"
+    test_on="valid",
+    mode=None
 )
 
 rnn_parameters = Namespace(
@@ -261,7 +263,7 @@ def main():
         todo_runs = RAY_NUM_SAMPLES - nruns
         print(f"{nruns} found in {os.path.join(args.local_dir, args.experiment)} starting remaining {todo_runs}")
         if todo_runs <= 0:
-            print(f"finished all {TUNE_RUNS} runs. Increase TUNE_RUNS in databases.py if necessary. skipping tuning")
+            print(f"finished all {RAY_NUM_SAMPLES} runs. Increase TUNE_RUNS in databases.py if necessary. skipping tuning")
             return
 
     except ValueError as e:

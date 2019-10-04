@@ -52,7 +52,7 @@ class Trainer():
         self.early_stopping_smooth_period = 10
         self.early_stopping_patience = 5
         self.not_improved_epochs=0
-        self.early_stopping_metric="kappa"
+        #self.early_stopping_metric="kappa"
 
         if optimizer is None:
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -124,14 +124,14 @@ class Trainer():
                 print("Saving log to {}".format(self.get_log_name()))
                 self.logger.get_data().to_csv(self.get_log_name())
 
-            if self.check_for_early_stopping(smooth_period=self.early_stopping_smooth_period):
+            if self.epoch > self.early_stopping_smooth_period and self.check_for_early_stopping(smooth_period=self.early_stopping_smooth_period):
                 print()
-                print(f"Model did not improve in the last {self.early_stopping_grace_period} epochs. stopping training...")
+                print(f"Model did not improve in the last {self.early_stopping_smooth_period} epochs. stopping training...")
                 print("Saving model to {}".format(self.get_model_name()))
                 self.snapshot(self.get_model_name())
                 print("Saving log to {}".format(self.get_log_name()))
                 self.logger.get_data().to_csv(self.get_log_name())
-                break
+                return self.logger
 
         return self.logger
 
@@ -139,7 +139,7 @@ class Trainer():
         log = self.logger.get_data()
         log = log.loc[log["mode"] == "test"]
 
-        early_stopping_condition = log[self.early_stopping_metric].diff()[-smooth_period:].mean() < 0 and self.epoch > smooth_period
+        early_stopping_condition = log["loss"].diff()[-smooth_period:].mean() > 0
 
         if early_stopping_condition:
             self.not_improved_epochs += 1
@@ -326,3 +326,4 @@ class Trainer():
         stats["ids"] = np.hstack(ids_list)
 
         return stats
+
