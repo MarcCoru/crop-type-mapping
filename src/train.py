@@ -65,6 +65,8 @@ def parse_args():
     parser.add_argument(
         '--seed', type=int, default=None, help='seed for batching and weight initialization')
     parser.add_argument(
+        '--hparamset', type=int, default=None, help='rank of hyperparameter set 0: best hyperparameter')
+    parser.add_argument(
         '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
     args, _ = parser.parse_known_args()
 

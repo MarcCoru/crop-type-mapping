@@ -2,42 +2,7 @@ from argparse import Namespace
 
 from config import CLASSMAPPING
 
-hyperparameters_rnn = Namespace(
-    model="rnn",
-    num_layers=4,
-    hidden_dims=32,
-    learning_rate=0.010489,
-    dropout=0.710883,
-    weight_decay=0.000371,
-    bidirectional = True
-)
-
-hyperparameters_transformer = Namespace(
-    model="transformer",
-    hidden_dims = 128,
-    n_heads = 3,
-    n_layers = 3,
-    learning_rate = 0.255410,
-    dropout = 0.262039,
-    weight_decay = 0.000413,
-    warmup = 1000
-)
-
-hyperparameters_msresnet = Namespace(
-    model="msresnet",
-    hidden_dims=32,
-    weight_decay=0.000059,
-    learning_rate=0.000657
-)
-
-hyperparameters_tempcnn = Namespace(
-    model="tempcnn",
-    kernel_size=5,
-    hidden_dims=64,
-    dropout=0.5,
-    weight_decay=1e-6,
-    learning_rate=0.001
-)
+from hyperparameter import select_hyperparameter
 
 TUM_dataset = Namespace(
     dataset = "BavarianCrops",
@@ -100,89 +65,87 @@ def experiments(args):
     
     args.mode=None
 
-    merge([args, TUM_dataset, hyperparameters_transformer])
-
     if args.experiment == "isprs_gaf_transformer":
-        return merge([args, GAF_dataset, hyperparameters_transformer])
+        return merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)]) #hyperparameters_transformer
     elif args.experiment == "isprs_tum_transformer":
-        return merge([args, TUM_dataset, hyperparameters_transformer])
+        return merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
     elif args.experiment == "isprs_gaf_msresnet":
-        return merge([args, GAF_dataset, hyperparameters_msresnet])
+        return merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
     elif args.experiment == "isprs_tum_msresnet":
-        return merge([args, TUM_dataset, hyperparameters_msresnet])
+        return merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
     elif args.experiment == "isprs_gaf_rnn":
-        return merge([args, GAF_dataset, hyperparameters_rnn])
+        return merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
     elif args.experiment == "isprs_tum_rnn":
-        return merge([args, TUM_dataset, hyperparameters_rnn])
+        return merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
     elif args.experiment == "isprs_gaf_tempcnn":
-        return merge([args, GAF_dataset, hyperparameters_tempcnn])
+        return merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
     elif args.experiment == "isprs_tum_tempcnn":
-        return merge([args, TUM_dataset, hyperparameters_tempcnn])
+        return merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
 
 
     ### Model trained on different regions with block splot
 
     elif args.experiment == "isprs_tumholl_transformer":
-        args = merge([args, TUM_dataset, hyperparameters_transformer])
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["holl"]
         args.testregions = ["holl"]
         return args
     elif args.experiment == "isprs_tumkrum_transformer":
-        args = merge([args, TUM_dataset, hyperparameters_transformer])
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["krum"]
         args.testregions = ["krum"]
         return args
     elif args.experiment == "isprs_tumnowa_transformer":
-        args = merge([args, TUM_dataset, hyperparameters_transformer])
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["nowa"]
         args.testregions = ["nowa"]
         return args
 
     elif args.experiment == "isprs_gafholl_transformer":
-        args = merge([args, GAF_dataset, hyperparameters_transformer])
+        args = merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["holl"]
         args.testregions = ["holl"]
         return args
     elif args.experiment == "isprs_gafkrum_transformer":
-        args = merge([args, GAF_dataset, hyperparameters_transformer])
+        args = merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["krum"]
         args.testregions = ["krum"]
         return args
     elif args.experiment == "isprs_gafnowa_transformer":
-        args = merge([args, GAF_dataset, hyperparameters_transformer])
+        args = merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["nowa"]
         args.testregions = ["nowa"]
         return args
 
     ### Model trained on different regions with random split
     elif args.experiment == "isprs_tumholl_transformer_randomsplit":
-        args = merge([args, TUM_dataset_random_split, hyperparameters_transformer])
+        args = merge([args, TUM_dataset_random_split, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["holl"]
         args.testregions = ["holl"]
         return args
     elif args.experiment == "isprs_tumkrum_transformer_randomsplit":
-        args = merge([args, TUM_dataset_random_split, hyperparameters_transformer])
+        args = merge([args, TUM_dataset_random_split, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["krum"]
         args.testregions = ["krum"]
         return args
     elif args.experiment == "isprs_tumnowa_transformer_randomsplit":
-        args = merge([args, TUM_dataset_random_split, hyperparameters_transformer])
+        args = merge([args, TUM_dataset_random_split, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["nowa"]
         args.testregions = ["nowa"]
         return args
 
     elif args.experiment == "isprs_gafholl_transformer_randomsplit":
-        args = merge([args, GAF_dataset_random_split, hyperparameters_transformer])
+        args = merge([args, GAF_dataset_random_split, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["holl"]
         args.testregions = ["holl"]
         return args
     elif args.experiment == "isprs_gafkrum_transformer_randomsplit":
-        args = merge([args, GAF_dataset_random_split, hyperparameters_transformer])
+        args = merge([args, GAF_dataset_random_split, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["krum"]
         args.testregions = ["krum"]
         return args
     elif args.experiment == "isprs_gafnowa_transformer_randomsplit":
-        args = merge([args, GAF_dataset_random_split, hyperparameters_transformer])
+        args = merge([args, GAF_dataset_random_split, select_hyperparameter(args.experiment, args.hparamset)])
         args.trainregions = ["nowa"]
         args.testregions = ["nowa"]
         return args
