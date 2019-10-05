@@ -97,6 +97,8 @@ GAF_dataset_random_split = Namespace(
 )
 
 def experiments(args):
+    
+    args.mode=None
 
     merge([args, TUM_dataset, hyperparameters_transformer])
 
