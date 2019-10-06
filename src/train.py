@@ -222,7 +222,7 @@ def getModel(args):
 
     if args.model == "rnn":
         model = RNN(input_dim=args.input_dims, nclasses=args.nclasses, hidden_dims=args.hidden_dims,
-                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=args.bidirectional)
+                              num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=True)
 
     if args.model == "msresnet":
         model = MSResNet(input_channel=args.input_dims, layers=[1, 1, 1, 1], num_classes=args.nclasses)
