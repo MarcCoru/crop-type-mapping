@@ -1,1 +1,0 @@
-{"batchsize": 96, "dataset": "Trace", "dropout": 0.3, "earliness_factor": 1, "epochs": 99999, "fold": 8, "hidden_dims": 64, "learning_rate": 0.01, "num_rnn_layers": 1, "switch_epoch": 9999, "workers": 2}
