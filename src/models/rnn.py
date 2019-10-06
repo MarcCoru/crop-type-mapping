@@ -14,7 +14,7 @@ def entropy(p):
 
 class RNN(ClassificationModel):
     def __init__(self, input_dim=1, hidden_dims=3, nclasses=5, num_rnn_layers=1, dropout=0.2, bidirectional=False,
-                 use_batchnorm=False, use_attention=False, use_layernorm=True):
+                 use_batchnorm=False, use_attention=True, use_layernorm=True):
 
         super(RNN, self).__init__()
 
@@ -22,6 +22,7 @@ class RNN(ClassificationModel):
         self.use_batchnorm = use_batchnorm
         self.use_attention = use_attention
         self.use_layernorm = use_layernorm
+        self.bidirectional = bidirectional
 
         self.d_model = num_rnn_layers*hidden_dims
 
@@ -37,9 +38,12 @@ class RNN(ClassificationModel):
         if bidirectional: # if bidirectional we have twice as many hidden dims after lstm encoding...
             hidden_dims = hidden_dims * 2
 
-        self.linear_class = nn.Linear(hidden_dims*num_rnn_layers, nclasses, bias=True)
+        outlineardims = hidden_dims if use_attention else hidden_dims*num_rnn_layers
+        self.linear_class = nn.Linear(outlineardims, nclasses, bias=True)
 
         if use_attention:
+            #attention_dims = hidden_dims // 2 if bidirectional else hidden_dims
+
             self.attention = Attention(hidden_dims, attention_type="dot")
 
         if use_batchnorm:
@@ -48,52 +52,33 @@ class RNN(ClassificationModel):
 
     def _logits(self, x):
 
-        # get sequence lengths from the index of the first padded value
-        #lengths = torch.argmax((x[:, 0, :] == SEQUENCE_PADDINGS_VALUE), dim=1)
-
-        # if no padded values insert sequencelength as sequencelength
-        #lengths[lengths == 0] = maxsequencelength
-
-        # sort sequences descending to prepare for packing
-        #lengths, idxs = lengths.sort(0, descending=True)
-
-        # order x in decreasing seequence lengths
-        #x = x[idxs]
-
         # b,d,t -> b,t,d
         x = x.transpose(1,2)
 
         if self.use_layernorm:
             x = self.inlayernorm(x)
 
-        #packed = torch.nn.utils.rnn.pack_padded_sequence(x.transpose(1,2), lengths, batch_first=True)
         outputs, last_state_list = self.lstm.forward(x)
-        #outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
-
-        #if self.use_layernorm:
-        #    outputs = self.lstmlayernorm(outputs)
-
-        if self.use_batchnorm:
-            b,t,d = outputs.shape
-            o_ = outputs.view(b, -1, d).permute(0,2,1)
-            outputs = self.bn(o_).permute(0, 2, 1).view(b,t,d)
 
         h, c = last_state_list
         if self.use_attention:
-
-            query = c[-1]
+            if self.bidirectional:
+                query_forward = c[-1]
+                query_backward = c[-2]
+                query = torch.cat([query_forward, query_backward],1)
+            else:
+                query = c[-1]
 
             #query = self.bn_query(query)
 
-            outputs, weights = self.attention(query.unsqueeze(1), outputs)
+            h, weights = self.attention(query.unsqueeze(1), outputs)
+            h = h.squeeze(1)
             #outputs, weights = self.attention(outputs, outputs)
+        else:
+            nlayers, batchsize, n_hidden = c.shape
+            # use last cell state as classificaiton features
+            h = self.clayernorm(c.transpose(0,1).contiguous().view(batchsize,nlayers*n_hidden))
 
-            # repeat outputs to match non-attention model
-            outputs = outputs.expand(b,t,d)
-
-        nlayers, batchsize, n_hidden = c.shape
-        # use last cell state as classificaiton features
-        h = self.clayernorm(c.transpose(0,1).contiguous().view(batchsize,nlayers*n_hidden))
         logits = self.linear_class.forward(h)
 
         if self.use_attention:

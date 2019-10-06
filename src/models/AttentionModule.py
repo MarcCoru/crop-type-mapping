@@ -82,15 +82,15 @@ class Attention(nn.Module):
 
         # (batch_size, output_len, query_len) * (batch_size, query_len, dimensions) ->
         # (batch_size, output_len, dimensions)
-        mix = torch.bmm(attention_weights, context)
+        return torch.bmm(attention_weights, context), attention_weights
 
         # concat -> (batch_size * output_len, 2*dimensions)
-        combined = torch.cat((mix, query), dim=2)
-        combined = combined.view(batch_size * output_len, 2 * dimensions)
+        #combined = torch.cat((mix, query), dim=2)
+        #combined = combined.view(batch_size * output_len, 2 * dimensions)
 
         # Apply linear_out on every 2nd dimension of concat
         # output -> (batch_size, output_len, dimensions)
-        output = self.linear_out(combined).view(batch_size, output_len, dimensions)
-        output = self.tanh(output)
+        #output = self.linear_out(combined).view(batch_size, output_len, dimensions)
+        #output = self.tanh(output)
 
-        return output, attention_weights
+        #return output, attention_weights
