@@ -7,9 +7,9 @@ import scipy
 from utils.data2numpy import get_data
 import pandas as pd
 
-def cross_validate(dataset,outfile):
+def cross_validate(experiment,outfile):
 
-    X,y,ids, _, _, _, classnames, class_idxs = get_data(dataset, N_per_class=500, N_largest=None, do_add_spectral_indices=True)
+    X,y,ids, _, _, _, classnames, class_idxs = get_data(experiment, N_per_class=500, N_largest=None, do_add_spectral_indices=True)
 
     n_iter_search = 1
 
@@ -37,5 +37,5 @@ def cross_validate(dataset,outfile):
 
 
 if __name__=="__main__":
-    cross_validate("tum",outfile="/data/isprs/sklearn/svm_tum.txt")
-    cross_validate("gaf",outfile="/data/isprs/sklearn/svm_gaf.txt")
+    cross_validate("isprs_svm_tum",outfile="/data/isprs/sklearn/svm_tum.txt")
+    cross_validate("isprs_svm_gaf",outfile="/data/isprs/sklearn/svm_gaf.txt")

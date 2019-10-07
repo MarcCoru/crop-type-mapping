@@ -10,13 +10,16 @@ from experiments import experiments
 import tqdm
 import numpy as np
 
-def get_data(dataset, N_per_class=None, N_largest=None, do_add_spectral_indices=True):
-    assert dataset in ["tum","gaf"]
+def get_data(experiment, N_per_class=None, N_largest=None, do_add_spectral_indices=True):
+    assert experiment in ["isprs_rf_tum","isprs_rf_gaf","isprs_svm_tum","isprs_svm_gaf"]
     assert N_per_class is None or isinstance(N_per_class, int)
     assert N_largest is None or isinstance(N_largest, int)
     assert isinstance(do_add_spectral_indices, bool)
 
-    traindataloader, testdataloader = get_dataloader(dataset)
+    args = argparse.Namespace(experiment=experiment, seed=0, batchsize=256, workers=0, mode=None, hparamset=0)
+    args = experiments(args)
+
+    traindataloader, testdataloader = prepare_dataset(args)
 
     classnames = traindataloader.dataset.datasets[0].classname
 
@@ -42,21 +45,6 @@ def get_data(dataset, N_per_class=None, N_largest=None, do_add_spectral_indices=
         Xtest = add_spectral_indices(Xtest)
 
     return X,y,ids, Xtest, ytest, idstest, classnames, class_idxs
-
-# get same dataset
-def get_dataloader(dataset):
-    assert dataset in ["tum","gaf"]
-    if dataset == "tum":
-        experiment = "isprs_tum_transformer"
-    elif dataset == "gaf":
-        experiment = "isprs_gaf_transformer"
-
-    args = argparse.Namespace(experiment=experiment, seed=0, batchsize=256, workers=0, mode=None, hparamset=0)
-    args = experiments(args)
-
-    traindataloader, testdataloader = prepare_dataset(args)
-    return traindataloader, testdataloader
-
 
 def dataloader_to_numpy(dataloader):
     X = list()

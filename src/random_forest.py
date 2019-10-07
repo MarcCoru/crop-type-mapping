@@ -15,9 +15,9 @@ import pandas as pd
 def flatten(x):
     return x.reshape(x.shape[0], -1)
 
-def cross_validate(dataset,outfile):
+def cross_validate(experiment,outfile):
 
-    X,y,ids, Xtest, ytest, idstest, classnames, class_idxs = get_data(dataset, N_per_class=500, N_largest=None, do_add_spectral_indices=True)
+    X,y,ids, Xtest, ytest, idstest, classnames, class_idxs = get_data(experiment, N_per_class=500, N_largest=None, do_add_spectral_indices=True)
 
     n_iter_search = 300
 
@@ -60,5 +60,5 @@ def cross_validate(dataset,outfile):
     df.to_csv(outfile + ".csv")
 
 if __name__=="__main__":
-    cross_validate("tum",outfile="/data/isprs/sklearn/random_forest_tum.txt")
-    cross_validate("gaf",outfile="/data/isprs/sklearn/random_forest_gaf.txt")
+    cross_validate("isprs_rf_tum",outfile="/data/isprs/sklearn/random_forest_tum.txt")
+    cross_validate("isprs_rf_gaf",outfile="/data/isprs/sklearn/random_forest_gaf.txt")

@@ -25,6 +25,7 @@ from models.multi_scale_resnet import MSResNet
 import torch.optim as optim
 from experiments import experiments
 from models.TempCNN import TempCNN
+from config import GAFDATASET_ROOT, BAVARIAN_CROPS_ROOT
 import os
 
 def parse_args():
@@ -75,7 +76,7 @@ def parse_args():
 def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
-        root = "/data/BavarianCrops"
+        root = BAVARIAN_CROPS_ROOT
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()
@@ -118,7 +119,7 @@ def prepare_dataset(args):
             )
 
     elif args.dataset == "GAFv2":
-        root = "/data/GAFdataset"
+        root = GAFDATASET_ROOT
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()

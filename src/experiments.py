@@ -82,6 +82,15 @@ def experiments(args):
     elif args.experiment == "isprs_tum_tempcnn":
         return merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
 
+    elif args.experiment == "isprs_svm_tum":
+        return merge([args, TUM_dataset])
+    elif args.experiment == "isprs_svm_gaf":
+        return merge([args, GAF_dataset])
+    elif args.experiment == "isprs_rf_tum":
+        return merge([args, TUM_dataset])
+    elif args.experiment == "isprs_rf_gaf":
+        return merge([args, GAF_dataset])
+
 
     ### Model trained on different regions with block splot
 
