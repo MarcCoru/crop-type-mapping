@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from scipy.stats import randint as sp_randint
 from sklearn.model_selection import RandomizedSearchCV
 from utils.data2numpy import get_data
-
+import pandas as pd
 
 def flatten(x):
     return x.reshape(x.shape[0], -1)
@@ -44,7 +44,7 @@ def cross_validate(dataset,outfile):
                    'min_samples_leaf': min_samples_leaf,
                    'bootstrap': bootstrap}
 
-    random_search = RandomizedSearchCV(rf, param_distributions=random_grid,
+    random_search = RandomizedSearchCV(rf, param_distributions=random_grid,scoring='f1_macro',
                                        n_iter=n_iter_search, n_jobs=-1, cv=3, verbose=3)
 
     random_search.fit(flatten(X), y)
@@ -54,6 +54,10 @@ def cross_validate(dataset,outfile):
     print(random_search.best_score_)
 
     print(str(random_search.best_params_) + " score: " + str(random_search.best_score_), file=open(outfile, "w"))
+
+    df = pd.DataFrame(random_search.cv_results_)
+    print(f"writing {outfile}.csv")
+    df.to_csv(outfile + ".csv")
 
 if __name__=="__main__":
     cross_validate("tum",outfile="/data/isprs/sklearn/random_forest_tum.txt")
