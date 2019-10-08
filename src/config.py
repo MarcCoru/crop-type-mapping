@@ -1,4 +1,5 @@
 CLASSMAPPING = "/data/GAFdataset/classmapping.isprs.csv"
+CLASSMAPPING_SHORT = "/data/GAFdataset/classmapping.isprs2.csv"
 
 RAY_NUM_SAMPLES=300
 RAY_TEST_EVERY=2
@@ -11,4 +12,4 @@ HYPERBAND_BRACKETS=4
 HYPERPARAMETER_PATH = "/data/isprs/ray"
 
 BAVARIAN_CROPS_ROOT="/data/BavarianCrops"
-GAFDATASET_ROOT="/data/GAFDataset"
+GAFDATASET_ROOT="/data/GAFdataset"

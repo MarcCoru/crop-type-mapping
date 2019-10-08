@@ -91,7 +91,11 @@ def experiments(args):
     elif args.experiment == "isprs_rf_gaf":
         return merge([args, GAF_dataset])
 
-
+    elif args.experiment in ["isprs_gaf_transformer_holl","isprs_gaf_tempcnn_holl","isprs_gaf_rnn_holl","isprs_gaf_msresnet_holl"]:
+        args = merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
+        args.trainregions = ["holl"]
+        args.testregions = ["holl"]
+        return args
     ### Model trained on different regions with block splot
 
     elif args.experiment == "isprs_tumholl_transformer":

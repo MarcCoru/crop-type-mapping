@@ -12,13 +12,13 @@ def select_hyperparameter(experiment, hparamset):
         return old_hyperparameter_config(model)
     elif isinstance(hparamset, int):
         try:
-            name, dataset, model = experiment.split("_")
+            name, dataset, model, meta = experiment.split("_")
             assert isinstance(name, str)
             assert isinstance(dataset, str)
             assert isinstance(model, str)
             assert dataset in ["tum", "gaf"]
         except:
-            raise ValueError(f"could not parse experiment {experiment} (must be format <name>_<dataset>_<model>) "
+            raise ValueError(f"could not parse experiment {experiment} (must be format <name>_<dataset>_<model>_<meta>) "
                              f"using hyperparameterset {hparamset} (row index of hyperparameter csv file).")
 
         hyperparametercsv = os.path.join(HYPERPARAMETER_PATH,f"{model}_{dataset}.csv")
