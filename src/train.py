@@ -56,6 +56,10 @@ def parse_args():
     parser.add_argument('--no-visdom', action='store_true',
                         help="no_visdom")
     parser.add_argument(
+        '--classmapping', type=str, default=None, help='classmapping')
+    parser.add_argument(
+        '--hyperparameterfolder', type=str, default=None, help='hyperparameter folder')
+    parser.add_argument(
         '-x', '--experiment', type=str, default="test", help='experiment prefix')
     parser.add_argument(
         '--store', type=str, default="/tmp", help='store run logger results')
@@ -152,8 +156,19 @@ def prepare_dataset(args):
 
 def train(args):
 
+    classmapping = args.classmapping
+    hyperparameterfolder = args.hyperparameterfolder
+
     # prepare dataset, model, hyperparameters for the respective experiments
     args = experiments(args)
+
+    if classmapping is not None:
+        print("overwriting classmapping with manual input")
+        args.classmapping = classmapping
+
+    if hyperparameterfolder is not None:
+        print("overwriting hyperparameterfolder with manual input")
+        args.hyperparameterfolder = hyperparameterfolder
 
     traindataloader, testdataloader = prepare_dataset(args)
 
