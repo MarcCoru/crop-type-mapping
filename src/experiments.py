@@ -82,14 +82,23 @@ def experiments(args):
     elif args.experiment == "isprs_tum_tempcnn":
         return merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
 
-    elif args.experiment == "isprs_svm_tum":
-        return merge([args, TUM_dataset])
-    elif args.experiment == "isprs_svm_gaf":
-        return merge([args, GAF_dataset])
-    elif args.experiment == "isprs_rf_tum":
-        return merge([args, TUM_dataset])
-    elif args.experiment == "isprs_rf_gaf":
-        return merge([args, GAF_dataset])
+    elif args.experiment == "isprs_rf_tum_23classes":
+        args = merge([args, TUM_dataset])
+        args.classmapping = "/data/BavarianCrops/classmapping.isprs.csv"
+        return args
+    elif args.experiment == "isprs_rf_gaf_23classes":
+        args = merge([args, GAF_dataset])
+        args.classmapping = "/data/BavarianCrops/classmapping.isprs.csv"
+        return args
+    elif args.experiment == "isprs_rf_tum_12classes":
+        args = merge([args, TUM_dataset])
+        args.classmapping = "/data/BavarianCrops/classmapping.isprs2.csv"
+        return args
+    elif args.experiment == "isprs_rf_gaf_12classes":
+        args = merge([args, GAF_dataset])
+        args.classmapping = "/data/BavarianCrops/classmapping.isprs2.csv"
+        return args
+
 
     elif args.experiment in ["isprs_gaf_transformer_holl","isprs_gaf_tempcnn_holl","isprs_gaf_rnn_holl","isprs_gaf_msresnet_holl"]:
         args = merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])

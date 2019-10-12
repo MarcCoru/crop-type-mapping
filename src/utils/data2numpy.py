@@ -11,7 +11,7 @@ import tqdm
 import numpy as np
 
 def get_data(experiment, N_per_class=None, N_largest=None, do_add_spectral_indices=True):
-    assert experiment in ["isprs_rf_tum","isprs_rf_gaf","isprs_svm_tum","isprs_svm_gaf"]
+    assert experiment in ["isprs_rf_tum_23classes","isprs_rf_gaf_23classes","isprs_rf_tum_12classes","isprs_rf_gaf_12classes"]
     assert N_per_class is None or isinstance(N_per_class, int)
     assert N_largest is None or isinstance(N_largest, int)
     assert isinstance(do_add_spectral_indices, bool)
