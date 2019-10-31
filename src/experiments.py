@@ -96,6 +96,38 @@ def experiments(args):
         args.trainregions = ["holl"]
         args.testregions = ["holl"]
         return args
+
+    elif args.experiment in ["isprs_tum_transformer_all","isprs_tum_tempcnn_all","isprs_tum_rnn_all","isprs_tum_msresnet_all"]:
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
+        args.trainregions = ["holl","nowa","krum"]
+        args.testregions = ["holl"]
+        return args
+
+    elif args.experiment in ["isprs_tum_transformer_holl","isprs_tum_tempcnn_holl","isprs_tum_rnn_holl","isprs_tum_msresnet_holl"]:
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
+        args.trainregions = ["holl"]
+        args.testregions = ["holl"]
+        return args
+    
+    elif args.experiment in ["isprs_gaf_transformer_krum","isprs_gaf_tempcnn_krum","isprs_gaf_rnn_krum","isprs_gaf_msresnet_krum"]:
+        args = merge([args, GAF_dataset, select_hyperparameter(args.experiment, args.hparamset)])
+        args.trainregions = ["krum"]
+        args.testregions = ["krum"]
+        return args
+
+    elif args.experiment in ["isprs_tum_transformer_allkrum","isprs_tum_tempcnn_allkrum","isprs_tum_rnn_allkrum","isprs_tum_msresnet_allkrum"]:
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
+        args.trainregions = ["krum","nowa","krum"]
+        args.testregions = ["krum"]
+        return args
+
+    elif args.experiment in ["isprs_tum_transformer_krum","isprs_tum_tempcnn_krum","isprs_tum_rnn_krum","isprs_tum_msresnet_krum"]:
+        args = merge([args, TUM_dataset, select_hyperparameter(args.experiment, args.hparamset)])
+        args.trainregions = ["krum"]
+        args.testregions = ["krum"]
+        return args
+
+
     ### Model trained on different regions with block splot
 
     elif args.experiment == "isprs_tumholl_transformer":

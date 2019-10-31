@@ -12,7 +12,10 @@ def select_hyperparameter(experiment, hparamset):
         return old_hyperparameter_config(model)
     elif isinstance(hparamset, int):
         try:
-            name, dataset, model, meta = experiment.split("_")
+            if len(experiment.split("_")) == 4:
+                name, dataset, model, meta = experiment.split("_")
+            if len(experiment.split("_")) == 3:
+                name, dataset, model = experiment.split("_")
             assert isinstance(name, str)
             assert isinstance(dataset, str)
             assert isinstance(model, str)
