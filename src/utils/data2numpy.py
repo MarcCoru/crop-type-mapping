@@ -64,7 +64,6 @@ def dataloader_to_numpy(dataloader):
 
 def get_uniform_idxs(targets, N_uniform=50):
     classes = np.unique(targets)
-    class_idxs = list()
     idxs = np.array([])
     for c in classes:
         idxs_ = np.argwhere(targets == c)[:N_uniform, 0]
@@ -137,7 +136,6 @@ def add_spectral_indices(X):
     G = 2.5
     C1 = 6
     C2 = 7.5
-    L = 1
     evi = G * (nir - red) / (nir + C1 * red - C2 * blue + 1)
 
     ireci = (b7 - b4) * b6 / b5

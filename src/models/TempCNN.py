@@ -79,15 +79,3 @@ class Flatten(nn.Module):
     def forward(self, input):
         return input.view(input.size(0), -1)
 
-
-if __name__ == "__main__":
-
-
-    B=64
-    T=128
-    D=18
-
-    model = TempCNN(input_dim=18, nclasses=10, sequence_length=T)
-
-    X = torch.randn(B,D,T)
-    model.forward(X)

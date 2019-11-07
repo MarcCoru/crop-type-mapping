@@ -50,7 +50,6 @@ def cross_validate(experiment,outfile):
     random_search.fit(flatten(X), y)
     print(random_search.best_params_, )
 
-    rf = random_search.best_estimator_
     print(random_search.best_score_)
 
     print(str(random_search.best_params_) + " score: " + str(random_search.best_score_), file=open(outfile, "w"))

@@ -2,7 +2,6 @@ import torch
 import torch.utils.data
 import pandas as pd
 import os
-import sys
 import numpy as np
 from numpy import genfromtxt
 import tqdm
@@ -238,7 +237,6 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         self.sequencelengths = np.load(os.path.join(self.cache, "sequencelengths.npy"))
         self.sequencelength = self.sequencelengths.max()
         self.ids = np.load(os.path.join(self.cache, "ids.npy"))
-        #self.dataweights = np.load(os.path.join(self.cache, "dataweights.npy"))
         self.X = np.load(os.path.join(self.cache, "X.npy"), allow_pickle=True)
 
     def cache_exists(self):
@@ -247,9 +245,8 @@ class BavarianCropsDataset(torch.utils.data.Dataset):
         ndimsexist = os.path.exists(os.path.join(self.cache, "ndims.npy"))
         sequencelengthsexist = os.path.exists(os.path.join(self.cache, "sequencelengths.npy"))
         idsexist = os.path.exists(os.path.join(self.cache, "ids.npy"))
-        #dataweightsexist = os.path.exists(os.path.join(self.cache, "dataweights.npy"))
         Xexists = os.path.exists(os.path.join(self.cache, "X.npy"))
-        return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists
+        return yexist and sequencelengthsexist and idsexist and ndimsexist and Xexists and weightsexist
 
     def clean_cache(self):
         os.remove(os.path.join(self.cache, "classweights.npy"))

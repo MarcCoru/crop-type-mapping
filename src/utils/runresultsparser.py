@@ -29,7 +29,7 @@ def parse_run(root, outcsv=None):
             )
 
             results.append(summary)
-        except Exception as e:
+        except Exception:
             print("Could not read dataset {}. skipping...".format(dataset))
 
     if len(results) > 0:

@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.VNRiceDataset import VNRiceDataset
-from datasets.CropsDataset import CropsDataset
 from models.TransformerEncoder import TransformerEncoder
 from datasets.ConcatDataset import ConcatDataset
 from datasets.GAFDataset import GAFDataset

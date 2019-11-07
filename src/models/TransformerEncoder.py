@@ -5,8 +5,6 @@ import torch.utils.data
 import os
 from models.ClassificationModel import ClassificationModel
 from models.transformer.Models import Encoder
-from models.AttentionModule import Attention
-from torch.nn.modules.normalization import LayerNorm
 
 SEQUENCE_PADDINGS_VALUE=-1
 
@@ -15,6 +13,8 @@ class TransformerEncoder(ClassificationModel):
             d_word_vec=512, d_model=512, d_inner=2048,
             n_layers=6, n_head=8, d_k=64, d_v=64,
             dropout=0.2, nclasses=6):
+
+        self.d_model = d_model
 
         super(TransformerEncoder, self).__init__()
 
