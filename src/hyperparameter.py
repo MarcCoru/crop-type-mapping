@@ -1,9 +1,8 @@
 from argparse import Namespace
-from config import HYPERPARAMETER_PATH
 import pandas as pd
 import os
 
-def select_hyperparameter(experiment, hparamset):
+def select_hyperparameter(experiment, hparamset, hyperparameter_path):
     assert hparamset is None or isinstance(hparamset,int)
 
     # first hyperparameter tuning <- parameters used for some experiments, kept for backwards compatibility
@@ -24,7 +23,7 @@ def select_hyperparameter(experiment, hparamset):
             raise ValueError(f"could not parse experiment {experiment} (must be format <name>_<dataset>_<model>_<meta>) "
                              f"using hyperparameterset {hparamset} (row index of hyperparameter csv file).")
 
-        hyperparametercsv = os.path.join(HYPERPARAMETER_PATH,f"{model}_{dataset}.csv")
+        hyperparametercsv = os.path.join(hyperparameter_path,f"{model}_{dataset}.csv")
         if not os.path.exists(hyperparametercsv):
             raise ValueError(f"{hyperparametercsv} does not exist")
         hparams_df = pd.read_csv(hyperparametercsv, index_col=0)

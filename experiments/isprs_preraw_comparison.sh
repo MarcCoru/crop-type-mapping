@@ -7,7 +7,7 @@ experiments=$1
 case $2 in
 1)
 
-# 12 classes
+# 23 classes
 for seed in 0 1 2; do
 for experiment in $experiments; do
 python train.py -x $experiment -e $epochs -b 256 -w 0 -i 0 --store /data/isprs/preraw.isprs/$seed/ --test_every_n_epochs 1 --no-visdom --seed $seed --hparamset $seed --classmapping /data/GAFdataset/classmapping.isprs.csv --hyperparameterfolder /data/isprs/ray

@@ -6,16 +6,12 @@ import torch
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.VNRiceDataset import VNRiceDataset
 from datasets.CropsDataset import CropsDataset
-from datasets.HDF5Dataset import HDF5Dataset
 from models.TransformerEncoder import TransformerEncoder
 from datasets.ConcatDataset import ConcatDataset
 from datasets.GAFDataset import GAFDataset
 import argparse
 from utils.trainer import Trainer
-import os
-from models.wavenet_model import WaveNetModel
-from torch.utils.data.sampler import RandomSampler, SequentialSampler, BatchSampler, WeightedRandomSampler
-from sampler.imbalanceddatasetsampler import ImbalancedDatasetSampler
+from torch.utils.data.sampler import RandomSampler, SequentialSampler
 from models.rnn import RNN
 from utils.texparser import parse_run
 from utils.logger import Logger
@@ -25,36 +21,20 @@ from models.multi_scale_resnet import MSResNet
 import torch.optim as optim
 from experiments import experiments
 from models.TempCNN import TempCNN
-from config import GAFDATASET_ROOT, BAVARIAN_CROPS_ROOT
 import os
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-d','--datasets', type=str,default=None, nargs='+', help='UCR_Datasets Datasets to train on. Multiple values are allowed. '
-                                                'Will also define name of the experiment. '
-                                                'if not specified, will use all datasets of hyperparametercsv'
-                                                '(requires --hyperparametercsv)')
+        '-b', '--batchsize', type=int, default=256, help='batch size')
     parser.add_argument(
-        '-b', '--batchsize', type=int, default=32, help='Batch Size')
-    parser.add_argument(
-        '-e', '--epochs', type=int, default=100, help='number of epochs')
+        '-e', '--epochs', type=int, default=150, help='number of training epochs')
     parser.add_argument(
         '-w', '--workers', type=int, default=4, help='number of CPU workers to load the next batch')
-    parser.add_argument(
-        '--train_on', type=str, default="train", help="dataset partition to train. Choose from 'train', 'valid', "
-                                                      "'trainvalid', 'eval' (default 'train')")
-    parser.add_argument(
-        '--test_on', type=str, default="valid",
-        help="dataset partition to train. Choose from 'train', 'valid', 'trainvalid', 'eval' (default 'valid')")
-    parser.add_argument(
-        '-n', '--num_layers', type=int, default=1, help='number of stacked layers. will be interpreted as stacked '
-                                                        'RNN layers for recurrent models and as number of convolutions'
-                                                        'for convolutional models...')
     parser.add_argument('--overwrite', action='store_true',
                         help="Overwrite automatic snapshots if they exist")
-    parser.add_argument('--no-visdom', action='store_true',
-                        help="no_visdom")
+    parser.add_argument(
+        '--dataroot', type=str, default='../data', help='root to dataset. default ../data')
     parser.add_argument(
         '--classmapping', type=str, default=None, help='classmapping')
     parser.add_argument(
@@ -68,11 +48,11 @@ def parse_args():
     parser.add_argument(
         '--checkpoint_every_n_epochs', type=int, default=5, help='save checkpoints during training')
     parser.add_argument(
-        '--seed', type=int, default=None, help='seed for batching and weight initialization')
+        '--seed', type=int, default=0, help='seed for batching and weight initialization')
     parser.add_argument(
-        '--hparamset', type=int, default=None, help='rank of hyperparameter set 0: best hyperparameter')
+        '--hparamset', type=int, default=0, help='rank of hyperparameter set 0: best hyperparameter')
     parser.add_argument(
-        '-i', '--show-n-samples', type=int, default=2, help='show n samples in visdom')
+        '-i', '--show-n-samples', type=int, default=1, help='show n samples in visdom')
     args, _ = parser.parse_known_args()
 
     return args
@@ -80,7 +60,7 @@ def parse_args():
 def prepare_dataset(args):
 
     if args.dataset == "BavarianCrops":
-        root = BAVARIAN_CROPS_ROOT
+        root = os.path.join(args.dataroot,"BavarianCrops")
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()
@@ -123,7 +103,7 @@ def prepare_dataset(args):
             )
 
     elif args.dataset == "GAFv2":
-        root = GAFDATASET_ROOT
+        root = os.path.join(args.dataroot,"GAFdataset")
 
         #ImbalancedDatasetSampler
         test_dataset_list = list()
@@ -206,7 +186,7 @@ def train(args):
         learning_rate=args.learning_rate,
         show_n_samples=args.show_n_samples,
         store=store,
-        visdomlogger=visdomlogger if not args.no_visdom else None,
+        visdomlogger=visdomlogger,
         overwrite=args.overwrite,
         checkpoint_every_n_epochs=args.checkpoint_every_n_epochs,
         test_every_n_epochs=args.test_every_n_epochs,
@@ -241,10 +221,10 @@ def getModel(args):
                               num_rnn_layers=args.num_layers, dropout=args.dropout, bidirectional=True)
 
     if args.model == "msresnet":
-        model = MSResNet(input_channel=args.input_dims, layers=[1, 1, 1, 1], num_classes=args.nclasses)
+        model = MSResNet(input_channel=args.input_dims, layers=[1, 1, 1, 1], num_classes=args.nclasses, hidden_dims=args.hidden_dims)
 
     if args.model == "tempcnn":
-        model = TempCNN(input_dim=args.input_dims, nclasses=args.nclasses, sequence_length=args.samplet)
+        model = TempCNN(input_dim=args.input_dims, nclasses=args.nclasses, sequence_length=args.samplet, hidden_dims=args.hidden_dims, kernel_size=args.kernel_size)
 
     elif args.model == "transformer":
 
@@ -259,23 +239,6 @@ def getModel(args):
             d_word_vec=hidden_dims, d_model=hidden_dims, d_inner=d_inner,
             n_layers=n_layers, n_head=n_heads, d_k=hidden_dims//n_heads, d_v=hidden_dims//n_heads,
             dropout=dropout, nclasses=args.nclasses)
-
-    elif args.model == "WaveNet":
-
-        model = WaveNetModel(
-                 layers=5,
-                 blocks=4,
-                 dilation_channels=32,
-                 residual_channels=32,
-                 skip_channels=256,
-                 end_channels=args.nclasses,
-                 classes=args.nclasses,
-                 output_length=1,
-                 kernel_size=2,
-                 dtype=torch.FloatTensor,
-                 input_dims=args.input_dims,
-                 bias=False)
-
 
     if torch.cuda.is_available():
         model = model.cuda()

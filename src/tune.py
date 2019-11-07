@@ -7,17 +7,23 @@ from utils.trainer import Trainer
 import ray.tune
 from argparse import Namespace
 import torch.optim as optim
-import numpy as np
 
 from train import prepare_dataset, getModel
-
-from config import HYPERBAND_BRACKETS, HYPERBAND_GRACE_PERIOD, RAY_EPOCHS, HYPERBAND_REDUCTION_FACTOR, CLASSMAPPING, RAY_NUM_SAMPLES, RAY_TEST_EVERY
 
 from ray.tune.schedulers import AsyncHyperBandScheduler
 from ray.tune.suggest.hyperopt import HyperOptSearch
 from hyperopt import hp
 
 from utils.scheduled_optimizer import ScheduledOptim
+
+# TODO move hardcoded variables to args
+RAY_NUM_SAMPLES=300
+RAY_TEST_EVERY=2
+RAY_EPOCHS=40
+
+HYPERBAND_GRACE_PERIOD=1
+HYPERBAND_REDUCTION_FACTOR=2
+HYPERBAND_BRACKETS=4
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -34,6 +40,10 @@ def parse_args():
     parser.add_argument(
         '-m', '--max-concurrent', type=int, default=4, help='max concurrent runs')
     parser.add_argument(
+        '--classmapping', type=str, default=None, help='classmapping')
+    parser.add_argument(
+        '--dataroot', type=str, default='../data', help='root to dataset. default ../data')
+    parser.add_argument(
         '--seed', type=int, default=0, help='random seed defaults to 0')
     parser.add_argument(
         '--redis-address', type=str, default=None, help='address of ray tune head node: e.g. "localhost:6379"')
@@ -49,7 +59,6 @@ def parse_args():
 
 BavarianCrops_parameters = Namespace(
     dataset = "BavarianCrops",
-    classmapping = CLASSMAPPING,
     samplet=70,
     scheme="blocks",
     train_on="train",
@@ -63,7 +72,6 @@ GAF_parameters = Namespace(
     dataset = "GAFv2",
     trainregions = ["holl", "krum", "nowa"],
     testregions = ["holl", "krum", "nowa"],
-    classmapping = CLASSMAPPING,
     scheme="blocks",
     features="optical",
     samplet=23,
