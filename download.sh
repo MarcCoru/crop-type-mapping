@@ -18,10 +18,21 @@ function downloadmodels {
   cd ..
 }
 
+function downloadnotebookdata {
+  mkdir data
+  cd data
+  wget https://syncandshare.lrz.de/dl/fiM6b3e7eeyFAGWmAHEeoeBB/notebookdata.zip
+  unzip -o notebookdata.zip
+  rm notebookdata.zip
+  cd ..
+}
+
 if [ "$1" == "dataset" ]; then
     downloadBavarianCrops
 elif [ "$1" == "models" ]; then
     downloadmodels
+elif [ "$1" == "notebookdata" ]; then
+    downloadnotebookdata
 elif [ "$1" == "all" ]; then
     downloadBavarianCrops
     downloadmodels
