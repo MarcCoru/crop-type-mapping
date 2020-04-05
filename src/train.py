@@ -6,20 +6,20 @@ import torch
 from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 from datasets.VNRiceDataset import VNRiceDataset
 from models.TransformerEncoder import TransformerEncoder
+from models.multi_scale_resnet import MSResNet
+from models.TempCNN import TempCNN
+from models.rnn import RNN
 from datasets.ConcatDataset import ConcatDataset
 from datasets.GAFDataset import GAFDataset
 import argparse
 from utils.trainer import Trainer
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
-from models.rnn import RNN
 from utils.texparser import parse_run
 from utils.logger import Logger
 from utils.visdomLogger import VisdomLogger
 from utils.scheduled_optimizer import ScheduledOptim
-from models.multi_scale_resnet import MSResNet
 import torch.optim as optim
 from experiments import experiments
-from models.TempCNN import TempCNN
 import os
 
 def parse_args():

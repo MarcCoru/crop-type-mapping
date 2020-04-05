@@ -118,7 +118,7 @@ class Trainer():
             if self.visdom is not None:
                 self.visdom.plot_epochs(self.logger.get_data())
 
-            if self.checkpoint_every_n_epochs % self. epoch==0:
+            if self. epoch % self.checkpoint_every_n_epochs ==0:
                 print("Saving model to {}".format(self.get_model_name()))
                 self.snapshot(self.get_model_name())
                 print("Saving log to {}".format(self.get_log_name()))
@@ -186,7 +186,7 @@ class Trainer():
             if "budget" in stats.keys(): self.visdom.bar(stats["budget"][i, :], name="sample {} budget (class={})".format(i, classid))
 
     def get_model_name(self):
-        return os.path.join(self.store, "model.pth")
+        return os.path.join(self.store, f"model_e{self.epoch}.pth")
 
     def get_log_name(self):
         return os.path.join(self.store, "log.csv")
