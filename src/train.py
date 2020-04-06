@@ -3,7 +3,7 @@ sys.path.append("./models")
 
 import numpy as np
 import torch
-from datasets.BavarianCrops_Dataset import BavarianCropsDataset
+
 from datasets.VNRiceDataset import VNRiceDataset
 from models.TransformerEncoder import TransformerEncoder
 from models.multi_scale_resnet import MSResNet
@@ -11,6 +11,7 @@ from models.TempCNN import TempCNN
 from models.rnn import RNN
 from datasets.ConcatDataset import ConcatDataset
 from datasets.GAFDataset import GAFDataset
+from datasets.BavarianCrops_Dataset import BavarianCropsDataset
 import argparse
 from utils.trainer import Trainer
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
