@@ -14,15 +14,21 @@
 Feature extraction through self-attention on Raw Sentinel 2 Time Series
 ![First-Layer Attention Heads](doc/self-attention-1.gif)
 
-Source Code of 
+Source Code of
 [Rußwurm & Körner (2019), *Self-Attention for Raw Optical Satellite Time Series Classification*](https://arxiv.org/abs/1910.10536)
 
 
 ```bibtex
-@article{russwurm2019self,
-  title={Self-Attention for Raw Optical Satellite Time Series Classification},
-  author={Ru{\ss}wurm, Marc and K{\"o}rner, Marco},
-  year={2019}
+@article{russwurm2020,
+title = "Self-attention for raw optical Satellite Time Series Classification",
+journal = "ISPRS Journal of Photogrammetry and Remote Sensing",
+volume = "169",
+pages = "421 - 435",
+year = "2020",
+issn = "0924-2716",
+doi = "https://doi.org/10.1016/j.isprsjprs.2020.06.006",
+url = "http://www.sciencedirect.com/science/article/pii/S0924271620301647",
+author = "Marc Rußwurm and Marco Körner",
 }
 ```
 
@@ -53,7 +59,7 @@ pip install -r requirements.txt
 <!--
 Build docker container
 ```
-docker build -t croptypemapping . 
+docker build -t croptypemapping .
 ```
 -->
 
@@ -61,11 +67,11 @@ docker build -t croptypemapping .
 
 download raw Sentinel 2 crop type label dataset to `data/BavarianCrops` via
 ```bash
-bash download.sh dataset 
+bash download.sh dataset
 ```
 and the pretrained models for hyperparameter tuning and evaluation via
 ```bash
-bash download.sh models 
+bash download.sh models
 ```
 or both with `bash download.sh all`
 
@@ -125,4 +131,3 @@ https://github.com/geekfeiw/Multi-Scale-1D-ResNet
 * Original Tensorflow TempCNN implementation by [Charlotte Pelletier](https://github.com/charlotte-pel)
 
 https://github.com/charlotte-pel/igarss2019-dl4sits
-
