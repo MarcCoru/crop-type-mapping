@@ -85,17 +85,17 @@ start visdom server by running `visdom` in conda environment and open `http://lo
 train from scratch (23 classes) with hyperparameters defined in `../models/tune/23classes/transformer_tum.csv`.
 Working directory is `src`
 ```bash
-python train.py --experiment isprs_tum_transformer \\
-    --store /tmp/
-    --classmapping ../data/BavarianCrops/classmapping23.csv \\
+python train.py --experiment isprs_tum_transformer \
+    --store /tmp/ \
+    --classmapping ../data/BavarianCrops/classmapping23.csv \
     --hyperparameterfolder ../models/tune/23classes
 ```
 
 to continue training with 23 classes point `--store` to an existing model
 ```bash
-python train.py --experiment isprs_tum_transformer \\
-    --store ../models/train/23classes/0
-    --classmapping ../data/BavarianCrops/classmapping23.csv \\
+python train.py --experiment isprs_tum_transformer \
+    --store ../models/train/23classes/0 \
+    --classmapping ../data/BavarianCrops/classmapping23.csv \
     --hyperparameterfolder ../models/tune/23classes
 ```
 
@@ -110,9 +110,9 @@ hyperparameter folder: folder with results of ray-tune results implemented in `t
 [Ray-Tune](https://ray.readthedocs.io/en/latest/tune.html) allows hyperparameter tuning of multiple models in parallel.
 Execute in `src`
 ```bash
-python tune.py --experiment transformer_tum \\
-    -g 0.5 -c 2 -b 64 --local_dir ../models/tune --seed 0 \\
-    --classmapping $PWD/../data/BavarianCrops/classmapping23.csv \\
+python tune.py --experiment transformer_tum \
+    -g 0.5 -c 2 -b 64 --local_dir ../models/tune --seed 0 \
+    --classmapping $PWD/../data/BavarianCrops/classmapping23.csv \
     --dataroot $PWD/../data
 ```
 to train two models per GPU and store results in `../models/tune`.
