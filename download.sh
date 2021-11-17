@@ -3,7 +3,7 @@
 function downloadBavarianCrops {
   mkdir data
   cd data
-  wget https://syncandshare.lrz.de/dl/fiTz2V5A9qTJ22u1hV5L9KkW/BavarianCrops.zip
+  wget https://zenodo.org/record/5707142/files/BavarianCrops.zip
   unzip -o BavarianCrops.zip
   rm BavarianCrops.zip
   cd ..
@@ -12,7 +12,7 @@ function downloadBavarianCrops {
 function downloadmodels {
   mkdir models
   cd models
-  wget https://syncandshare.lrz.de/dl/fiDPbxSuwQYJyB5GUdLXv4nZ/models.zip
+  wget https://zenodo.org/record/5707142/files/models.zip
   unzip -o models.zip
   rm models.zip
   cd ..
@@ -30,7 +30,7 @@ function downloadnotebookdata {
 function downloaddataduplo {
   mkdir models
   cd models
-  wget https://syncandshare.lrz.de/dl/fiDLLQghUmfmqeHpNrp5VmxH/duplo.zip
+  wget https://zenodo.org/record/5707142/files/duplo.zip
   unzip -o duplo.zip
   rm duplo.zip
   cd ..
