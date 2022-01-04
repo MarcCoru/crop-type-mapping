@@ -21,7 +21,7 @@ function downloadmodels {
 function downloadnotebookdata {
   mkdir data
   cd data
-  wget https://syncandshare.lrz.de/dl/fiM6b3e7eeyFAGWmAHEeoeBB/notebookdata.zip
+  wget https://zenodo.org/record/5707142/files/notebookdata.zip
   unzip -o notebookdata.zip
   rm notebookdata.zip
   cd ..
